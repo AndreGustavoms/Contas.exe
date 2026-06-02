@@ -2,44 +2,63 @@
 
 ## Projeto
 
-Contas-flow.
+Contas.exe.
+
+## Dono e uso
+
+O projeto e do Andre e sera usado localmente para facilitar tarefas de
+organizacao de contas, emails, usuarios e senhas.
 
 ## Objetivo atual
 
-Criar uma base de aplicacao para organizar e facilitar fluxos de criacao de contas, usando o Felixo System Design como padrao obrigatorio.
+Manter um organizador local de acessos por plataforma, funcao, status e 2FA. A
+referencia de trabalho inclui redes como YouTube, Instagram, TikTok, Facebook e
+Kwai, alem de funcoes como postagem, apoio, conta estrela, nicho e recuperacao.
 
 ## Decisoes tecnicas
 
-- Frontend iniciado com React 18, TypeScript, Vite e Tailwind CSS 3.
-- Componentes base ficam em `src/components/ui`.
-- A primeira tela e um painel operacional, sem landing page.
-- Dados iniciais ficam mockados em `src/data/account-flows.ts`.
-- O core do Felixo System Design foi copiado para `docs/design-system/core`.
+- Frontend em React 18, TypeScript, Vite e Tailwind CSS 3.
+- Dados persistidos em `storage/accounts.json` por API local Node.
+- Tela de acesso local antes do cofre: nome `Vitissouls` e senha `Vitissouls`.
+- Temas disponiveis: Andre, Dark e White. O tema Andre usa preto com roxo neon.
+- `localStorage` fica apenas como fallback/migracao.
+- Estado inicial vazio para evitar credenciais reais no codigo.
+- Backup manual por exportacao/importacao JSON.
+- Sem servico externo nesta fase.
+- Fonte externa removida para reduzir dependencia de rede no uso local.
+- Pasta antiga de design system, build `dist`, logs de servidor e MVP de fluxos
+  foram removidos.
+- Listas, filtros e registros devem seguir ordem alfabetica.
 
-## Padroes ativos
+## Regras de seguranca
 
-- Ler `docs/design-system/core/GUIA_MINIMO_QUALIDADE.md` antes de mudancas relevantes.
-- Para frontend, seguir `docs/design-system/core/DESIGN_SYSTEM_FRONTEND.md`.
-- Para backend futuro, seguir `docs/design-system/core/DESIGN_SYSTEM_BACKEND.md`.
-- Manter README e este arquivo atualizados quando decisoes estruturais mudarem.
+- Nao salvar senhas reais em arquivos versionados.
+- Nao commitar `storage/accounts.json` nem backups JSON exportados.
+- Lembrar que o arquivo local e backup JSON nao sao criptografados.
+- Se o app passar a ser usado por mais pessoas, priorizar criptografia local ou
+  backend com cofre seguro antes de compartilhar dados sensiveis.
 
-## Funcionalidades criadas
+## Funcionalidades atuais
 
-- Painel de fluxo de contas.
-- Metricas de prontos, pendencias e total de fluxos.
-- Busca por nome, responsavel ou canal.
-- Filtro por status.
-- Criacao local de fluxo.
-- Checklist com alternancia de etapas e recalculo de progresso.
+- Login local simples.
+- Alternancia de tema.
+- Cadastro e edicao de contas.
+- Cadastro guiado em modal.
+- Busca global.
+- Filtros por plataforma/funcao e abas de status.
+- Copia rapida de email e usuario.
+- Exibicao/ocultacao de senha.
+- Status: ativa, revisar e arquivada.
+- Marcacao de 2FA.
+- Exportacao/importacao de backup JSON.
 
-## Proximos passos
+## Proximos passos possiveis
 
-- Definir modelo real de dados.
-- Escolher se o backend sera Django + SQLite, conforme padrao preferido do design system.
-- Persistir fluxos criados.
-- Adicionar autenticacao quando houver usuarios reais.
-- Criar testes automatizados para regras de progresso e filtros quando a regra estabilizar.
+- Importar a planilha de rede de amplificacao para gerar registros iniciais.
+- Adicionar criptografia local com senha mestra.
+- Criar campos customizados por plataforma.
+- Criar testes para filtros, persistencia e importacao de backup.
 
 ## Verificacoes
 
-- Build deve ser validado com `npm run build`.
+- Validar TypeScript e build com `npm run build`.
