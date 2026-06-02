@@ -1,11 +1,41 @@
 node_modules
 dist
+
+# --- Segredos / credenciais (NUNCA comitar) ---
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+client_secret*.json
+credentials*.json
+service-account*.json
+
+# --- Dados locais sensiveis: senhas, contas e tokens OAuth ---
+# Ignora TODO o conteudo de storage/ (groups.json, accounts.json, youtube.json,
+# backups), mantendo apenas o .gitkeep para a pasta existir no repositorio.
+storage/*
+!storage/.gitkeep
+
+# Script de seed com emails/senhas reais (uso local apenas, NUNCA comitar)
+scripts/seed-accounts.mjs
+
+# Backups exportados pelo app (contem senhas)
+*.backup.json
+backups/
+contas-flow-backup-*.json
+contas-*.json
+
+# --- Logs ---
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 dev-server*.log
+api-server*.log
+local-server*.log
+
+# --- Sistema / diversos ---
 .DS_Store
+gitignore.md

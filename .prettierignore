@@ -1,4 +1,4 @@
 dist
 node_modules
-docs/design-system
 dev-server*.log
+*.backup.json
