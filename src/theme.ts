@@ -2,7 +2,7 @@ import { Moon, Sparkles, Sun, type LucideIcon } from "lucide-react";
 
 export type AppTheme = "andre" | "dark" | "white";
 
-export const THEME_STORAGE_KEY = "contas-exe.theme.v1";
+export const THEME_STORAGE_KEY = "contas_exe.theme.v1";
 
 export const themeOptions: Array<{
   icon: LucideIcon;

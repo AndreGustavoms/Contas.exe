@@ -2,7 +2,7 @@
 
 ## Projeto
 
-Contas.exe.
+Contas_exe.
 
 ## Dono e uso
 

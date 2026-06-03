@@ -1,4 +1,4 @@
-# Arquitetura do Contas.exe
+# Arquitetura do Contas_exe
 
 Cofre local de contas/senhas de redes sociais, organizado em **grupos**. Roda
 na própria máquina: frontend Vite + uma API Node simples que persiste em
@@ -103,7 +103,7 @@ Fora de `/api/`, serve a build de `dist/` (SPA fallback para `index.html`).
 
 ### Persistência no cliente
 `account-vault.tsx` busca os grupos e as contas do grupo ativo via API e
-espelha em `localStorage` (`contas-flow.accounts.v1`) como cache. A API é a
+espelha em `localStorage` (`contas_exe.accounts.v1`) como cache. A API é a
 fonte da verdade; se ela estiver fora, aparece "API offline".
 
 ---

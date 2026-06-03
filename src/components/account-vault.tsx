@@ -68,7 +68,7 @@ import {
 } from "./ui/card";
 import { Input } from "./ui/input";
 
-const STORAGE_KEY = "contas-flow.accounts.v1";
+const STORAGE_KEY = "contas_exe.accounts.v1";
 const API_GROUPS = "/api/groups";
 const ALL = "all";
 
@@ -922,7 +922,7 @@ export function AccountVault({
             <BrandLogo />
             <div className="min-w-0">
               <p className="truncate font-mono text-sm font-semibold tracking-wide text-[color:var(--text)]">
-                Contas.exe
+                Contas_exe
               </p>
             </div>
           </div>
@@ -2239,7 +2239,7 @@ function BrandLogo() {
     <div className="brand-mark relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
       <img
         src="/logo.png"
-        alt="Contas.exe"
+        alt="Contas_exe"
         className="h-full w-full object-cover"
       />
       <span className="status-dot absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">

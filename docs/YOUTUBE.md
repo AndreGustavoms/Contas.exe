@@ -1,6 +1,6 @@
 # Integração YouTube (publicar e agendar vídeos)
 
-Este documento descreve a integração do Contas.exe com a **YouTube Data API
+Este documento descreve a integração do Contas_exe com a **YouTube Data API
 v3** para fazer upload e **agendar** a publicação de vídeos nos canais do
 próprio usuário.
 
@@ -33,7 +33,7 @@ múltiplas contas" — então não conte com isso.
 ## Passo a passo no Google Cloud (o que só você faz)
 
 ### 1. Projeto + ativar a API
-1. Acesse <https://console.cloud.google.com> e crie um projeto (ex.: `Contas exe`).
+1. Acesse <https://console.cloud.google.com> e crie um projeto (ex.: `Contas_exe`).
 2. **APIs e Serviços → Biblioteca** → busque **"YouTube Data API v3"** → **Ativar**.
 
 ### 2. Tela de consentimento OAuth

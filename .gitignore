@@ -24,7 +24,7 @@ scripts/seed-accounts.mjs
 # Backups exportados pelo app (contem senhas)
 *.backup.json
 backups/
-contas-flow-backup-*.json
+contas_exe-backup-*.json
 contas-*.json
 
 # --- Logs ---

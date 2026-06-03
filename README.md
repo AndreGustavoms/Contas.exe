@@ -1,4 +1,4 @@
-# Contas.exe
+# Contas_exe
 
 Projeto local do Andre para organizar emails, usuarios, contas e senhas de
 redes sociais, organizados em **grupos** (perfis/contextos).

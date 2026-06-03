@@ -498,5 +498,5 @@ const server = createServer(async (request, response) => {
 await readDb();
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Contas.exe API: http://127.0.0.1:${port}`);
+  console.log(`Contas_exe API: http://127.0.0.1:${port}`);
 });

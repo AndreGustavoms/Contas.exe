@@ -6,9 +6,13 @@ import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export const LOCAL_LOGIN_NAME = "André";
-export const LOCAL_LOGIN_PASSWORD = "__REDACTED__";
-export const LOCAL_SESSION_KEY = "contas-exe.local-session.v1";
+// Credenciais do login local NUNCA ficam hardcoded no codigo (o repo e publico).
+// Defina no arquivo .env (que esta no .gitignore) as variaveis:
+//   VITE_LOCAL_LOGIN_NAME e VITE_LOCAL_LOGIN_PASSWORD
+// Veja .env.example.
+export const LOCAL_LOGIN_NAME = import.meta.env.VITE_LOCAL_LOGIN_NAME ?? "";
+export const LOCAL_LOGIN_PASSWORD = import.meta.env.VITE_LOCAL_LOGIN_PASSWORD ?? "";
+export const LOCAL_SESSION_KEY = "contas_exe.local-session.v1";
 
 type LocalLoginProps = {
   onThemeChange: (theme: AppTheme) => void;
@@ -28,6 +32,11 @@ export function LocalLogin({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!LOCAL_LOGIN_NAME || !LOCAL_LOGIN_PASSWORD) {
+      setError("Login nao configurado. Defina VITE_LOCAL_LOGIN_* no .env.");
+      return;
+    }
 
     if (name.trim() === LOCAL_LOGIN_NAME && password === LOCAL_LOGIN_PASSWORD) {
       setError("");
@@ -54,7 +63,7 @@ export function LocalLogin({
             <div className="brand-mark relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
               <img
                 src="/logo.png"
-                alt="Contas.exe"
+                alt="Contas_exe"
                 className="h-full w-full object-cover"
               />
               <span className="status-dot absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
@@ -63,7 +72,7 @@ export function LocalLogin({
             </div>
             <div>
               <p className="font-mono text-base font-semibold tracking-wide text-[color:var(--text)]">
-                Contas.exe
+                Contas_exe
               </p>
             </div>
           </div>
