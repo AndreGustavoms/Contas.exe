@@ -58,3 +58,48 @@ Se aparecer qualquer credencial real no resultado, **não comite** — mova o va
    ou `git filter-repo`), expire o reflog (`git reflog expire --expire=now --all`),
    rode `git gc --prune=now` e faça `git push --force`.
 4. Avise quem tiver clonado o repositório para refazer o clone.
+
+## E-mail do autor nos commits
+
+O e-mail configurado no git aparece **publicamente** em cada commit. Para não
+expor o e-mail pessoal, este repositório usa o **e-mail privado do GitHub**:
+
+```bash
+git config user.name  "AndreGustavoms"
+git config user.email "133678902+AndreGustavoms@users.noreply.github.com"
+```
+
+Ative também, em **GitHub → Settings → Emails → "Keep my email addresses private"**
+e **"Block command line pushes that expose my email"**, para o GitHub recusar
+pushes que vazariam o e-mail real.
+
+## Auditoria de histórico (2026-06-03)
+
+Foi feita uma revisão de **100% dos commits e blobs** (12 commits, 137 objetos,
+todas as refs e versões deletadas). Resultado:
+
+- ✅ Nenhuma chave de API, token OAuth ou chave privada em commit algum.
+- ✅ Senha a senha que estava hardcoded removida de todo o histórico (estava hardcoded).
+- ✅ E-mail pessoal o e-mail pessoal do autor removido dos 12 commits
+  (substituído pelo e-mail privado do GitHub).
+- ✅ `initialAccounts` vazio em todas as versões; `.env.example` sempre em branco.
+- ✅ `.env`, `storage/*.json`, `seed-accounts.mjs`, `client_secret*.json` e backups
+  **nunca** existiram no histórico.
+- ✅ Nenhum telefone, CPF ou cartão; URLs/números encontrados eram placeholders
+  de UI, coordenadas de ícones SVG e exemplos de documentação.
+
+### Como reauditar (rodar antes de tornar público de novo ou periodicamente)
+
+```bash
+# Segredos (chaves/tokens/private keys) em TODOS os blobs de TODOS os commits
+for c in $(git rev-list --all); do
+  git ls-tree -r --name-only "$c" | while read f; do
+    git show "$c:$f" 2>/dev/null | grep -nIaE \
+      "(AIza[0-9A-Za-z_-]{15,}|ya29\.|GOCSPX-|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)" \
+      && echo "  ^ em $f @ ${c:0:7}"
+  done
+done
+
+# E-mails reais de autor no histórico
+git log --all --format="%ae %ce" | sort -u
+```
