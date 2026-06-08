@@ -2238,9 +2238,9 @@ function BrandLogo() {
   return (
     <div className="brand-mark relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
       <img
-        src="/logo.png"
+        src="/logo-square.png"
         alt="Contas_exe"
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain p-1"
       />
       <span className="status-dot absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
         <span className="h-1.5 w-1.5 rounded-full" />

@@ -60,16 +60,16 @@ export function LocalLogin({
       )}
     >
       <form
-        className="app-panel login-card vault-card animate-pop-in w-full max-w-xl overflow-hidden rounded-[34px] border p-6 backdrop-blur-2xl sm:p-8"
+        className="app-panel login-card vault-card animate-pop-in w-full max-w-xl overflow-visible rounded-[34px] border p-6 backdrop-blur-2xl sm:p-8"
         onSubmit={handleSubmit}
       >
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="brand-mark relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border">
               <img
-                src="/logo.png"
+                src="/logo-square.png"
                 alt="Contas_exe"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain p-1"
               />
               <span className="status-dot absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border">
                 <span className="h-1.5 w-1.5 rounded-full" />
@@ -81,7 +81,11 @@ export function LocalLogin({
               </p>
             </div>
           </div>
-          <ThemeToggle value={theme} onChange={onThemeChange} />
+          <ThemeToggle
+            value={theme}
+            onChange={onThemeChange}
+            menuPlacement="down"
+          />
         </div>
 
         <div className="mt-9 space-y-5">
