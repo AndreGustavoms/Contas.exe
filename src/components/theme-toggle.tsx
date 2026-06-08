@@ -62,7 +62,7 @@ export function ThemeToggle({ onChange, value }: ThemeToggleProps) {
       </button>
 
       {open ? (
-        <div className="animate-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-40 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--panel-strong)] p-1.5 shadow-[0_24px_70px_var(--accent-glow)] backdrop-blur-2xl">
+        <div className="theme-toggle-menu animate-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-40 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--panel-strong)] p-1.5 shadow-[0_24px_70px_var(--accent-glow)] backdrop-blur-2xl">
           {themeOptions.map((option) => {
             const Icon = option.icon;
             const selected = option.value === value;

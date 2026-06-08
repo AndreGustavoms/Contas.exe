@@ -39,3 +39,6 @@ local-server*.log
 # --- Sistema / diversos ---
 .DS_Store
 gitignore.md
+
+# --- Ferramentas locais (config da maquina, nao do repo) ---
+.claude/

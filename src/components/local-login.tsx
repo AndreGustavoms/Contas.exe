@@ -87,7 +87,7 @@ export function LocalLogin({
         <div className="mt-9 space-y-5">
           <label className="grid gap-1.5">
             <span className="text-xs font-medium text-[color:var(--muted)]">
-              Nome
+              Usuário
             </span>
             <Input
               autoFocus
