@@ -591,7 +591,10 @@ export function AccountVault({
   }
 
   function deleteGroup() {
-    if (!activeGroup || groups.length <= 1) {
+    // Deleting is allowed as long as a group is selected — even the last one.
+    // The server accepts it and the UI falls back to the empty state (no active
+    // group), from which "Criar novo grupo" is still reachable.
+    if (!activeGroup) {
       return;
     }
 
@@ -1912,7 +1915,8 @@ function GroupSwitcher({
             <Users className="h-4 w-4 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
           </span>
           <span className="min-w-0 flex-1 truncate">
-            {activeGroup?.name ?? "Carregando..."}
+            {activeGroup?.name ??
+              (groups.length === 0 ? "Nenhum grupo" : "Carregando...")}
           </span>
           <ChevronDown
             className={cn(
@@ -1995,6 +1999,7 @@ function GroupSwitcher({
           <GroupMenuItem
             icon={Pencil}
             label={`Renomear "${activeGroup?.name ?? "grupo"}"`}
+            disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
               onRename();
@@ -2004,7 +2009,7 @@ function GroupSwitcher({
             danger
             icon={Trash}
             label={`Excluir "${activeGroup?.name ?? "grupo"}"`}
-            disabled={groups.length <= 1}
+            disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
               onDelete();
