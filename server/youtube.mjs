@@ -16,6 +16,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { google } from "googleapis";
+import { decryptField, encryptField } from "./crypto.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const storageDir = join(rootDir, "storage");
@@ -48,12 +49,20 @@ function createOAuthClient() {
 
 // ----- Token storage (channels) -----
 // Shape: { channels: [{ id, title, refreshToken, connectedAt }] }
+// refreshToken is encrypted at rest (see server/crypto.mjs); the rest of this
+// module works with the decrypted token in memory.
 
 async function readTokens() {
   try {
     const raw = await readFile(tokensFile, "utf8");
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.channels) ? parsed : { channels: [] };
+    if (!Array.isArray(parsed?.channels)) return { channels: [] };
+    for (const channel of parsed.channels) {
+      if (channel.refreshToken != null) {
+        channel.refreshToken = decryptField(channel.refreshToken);
+      }
+    }
+    return parsed;
   } catch {
     return { channels: [] };
   }
@@ -61,7 +70,18 @@ async function readTokens() {
 
 async function writeTokens(data) {
   await mkdir(storageDir, { recursive: true });
-  await writeFile(tokensFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  // Encrypt on a deep copy so the caller's in-memory token stays plaintext.
+  const encrypted = structuredClone(data);
+  for (const channel of encrypted.channels ?? []) {
+    if (channel.refreshToken != null) {
+      channel.refreshToken = encryptField(channel.refreshToken);
+    }
+  }
+  await writeFile(
+    tokensFile,
+    `${JSON.stringify(encrypted, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 async function saveChannel(channel) {

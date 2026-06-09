@@ -1,67 +1,109 @@
 # Arquitetura do Contas_exe
 
-Cofre local de contas/senhas de redes sociais, organizado em **grupos**. Roda
-na própria máquina: frontend Vite + uma API Node simples que persiste em
-arquivos JSON.
+Cofre de contas/senhas de redes sociais para **equipes**, organizado em
+**grupos** com login por usuário e criptografia em repouso. Um único serviço
+Node serve a API e o frontend buildado; a persistência é em arquivos JSON.
 
 ```
-Navegador (React/Vite, :5175)
-        │  fetch /api/*  (Vite faz proxy de /api → :8787)
+Navegador (React/Vite, :5175 em dev)
+        │  fetch /api/*  (Vite faz proxy de /api → :8787 em dev)
         ▼
-API Node (server/index.mjs, :8787)  ── http nativo, roteamento por regex
-        │
+API Node (server/index.mjs)  ── http nativo, roteamento por regex
+        │                         auth de sessão + ownership por grupo
         ▼
 storage/  (arquivos JSON, git-ignored)
-  ├─ groups.json     # grupos + contas
-  └─ youtube.json    # tokens OAuth dos canais (ver docs/YOUTUBE.md)
+  ├─ users.json      # usuários (logins) + hashes scrypt
+  ├─ groups.json     # grupos + contas (campos sensíveis cifrados)
+  └─ youtube.json    # refresh tokens OAuth dos canais (cifrados)
 ```
 
-`scripts/local-dev.mjs` sobe API + Vite juntos (`npm run local`).
+Em produção é **um serviço só**: o `server/index.mjs` serve `/api/*` e também o
+build estático de `dist/`. `scripts/local-dev.mjs` sobe API + Vite juntos em dev
+(`npm run local`).
 
 ---
 
-## Modelo de dados — Grupos
+## Modelo de dados
 
-As contas vivem dentro de **grupos** (perfis/contextos). `storage/groups.json`:
+### Usuários — `storage/users.json`
+
+```json
+{
+  "users": [
+    { "id": "uuid", "username": "andre", "role": "admin",
+      "passwordHash": "scrypt:N:r:p:saltHex:hashHex", "createdAt": "ISO" }
+  ]
+}
+```
+
+- Papéis: **admin** (vê todos os grupos, gerencia usuários e backup) e **member**
+  (vê só os próprios grupos). Ver `server/users.mjs`.
+- Senhas: hash **scrypt** com salt por usuário; nunca em texto plano.
+- O admin inicial é semeado de `APP_AUTH_USER` / `APP_AUTH_PASSWORD` quando o
+  arquivo ainda não existe.
+
+### Grupos e contas — `storage/groups.json`
 
 ```json
 {
   "groups": [
-    { "id": "uuid", "name": "Vitissouls", "accounts": [ /* AccountRecord[] */ ] }
-  ],
-  "activeGroupId": "uuid"
+    { "id": "uuid", "name": "Vitissouls", "ownerId": "uuid",
+      "accounts": [ /* AccountRecord[] */ ] }
+  ]
 }
 ```
 
-- **Migração automática:** na primeira execução com o formato novo, se existir
-  um `storage/accounts.json` antigo (array plano), o servidor cria um grupo
-  **"Vitissouls"** com aquelas contas. O arquivo antigo é preservado.
+- **Ownership:** cada grupo tem `ownerId`. Um membro só acessa grupos que possui;
+  o admin vê todos. O "grupo ativo" é estado **do navegador** (localStorage,
+  namespaceado por usuário), não do servidor.
+- **Migração automática:** se existir um `storage/accounts.json` antigo (array
+  plano), o servidor cria um grupo **"Vitissouls"** com aquelas contas (o arquivo
+  antigo é preservado) e o atribui ao admin no startup (`backfillOwners`).
 - **Importar** um backup **cria um grupo novo** (não mistura com os existentes).
-- **Exportar** salva **apenas o grupo ativo**, identificado pelo nome (arquivo
-  `contas-<grupo>-AAAA-MM-DD.json`, com `"group": "<nome>"` dentro).
+- **Exportar** salva **apenas o grupo ativo** (`contas-<grupo>-AAAA-MM-DD.json`).
+  O **backup completo** (admin) exporta tudo.
 
 `AccountRecord` (ver `src/data/credential-records.ts`): `id, platform, role,
 owner, label, email, username, password, recoveryEmail, phone, status,
-twoFactor, postDay, niche, notes, updatedAt`.
+twoFactor, postDay, niche, notes, updatedAt`. Cifrados em repouso: `password`,
+`recoveryEmail`, `phone`, `notes`.
 
 Ordenação das contas: **alfabética por `email`** (chave primária), depois pelos
 demais campos como desempate. Ver `sortAccounts` em `account-vault.tsx`.
 
 ---
 
-## API local (`server/index.mjs`)
+## API (`server/index.mjs`)
 
-Sem framework: um `createServer` com despacho por `URL` + regex. CORS liberado
-(uso local). Helpers: `readDb`/`writeDb`, `normalizeRecord`, `sendJson`.
+Sem framework: um `createServer` com despacho por `URL` + regex. Helpers:
+`readDb`/`writeDb`, `normalizeRecord`, `sendJson`, `requireUser`, `canSeeGroup`.
 
-### Grupos
+**Gate:** todo `/api/*` exige sessão válida, **exceto** `/api/health`,
+`/api/auth/*` e `/api/youtube/callback`. O dispatcher resolve o usuário uma vez
+(`requireUser`) e passa adiante. CORS é same-origin por padrão (sem `*`).
+
+### Auth
 | Método | Rota | Ação |
 | --- | --- | --- |
-| GET | `/api/groups` | Lista grupos (`{id,name,count}`) + `activeGroupId`. |
-| POST | `/api/groups` | Cria grupo. |
-| PUT | `/api/groups/active` | Define o grupo ativo. |
+| POST | `/api/auth/login` | Valida credenciais (scrypt), emite cookie de sessão. Rate-limited. |
+| POST | `/api/auth/logout` | Encerra a sessão. |
+| GET | `/api/auth/status` | Diz se há sessão e quem é (`{authenticated, user}`). |
+
+### Usuários (admin)
+| Método | Rota | Ação |
+| --- | --- | --- |
+| GET | `/api/users` | Lista usuários (sem hashes). |
+| POST | `/api/users` | Cria usuário (`username`, `password`, `role`). |
+| DELETE | `/api/users/:id` | Remove usuário (re-atribui os grupos dele ao admin). |
+| PUT | `/api/users/:id/password` | Reseta a senha de um usuário. |
+
+### Grupos (ownership-scoped)
+| Método | Rota | Ação |
+| --- | --- | --- |
+| GET | `/api/groups` | Lista grupos **visíveis** (`{id,name,ownerId,count}`). |
+| POST | `/api/groups` | Cria grupo (dono = criador). |
 | PUT | `/api/groups/:id` | Renomeia grupo. |
-| DELETE | `/api/groups/:id` | Exclui grupo (bloqueia o último). |
+| DELETE | `/api/groups/:id` | Exclui grupo. |
 
 ### Contas (dentro de um grupo)
 | Método | Rota | Ação |
@@ -72,7 +114,16 @@ Sem framework: um `createServer` com despacho por `URL` + regex. CORS liberado
 | PUT | `/api/groups/:groupId/accounts/:id` | Edita conta. |
 | DELETE | `/api/groups/:groupId/accounts/:id` | Remove conta. |
 
+Em todas as rotas de grupo/conta, um recurso que o usuário não pode ver responde
+**404** (não revela existência). Ver `canSeeGroup`/`resolveOwnedGroup`.
+
+### Backup (admin)
+| Método | Rota | Ação |
+| --- | --- | --- |
+| GET | `/api/admin/backup` | Baixa todos os grupos/contas (texto plano, sem hashes de senha). |
+
 ### YouTube
+OAuth em pausa; o endpoint de upload está **desativado** (503) por segurança.
 Ver **[docs/YOUTUBE.md](./YOUTUBE.md)**.
 
 ### Estáticos
@@ -82,39 +133,64 @@ Fora de `/api/`, serve a build de `dist/` (SPA fallback para `index.html`).
 
 ## Frontend (`src/`)
 
-- `App.tsx` — alterna entre `LocalLogin` (acesso) e `AccountVault` (cofre);
-  guarda o tema (localStorage) e a sessão (sessionStorage).
+- `App.tsx` — alterna entre `LocalLogin` e `AccountVault`; consulta
+  `/api/auth/status` no mount e guarda o usuário logado (`{username, role}`) e o
+  tema (localStorage). O papel do usuário dirige as features de admin.
 - `components/account-vault.tsx` — **tela principal**: navbar, sidebar
-  (seletor de grupo + engrenagem de ações + lista de redes + botão Sair),
-  lista de registros, busca/filtro, wizard de cadastro, quick view, e os
-  modais (`ModalShell`, `GroupDialog`, `ConfirmDialog` com o "radar").
-- `components/local-login.tsx` — tela de acesso local.
-- `components/platform-icons.tsx` — glyphs de marca (YouTube, Instagram com
-  gradiente, TikTok com glitch ciano/magenta, Kwai oficial, Facebook).
-- `components/theme-toggle.tsx` — seletor de tema (ícone + dropdown).
+  (seletor de grupo + engrenagem de ações + lista de redes + **Equipe** (admin) +
+  Sair), lista de registros, busca/filtro, wizard de cadastro, quick view, e os
+  modais (`ModalShell`, `GroupDialog`, `ConfirmDialog`).
+- `components/users-dialog.tsx` — painel **Equipe** (só admin): criar/remover
+  usuários e baixar o backup completo.
+- `components/local-login.tsx` — tela de login.
+- `components/platform-icons.tsx` — glyphs de marca (YouTube, Instagram, TikTok,
+  Kwai, Facebook).
+- `components/theme-toggle.tsx` — seletor de tema.
+- `components/ui/` — `button` (com variante `neon`), `input`, `switch`,
+  `spinner`, `toast`, `card`, `badge`.
 - `data/credential-records.ts` — tipos, `platformOptions`, `roleOptions`.
 - `theme.ts` + `index.css` — 3 temas (`andre`, `dark`, `white`) por variáveis
-  CSS. Regras importantes:
-  - Texto principal de alto contraste por tema; badges de status com cores
-    legíveis nos 3 modos (classes `badge-*`).
-  - Navbar com glass translúcido (`--navbar-glass` por tema + `backdrop-filter`).
-  - Animações `.radar-wave`/`.radar-dot` (pílula "Social access hub") e
-    `.balanced-text` (quebra de linha equilibrada).
+  CSS. Os componentes "uiverse" (borda neon, label flutuante, switch, spinner,
+  toast, spotlight) são todos tingidos por essas variáveis, então funcionam nos 3
+  temas. Tudo respeita `prefers-reduced-motion`.
 
 ### Persistência no cliente
-`account-vault.tsx` busca os grupos e as contas do grupo ativo via API e
-espelha em `localStorage` (`contas_exe.accounts.v1`) como cache. A API é a
-fonte da verdade; se ela estiver fora, aparece "API offline".
+`account-vault.tsx` busca os grupos e as contas do grupo ativo via API e espelha
+em `localStorage` como cache. **As chaves são namespaceadas por usuário**
+(`contas_exe.accounts.v1:<username>`, `contas_exe.activeGroup.v1:<username>`)
+para que, num navegador compartilhado, o estado de um colega não vaze para o
+próximo. A API é a fonte da verdade; se ela estiver fora, aparece "API offline".
 
 ---
 
 ## Segurança / avisos
 
-- Senhas e tokens ficam em **texto plano** nos JSON de `storage/` — prático
-  para uso local, **não é criptografia**.
+- **Criptografia em repouso (AES-256-GCM):** com `CONTAS_FLOW_ENC_KEY` definida,
+  os campos sensíveis das contas (`password`, `recoveryEmail`, `phone`, `notes`)
+  e os refresh tokens do YouTube são cifrados no disco (formato `enc:v1:...`),
+  com IV aleatório por valor e tag de autenticação (detecta adulteração). Em
+  memória e na API o servidor sempre usa texto plano; a cifragem vive só na
+  borda de I/O (`readDb`/`writeDb`, `readTokens`/`writeTokens`). Ver
+  `server/crypto.mjs`. **Sem a chave**, esses campos ficam em texto plano (uso
+  local). A migração de um arquivo antigo (texto plano) para cifrado é
+  automática e idempotente: ao subir com a chave, o servidor re-grava o store
+  cifrado no startup.
+  - A chave é a **única** forma de decifrar: se perdida, os campos cifrados são
+    irrecuperáveis. Guarde-a separada do volume de dados.
+- **Login:** multiusuário com hash **scrypt** (salt por usuário) em
+  `users.json`; sessão via cookie HttpOnly + `SameSite=Strict` (+ `Secure` em
+  HTTPS). Ver `server/users.mjs`.
+- **Endurecimento:** rate limit no login (por IP; usa o IP real do socket ou,
+  atrás de proxy, o entry confiável do `X-Forwarded-For` via
+  `CONTAS_FLOW_TRUSTED_PROXIES`), headers de segurança (CSP, HSTS, X-Frame-Options,
+  nosniff), limite de tamanho de requisição, e erros que não vazam detalhes
+  internos.
+- **Proteção de dados:** `readDb` nunca sobrescreve `groups.json` em caso de erro
+  de leitura/decifragem — só um arquivo inexistente dispara a migração. Uma chave
+  de criptografia errada faz o servidor **falhar alto** em vez de apagar dados.
 - Nunca commite `storage/`, `.env`, prints ou mensagens com dados reais.
-- Ao subir para um domínio: HTTPS obrigatório, considerar autenticação real e
-  criptografia dos segredos em repouso.
+- Em produção: HTTPS (cookie `Secure`), `CONTAS_FLOW_ENC_KEY` definida,
+  `CONTAS_FLOW_TRUSTED_PROXIES` correto, e CORS fechado (same-origin por padrão).
 
 ### O que o `.gitignore` protege (e por quê)
 

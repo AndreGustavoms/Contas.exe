@@ -126,9 +126,21 @@
     rgba(120, 6, 12, 0.16) 100%
   );
   --login-bg:
-    radial-gradient(ellipse at 50% 70%, rgba(164, 14, 22, 0.46) 0%, transparent 42%),
-    radial-gradient(ellipse at 70% 32%, rgba(209, 0, 25, 0.22) 0%, transparent 36%),
-    radial-gradient(ellipse at 18% 18%, rgba(36, 4, 4, 0.76) 0%, transparent 48%),
+    radial-gradient(
+      ellipse at 50% 70%,
+      rgba(164, 14, 22, 0.46) 0%,
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 70% 32%,
+      rgba(209, 0, 25, 0.22) 0%,
+      transparent 36%
+    ),
+    radial-gradient(
+      ellipse at 18% 18%,
+      rgba(36, 4, 4, 0.76) 0%,
+      transparent 48%
+    ),
     conic-gradient(
       from 245deg at 54% 48%,
       rgba(44, 4, 6, 0.82) 0deg,
@@ -324,7 +336,13 @@ textarea {
   filter: blur(34px) contrast(1.18);
   mask-image:
     radial-gradient(ellipse at 50% 66%, black 0%, black 36%, transparent 72%),
-    linear-gradient(to bottom, transparent 0%, black 24%, black 76%, transparent 100%);
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 24%,
+      black 76%,
+      transparent 100%
+    );
   mix-blend-mode: screen;
   opacity: 0.42;
 }
@@ -401,7 +419,14 @@ textarea {
   border: 1px solid var(--vault-edge, var(--accent-border));
   border-radius: 999px;
   background:
-    radial-gradient(circle, transparent 0 33px, var(--vault-teal, rgba(34, 211, 238, 0.16)) 34px 35px, transparent 36px 62px, var(--vault-edge, rgba(255, 255, 255, 0.14)) 63px 65px, transparent 66px),
+    radial-gradient(
+      circle,
+      transparent 0 33px,
+      var(--vault-teal, rgba(34, 211, 238, 0.16)) 34px 35px,
+      transparent 36px 62px,
+      var(--vault-edge, rgba(255, 255, 255, 0.14)) 63px 65px,
+      transparent 66px
+    ),
     conic-gradient(
       from 45deg,
       transparent 0deg 24deg,
@@ -432,7 +457,12 @@ textarea {
 }
 
 .theme-andre .login-card button[type="submit"] {
-  background-image: linear-gradient(160deg, #f01124 0%, #d10019 46%, #8c060e 100%);
+  background-image: linear-gradient(
+    160deg,
+    #f01124 0%,
+    #d10019 46%,
+    #8c060e 100%
+  );
   color: #fff4f3;
   box-shadow:
     0 18px 46px rgba(209, 0, 25, 0.55),
@@ -441,7 +471,12 @@ textarea {
 }
 
 .theme-andre .login-card button[type="submit"]:hover {
-  background-image: linear-gradient(160deg, #ff2433 0%, #e8101f 46%, #a40e16 100%);
+  background-image: linear-gradient(
+    160deg,
+    #ff2433 0%,
+    #e8101f 46%,
+    #a40e16 100%
+  );
 }
 
 .theme-andre .brand-mark {
@@ -526,7 +561,11 @@ textarea {
 
 .glass-glyph {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0.02)
+    ),
     rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -739,6 +778,247 @@ textarea {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* ============================================================================
+   uiverse-style components — all tinted from the active theme's CSS variables
+   (--accent, --accent-glow, ...) so they work across the andre/dark/white
+   themes instead of carrying hardcoded colors.
+   ========================================================================= */
+
+/*
+  Animated neon border button (.btn-neon). A conic-gradient ring sweeps around
+  the button on a masked pseudo-element so only the 1px border glows, leaving
+  the fill flat. Used as a variant of the base Button.
+*/
+.btn-neon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.btn-neon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--neon-angle, 0deg),
+    transparent 0deg,
+    var(--accent) 70deg,
+    var(--accent-soft) 130deg,
+    transparent 200deg,
+    transparent 360deg
+  );
+  /* Mask so the gradient shows only on the border ring, not the fill. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: neon-spin 3s linear infinite;
+}
+
+.btn-neon::after {
+  /* Soft outer glow that pulses subtly with the sweep. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  box-shadow: 0 0 18px var(--accent-glow);
+  opacity: 0.65;
+}
+
+@property --neon-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes neon-spin {
+  to {
+    --neon-angle: 360deg;
+  }
+}
+
+/*
+  Floating-label field (.float-field). The label sits over the input and lifts
+  to the top edge when the input is focused or non-empty. The input must carry a
+  non-empty placeholder=" " so :placeholder-shown reflects emptiness.
+*/
+.float-field {
+  position: relative;
+}
+
+.float-field > label {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 0.3rem;
+  color: var(--muted-soft);
+  font-size: 0.95rem;
+  pointer-events: none;
+  transition:
+    top 180ms ease,
+    font-size 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+  background: linear-gradient(to bottom, transparent 45%, var(--field) 45%);
+  border-radius: 4px;
+}
+
+.float-field > input:focus + label,
+.float-field > input:not(:placeholder-shown) + label {
+  top: 0;
+  transform: translateY(-50%) scale(0.86);
+  font-size: 0.9rem;
+  color: var(--accent-muted);
+}
+
+/*
+  Toggle switch (.switch) — replaces a checkbox. The native checkbox is kept for
+  semantics/keyboard but visually hidden; the track/thumb render from siblings.
+*/
+.switch {
+  position: relative;
+  display: inline-flex;
+  height: 1.5rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  align-items: center;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.switch .switch-track {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.switch .switch-thumb {
+  position: absolute;
+  left: 3px;
+  height: 1.05rem;
+  width: 1.05rem;
+  border-radius: 999px;
+  background: var(--muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 220ms ease;
+}
+
+.switch input:checked ~ .switch-track {
+  border-color: var(--accent-border);
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.switch input:checked ~ .switch-thumb {
+  transform: translateX(1.25rem);
+  background: var(--accent-foreground);
+}
+
+.switch input:focus-visible ~ .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+  Ring spinner (.spinner) — themed loading indicator. A conic gradient masked
+  into a ring, spinning. Size via font-size / width set by the consumer.
+*/
+.spinner {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 999px;
+  background: conic-gradient(from 0deg, transparent 0%, var(--accent) 100%);
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3px),
+    #000 calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3px),
+    #000 calc(100% - 3px)
+  );
+  animation: spinner-rotate 700ms linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+  Spotlight card (.spotlight-card) — a soft radial highlight follows the cursor.
+  The component sets --spot-x / --spot-y (in %) from pointer move; when unset it
+  stays centered and invisible (opacity 0 until hover).
+*/
+.spotlight-card {
+  position: relative;
+}
+
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+  background: radial-gradient(
+    260px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    var(--accent-surface),
+    transparent 60%
+  );
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+/*
+  Toast (.toast) — slides up and fades, then drifts out. The component mounts it
+  on a message and unmounts after the animation; this just drives the entrance.
+*/
+.toast {
+  animation: toast-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

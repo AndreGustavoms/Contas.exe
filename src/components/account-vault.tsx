@@ -1,7 +1,9 @@
 import {
   type ChangeEvent,
   type CSSProperties,
+  type MouseEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -47,6 +49,7 @@ import {
   roleOptions,
   statusLabel,
 } from "../data/credential-records";
+import type { SessionUser } from "../App";
 import { cn } from "../lib/utils";
 import { type AppTheme } from "../theme";
 import {
@@ -57,6 +60,9 @@ import {
   YouTubeIcon,
 } from "./platform-icons";
 import { Badge } from "./ui/badge";
+import { Spinner } from "./ui/spinner";
+import { Toast } from "./ui/toast";
+import { UsersDialog } from "./users-dialog";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -68,15 +74,37 @@ import {
 } from "./ui/card";
 import { Input } from "./ui/input";
 
-const STORAGE_KEY = "contas_exe.accounts.v1";
+// Client-side caches are namespaced PER USER so that, on a shared browser, one
+// teammate's cached accounts / selected group don't bleed into the next person's
+// session. "anon" is only used before login resolves.
+function accountsKey(username: string | undefined) {
+  return `contas_exe.accounts.v1:${username || "anon"}`;
+}
+// Which group the user last had selected. The active group is now per-browser
+// client state (the server no longer tracks it), so we persist the choice here
+// and re-validate it against the groups the user can actually see.
+function activeGroupKey(username: string | undefined) {
+  return `contas_exe.activeGroup.v1:${username || "anon"}`;
+}
 const API_GROUPS = "/api/groups";
 const ALL = "all";
 
 type GroupSummary = {
   id: string;
   name: string;
+  ownerId: string;
   count: number;
 };
+
+// Picks which group to make active given the visible groups and the last choice
+// remembered in localStorage: prefer the remembered one if still visible, else
+// the first group, else "" (no groups yet).
+function pickActiveGroup(groups: GroupSummary[], preferredId: string): string {
+  if (preferredId && groups.some((group) => group.id === preferredId)) {
+    return preferredId;
+  }
+  return groups[0]?.id ?? "";
+}
 
 function slugify(value: string) {
   return (
@@ -175,13 +203,13 @@ function createId() {
   return `account-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function loadAccounts() {
+function loadAccounts(storageKey: string) {
   if (typeof window === "undefined") {
     return initialAccounts;
   }
 
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(storageKey);
     if (!stored) {
       return initialAccounts;
     }
@@ -355,16 +383,27 @@ type AccountVaultProps = {
   onLock?: () => void;
   onThemeChange: (theme: AppTheme) => void;
   theme: AppTheme;
+  user: SessionUser | null;
 };
 
 export function AccountVault({
   onLock,
   onThemeChange,
   theme,
+  user,
 }: AccountVaultProps) {
-  const [accounts, setAccounts] = useState<AccountRecord[]>(loadAccounts);
+  const isAdmin = user?.role === "admin";
+  // Per-user cache keys (see accountsKey/activeGroupKey). Stable for this mount;
+  // a different user means a different AccountVault mount with different keys.
+  const storageKey = accountsKey(user?.username);
+  const activeGroupStorageKey = activeGroupKey(user?.username);
+  const [accounts, setAccounts] = useState<AccountRecord[]>(() =>
+    loadAccounts(storageKey),
+  );
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string>("");
+  const [activeGroupId, setActiveGroupId] = useState<string>(
+    () => window.localStorage.getItem(activeGroupStorageKey) ?? "",
+  );
   const [draft, setDraft] = useState<AccountDraft>(emptyAccountDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -382,34 +421,57 @@ export function AccountVault({
     value: string;
   } | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
+  const [usersDialogOpen, setUsersDialogOpen] = useState(false);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [quickViewAccount, setQuickViewAccount] =
     useState<AccountRecord | null>(null);
   const [message, setMessage] = useState("");
+  // Transient feedback toast (success/error), separate from the inline `message`
+  // used in some contextual spots.
+  const [toast, setToast] = useState<{
+    text: string;
+    tone: "success" | "error";
+  } | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  function notify(text: string, tone: "success" | "error" = "success") {
+    setToast({ text, tone });
+  }
+
+  // Stable identity so the Toast's auto-dismiss timer isn't reset on every parent
+  // re-render (e.g. while typing in the search box).
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const activeGroup = useMemo(
     () => groups.find((group) => group.id === activeGroupId) ?? null,
     [groups, activeGroupId],
   );
 
+  // Persist the active-group choice locally whenever it changes.
+  useEffect(() => {
+    if (activeGroupId) {
+      window.localStorage.setItem(activeGroupStorageKey, activeGroupId);
+    } else {
+      window.localStorage.removeItem(activeGroupStorageKey);
+    }
+  }, [activeGroupId, activeGroupStorageKey]);
+
   useEffect(() => {
     let ignore = false;
 
     async function loadGroups() {
       try {
-        const data = await requestJson<{
-          groups: GroupSummary[];
-          activeGroupId: string;
-        }>(API_GROUPS);
+        const data = await requestJson<{ groups: GroupSummary[] }>(API_GROUPS);
 
         if (ignore) {
           return;
         }
 
         setGroups(data.groups);
-        setActiveGroupId(data.activeGroupId);
+        // Keep the remembered selection if it's still visible; otherwise fall
+        // back to the first group the user can see.
+        setActiveGroupId((current) => pickActiveGroup(data.groups, current));
       } catch {
         setMessage("API offline");
       }
@@ -424,6 +486,9 @@ export function AccountVault({
 
   useEffect(() => {
     if (!activeGroupId) {
+      // No group selected (e.g. the last group was just deleted): clear the
+      // account list and its cache so stale rows from the old group don't linger.
+      setAccountList([]);
       return;
     }
 
@@ -456,7 +521,7 @@ export function AccountVault({
     const sortedAccounts = sortAccounts(nextAccounts.map(migrateAccount));
 
     setAccounts(sortedAccounts);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedAccounts));
+    window.localStorage.setItem(storageKey, JSON.stringify(sortedAccounts));
   }
 
   const accountsBase = activeGroupId
@@ -465,10 +530,7 @@ export function AccountVault({
 
   async function refreshGroups() {
     try {
-      const data = await requestJson<{
-        groups: GroupSummary[];
-        activeGroupId: string;
-      }>(API_GROUPS);
+      const data = await requestJson<{ groups: GroupSummary[] }>(API_GROUPS);
 
       setGroups(data.groups);
       return data;
@@ -488,23 +550,16 @@ export function AccountVault({
     );
   }
 
-  async function selectGroup(id: string) {
+  function selectGroup(id: string) {
     if (id === activeGroupId) {
       return;
     }
 
+    // The active group is purely client state now; the localStorage effect
+    // above persists the choice.
     setActiveGroupId(id);
     setQuickViewAccount(null);
     setIsAccountModalOpen(false);
-
-    try {
-      await requestJson(`${API_GROUPS}/active`, {
-        method: "PUT",
-        body: JSON.stringify({ activeGroupId: id }),
-      });
-    } catch {
-      // Selection still works locally even if persisting the choice fails.
-    }
   }
 
   function createGroup() {
@@ -552,12 +607,15 @@ export function AccountVault({
 
       setGroupDialog(null);
     } catch {
-      setMessage("Erro ao salvar grupo");
+      notify("Erro ao salvar grupo", "error");
     }
   }
 
   function deleteGroup() {
-    if (!activeGroup || groups.length <= 1) {
+    // Deleting is allowed as long as a group is selected — even the last one.
+    // The server accepts it and the UI falls back to the empty state (no active
+    // group), from which "Criar novo grupo" is still reachable.
+    if (!activeGroup) {
       return;
     }
 
@@ -570,18 +628,18 @@ export function AccountVault({
     }
 
     try {
-      const data = await requestJson<{
-        groups: GroupSummary[];
-        activeGroupId: string;
-      }>(`${API_GROUPS}/${encodeURIComponent(activeGroup.id)}`, {
-        method: "DELETE",
-      });
+      const data = await requestJson<{ groups: GroupSummary[] }>(
+        `${API_GROUPS}/${encodeURIComponent(activeGroup.id)}`,
+        { method: "DELETE" },
+      );
 
       setGroups(data.groups);
-      setActiveGroupId(data.activeGroupId);
+      // The deleted group was active; pick another visible one (or none).
+      setActiveGroupId(pickActiveGroup(data.groups, ""));
       setConfirmDeleteGroup(false);
+      notify("Grupo excluído");
     } catch {
-      setMessage("Erro ao excluir grupo");
+      notify("Erro ao excluir grupo", "error");
     }
   }
 
@@ -762,7 +820,7 @@ export function AccountVault({
             account.id === editingId ? updated : account,
           ),
         );
-        setMessage("Salvo");
+        notify("Conta atualizada");
         setIsAccountModalOpen(false);
         resetForm();
         return;
@@ -775,11 +833,11 @@ export function AccountVault({
 
       setAccountList([created, ...accounts]);
       bumpActiveGroupCount(1);
-      setMessage("Salvo");
+      notify("Conta adicionada");
       setIsAccountModalOpen(false);
       resetForm();
     } catch {
-      setMessage("Erro");
+      notify("Erro ao salvar a conta", "error");
     } finally {
       setIsSaving(false);
     }
@@ -812,8 +870,9 @@ export function AccountVault({
       setIsAccountModalOpen(false);
       setDeleteAccountId(null);
       resetForm();
+      notify("Conta removida");
     } catch {
-      setMessage("Erro");
+      notify("Erro ao remover a conta", "error");
     }
   }
 
@@ -890,9 +949,9 @@ export function AccountVault({
         await refreshGroups();
         setActiveGroupId(createdGroup.id);
         resetForm();
-        setMessage(`Importado para "${importedName}"`);
+        notify(`Importado para "${importedName}"`);
       } catch {
-        window.alert("Backup inválido.");
+        notify("Backup inválido", "error");
       } finally {
         event.target.value = "";
       }
@@ -980,8 +1039,21 @@ export function AccountVault({
             ))}
           </SidebarSection>
 
-          {onLock ? (
-            <div className="mt-auto pt-4">
+          <div className="mt-auto space-y-1.5 pt-4">
+            {isAdmin ? (
+              <button
+                className="group/team flex h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-all duration-300 hover:translate-x-0.5 hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
+                type="button"
+                onClick={() => setUsersDialogOpen(true)}
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] text-[color:var(--accent)] transition duration-300 group-hover/team:bg-[color:var(--field-hover)]">
+                  <Users className="h-5 w-5" />
+                </span>
+                <span className="truncate">Equipe</span>
+              </button>
+            ) : null}
+
+            {onLock ? (
               <button
                 className="group/exit flex h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-all duration-300 hover:translate-x-0.5 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-200"
                 type="button"
@@ -992,8 +1064,8 @@ export function AccountVault({
                 </span>
                 <span className="truncate">Sair</span>
               </button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </aside>
 
         <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
@@ -1148,6 +1220,21 @@ export function AccountVault({
           confirmLabel="Excluir"
           onCancel={() => setDeleteAccountId(null)}
           onConfirm={confirmDeleteAccountNow}
+        />
+      ) : null}
+
+      {usersDialogOpen && isAdmin ? (
+        <UsersDialog
+          currentUsername={user?.username ?? ""}
+          onClose={() => setUsersDialogOpen(false)}
+        />
+      ) : null}
+
+      {toast ? (
+        <Toast
+          message={toast.text}
+          tone={toast.tone}
+          onDismiss={dismissToast}
         />
       ) : null}
     </main>
@@ -1491,10 +1578,15 @@ function AccountWizardModal({
             <Button
               disabled={isSaving || !canSave}
               type="button"
+              variant="neon"
               onClick={onSave}
             >
-              <Save className="h-4 w-4" />
-              {isSaving ? "..." : editing ? "Salvar" : "Adicionar"}
+              {isSaving ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {isSaving ? "Salvando..." : editing ? "Salvar" : "Adicionar"}
             </Button>
           ) : (
             <Button disabled={!canContinue} type="button" onClick={onNext}>
@@ -1844,7 +1936,8 @@ function GroupSwitcher({
             <Users className="h-4 w-4 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
           </span>
           <span className="min-w-0 flex-1 truncate">
-            {activeGroup?.name ?? "Carregando..."}
+            {activeGroup?.name ??
+              (groups.length === 0 ? "Nenhum grupo" : "Carregando...")}
           </span>
           <ChevronDown
             className={cn(
@@ -1927,6 +2020,7 @@ function GroupSwitcher({
           <GroupMenuItem
             icon={Pencil}
             label={`Renomear "${activeGroup?.name ?? "grupo"}"`}
+            disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
               onRename();
@@ -1936,7 +2030,7 @@ function GroupSwitcher({
             danger
             icon={Trash}
             label={`Excluir "${activeGroup?.name ?? "grupo"}"`}
-            disabled={groups.length <= 1}
+            disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
               onDelete();
@@ -2415,15 +2509,26 @@ type AccountRowProps = {
 };
 
 function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
+  // Move a CSS variable to follow the cursor so the .spotlight-card highlight
+  // tracks the mouse over the row.
+  function handleMouseMove(event: MouseEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    event.currentTarget.style.setProperty("--spot-x", `${x}%`);
+    event.currentTarget.style.setProperty("--spot-y", `${y}%`);
+  }
+
   return (
     <div
       className={cn(
-        "animate-row group grid gap-3 px-4 py-3 transition-colors duration-300 sm:grid-cols-[minmax(0,1fr)_auto]",
+        "spotlight-card relative animate-row group grid gap-3 px-4 py-3 transition-colors duration-300 sm:grid-cols-[minmax(0,1fr)_auto]",
         isActive
           ? "bg-[color:var(--accent-surface)] shadow-[inset_3px_0_0_var(--accent)]"
           : "hover:bg-[color:var(--surface-soft)]",
       )}
       style={{ animationDelay: `${Math.min(index, 12) * 28}ms` }}
+      onMouseMove={handleMouseMove}
     >
       <button className="min-w-0 text-left" type="button" onClick={onSelect}>
         <div className="flex min-w-0 items-center gap-3">

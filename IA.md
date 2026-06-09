@@ -1,64 +1,42 @@
-# IA - Contexto Operacional
+# IA — Contexto Operacional
+
+Resumo rápido para quem (humano ou IA) for trabalhar no projeto. Para detalhes,
+ver `README.md`, `docs/ARQUITETURA.md` e `docs/DEPLOY.md`.
 
 ## Projeto
 
-Contas_exe.
+**Contas_exe** — cofre de contas/senhas de redes sociais para uma **equipe**,
+organizado em **grupos**. Era um organizador local pessoal; evoluiu para um app
+multiusuário com login por pessoa, criptografia em repouso e deploy no Railway.
 
-## Dono e uso
+## O que mudou em relação à versão antiga
 
-O projeto e do Andre e sera usado localmente para facilitar tarefas de
-organizacao de contas, emails, usuarios e senhas.
+- **Multiusuário:** cada pessoa tem login próprio (`users.json`, hashes scrypt),
+  com papéis admin/member. Não existe mais o login único `Vitissouls`.
+- **Ownership:** cada grupo tem dono; membro vê só os seus, admin vê todos.
+- **Criptografia em repouso (AES-256-GCM):** senha, recovery, telefone e notas
+  das contas (e os refresh tokens do YouTube) são cifrados no disco com
+  `CONTAS_FLOW_ENC_KEY`. O backup manual JSON ainda existe, em texto plano.
+- **Persistência:** `storage/groups.json` (não mais `accounts.json` plano) +
+  `storage/users.json`. O `localStorage` é só cache (namespaceado por usuário).
+- **Endurecimento:** sessão server-side, rate limit no login, headers de
+  segurança, CORS fechado.
 
-## Objetivo atual
+## Decisões técnicas
 
-Manter um organizador local de acessos por plataforma, funcao, status e 2FA. A
-referencia de trabalho inclui redes como YouTube, Instagram, TikTok, Facebook e
-Kwai, alem de funcoes como postagem, apoio, conta estrela, nicho e recuperacao.
+- Frontend React 18 + TypeScript (Vite 6, Tailwind CSS 3, Lucide).
+- API Node HTTP nativa (sem framework); serve `/api/*` e o build estático.
+- 3 temas: Andre (vermelho), Dark (ciano), White (azul).
+- Estado inicial vazio (nunca credenciais reais no código).
+- YouTube (OAuth/upload) está **em pausa**; o endpoint de upload está desativado.
 
-## Decisoes tecnicas
+## Regras de segurança
 
-- Frontend em React 18, TypeScript, Vite e Tailwind CSS 3.
-- Dados persistidos em `storage/accounts.json` por API local Node.
-- Tela de acesso local antes do cofre: nome `Vitissouls` e senha `Vitissouls`.
-- Temas disponiveis: Andre, Dark e White. O tema Andre usa preto com roxo neon.
-- `localStorage` fica apenas como fallback/migracao.
-- Estado inicial vazio para evitar credenciais reais no codigo.
-- Backup manual por exportacao/importacao JSON.
-- Sem servico externo nesta fase.
-- Fonte externa removida para reduzir dependencia de rede no uso local.
-- Pasta antiga de design system, build `dist`, logs de servidor e MVP de fluxos
-  foram removidos.
-- Listas, filtros e registros devem seguir ordem alfabetica.
+- Nunca commitar `storage/`, `.env`, prints ou backups com dados reais.
+- `CONTAS_FLOW_ENC_KEY` é a única forma de decifrar — guardar em cofre, separada
+  do volume. Perdê-la = dados cifrados irrecuperáveis.
+- O backup JSON exportado contém senhas em texto plano: tratar como segredo.
 
-## Regras de seguranca
+## Verificações
 
-- Nao salvar senhas reais em arquivos versionados.
-- Nao commitar `storage/accounts.json` nem backups JSON exportados.
-- Lembrar que o arquivo local e backup JSON nao sao criptografados.
-- Se o app passar a ser usado por mais pessoas, priorizar criptografia local ou
-  backend com cofre seguro antes de compartilhar dados sensiveis.
-
-## Funcionalidades atuais
-
-- Login local simples.
-- Alternancia de tema.
-- Cadastro e edicao de contas.
-- Cadastro guiado em modal.
-- Busca global.
-- Filtros por plataforma/funcao e abas de status.
-- Copia rapida de email e usuario.
-- Exibicao/ocultacao de senha.
-- Status: ativa, revisar e arquivada.
-- Marcacao de 2FA.
-- Exportacao/importacao de backup JSON.
-
-## Proximos passos possiveis
-
-- Importar a planilha de rede de amplificacao para gerar registros iniciais.
-- Adicionar criptografia local com senha mestra.
-- Criar campos customizados por plataforma.
-- Criar testes para filtros, persistencia e importacao de backup.
-
-## Verificacoes
-
-- Validar TypeScript e build com `npm run build`.
+- `npm run build` (type-check + build de produção).

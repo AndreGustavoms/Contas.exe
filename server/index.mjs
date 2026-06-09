@@ -3,14 +3,26 @@ import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   buildAuthUrl,
   handleOAuthCallback,
   listConnectedChannels,
-  uploadVideo,
+  // uploadVideo: intentionally not imported — the upload endpoint is disabled
+  // (see /api/youtube/upload). The function stays in youtube.mjs for later.
 } from "./youtube.mjs";
+import {
+  createUser,
+  deleteUser,
+  ensureSeedAdmin,
+  findById,
+  findByUsername,
+  listUsers,
+  setPassword,
+  verifyPassword,
+} from "./users.mjs";
+import { decryptField, encryptField, encryptionEnabled } from "./crypto.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 // In production set CONTAS_FLOW_STORAGE_DIR to a persistent volume (e.g. /data
@@ -25,34 +37,38 @@ const port = Number(process.env.PORT ?? 8787);
 // locally unless HOST is set explicitly.
 const host = process.env.HOST ?? (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
 
+// CORS: the API and the UI are served from the same origin in every deployment,
+// so cross-origin browser access is never needed. We echo a single allowed
+// origin (CONTAS_FLOW_ALLOWED_ORIGIN) when set, otherwise same-origin only.
+// Wide-open "*" is intentionally gone now that the API serves real secrets.
+const allowedOrigin = process.env.CONTAS_FLOW_ALLOWED_ORIGIN ?? "";
+
+// A fixed valid scrypt hash used only to spend comparable time on logins for
+// non-existent users, so response timing doesn't reveal whether a username
+// exists. The password "x" never matches anything real.
+const DUMMY_HASH =
+  "scrypt:32768:8:1:00000000000000000000000000000000:" +
+  "b9c8f0d4e1a2b3c4d5e6f70819202122232425262728292a2b2c2d2e2f303132" +
+  "333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152";
+
 // ----- Session auth (server-side gate) -----
 // The real access control. The frontend "login" only drives UX: it POSTs the
-// credentials here, the server validates them and issues an HttpOnly session
-// cookie. Every /api/* request (except /api/health and /api/auth/*) must carry
+// credentials here, the server validates them against the user store (scrypt
+// hashes in users.json) and issues an HttpOnly session cookie carrying the
+// user id. Every /api/* request (except /api/health and /api/auth/*) must carry
 // a valid session cookie, so the data is never reachable from the browser
 // without logging in. The static UI bundle is public (it holds no secrets); it
 // just renders the login screen until the cookie is set.
-const authUser = process.env.APP_AUTH_USER ?? "";
-const authPassword = process.env.APP_AUTH_PASSWORD ?? "";
-const authEnabled = Boolean(authUser && authPassword);
+//
+// Auth is always on now that we have a user store: if no users exist yet, the
+// only thing you can do is fail to log in (the admin is seeded from APP_AUTH_*
+// at startup; see ensureSeedAdmin).
 
 const SESSION_COOKIE = "contas_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12h
-// In-memory session store: token -> expiry (ms epoch). Fine for a single small
+// In-memory session store: token -> { userId, expiry }. Fine for a single small
 // service; sessions reset on redeploy (users re-login), which is acceptable.
 const sessions = new Map();
-
-function safeEqual(a, b) {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  // timingSafeEqual requires equal lengths; compare a fixed dummy otherwise so
-  // the comparison time does not leak whether the length matched.
-  if (bufA.length !== bufB.length) {
-    timingSafeEqual(bufA, Buffer.from(a));
-    return false;
-  }
-  return timingSafeEqual(bufA, bufB);
-}
 
 function parseCookies(request) {
   const header = request.headers.cookie ?? "";
@@ -68,42 +84,121 @@ function parseCookies(request) {
 
 function pruneSessions() {
   const now = Date.now();
-  for (const [token, expiry] of sessions) {
-    if (expiry <= now) sessions.delete(token);
+  for (const [token, session] of sessions) {
+    if (session.expiry <= now) sessions.delete(token);
+  }
+  // Also drop expired login-attempt buckets so the map can't grow unbounded from
+  // one-off IPs that never return (loginAttempts is declared below; this runs at
+  // call time, after module init).
+  for (const [ip, entry] of loginAttempts) {
+    if (entry.resetAt <= now) loginAttempts.delete(ip);
   }
 }
 
-function createSession() {
+function createSession(userId) {
   pruneSessions();
   const token = randomUUID() + randomUUID().replaceAll("-", "");
-  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  sessions.set(token, { userId, expiry: Date.now() + SESSION_TTL_MS });
   return token;
 }
 
-function hasValidSession(request) {
+// Returns the live session record ({ userId, expiry }) for the request, or null
+// if there is no valid (unexpired) session cookie. Expired tokens are evicted.
+function getSession(request) {
   const token = parseCookies(request)[SESSION_COOKIE];
-  if (!token) return false;
-  const expiry = sessions.get(token);
-  if (!expiry || expiry <= Date.now()) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || session.expiry <= Date.now()) {
     if (token) sessions.delete(token);
-    return false;
+    return null;
   }
-  return true;
+  return session;
+}
+
+// Resolves the request to a stored user, or null when unauthenticated or when the
+// user behind the session no longer exists (e.g. deleted by an admin).
+async function getSessionUser(request) {
+  const session = getSession(request);
+  if (!session) return null;
+  return findById(storageDir, session.userId);
+}
+
+// Secure is required in production (HTTPS) but breaks login over plain http on
+// localhost, where browsers drop Secure cookies. Hosted deployments set PORT
+// (Railway et al.) and sit behind HTTPS, so key Secure off that. Override with
+// CONTAS_FLOW_COOKIE_SECURE=0/1 if needed.
+const cookieSecure =
+  process.env.CONTAS_FLOW_COOKIE_SECURE != null
+    ? process.env.CONTAS_FLOW_COOKIE_SECURE === "1"
+    : Boolean(process.env.PORT);
+
+function sessionCookie(value, maxAge) {
+  const flags = ["HttpOnly", "SameSite=Strict", "Path=/", `Max-Age=${maxAge}`];
+  if (cookieSecure) flags.splice(1, 0, "Secure");
+  return `${SESSION_COOKIE}=${value}; ${flags.join("; ")}`;
 }
 
 function setSessionCookie(response, token) {
-  const maxAge = Math.floor(SESSION_TTL_MS / 1000);
   response.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`,
+    sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)),
   );
 }
 
 function clearSessionCookie(response) {
-  response.setHeader(
-    "Set-Cookie",
-    `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
-  );
+  response.setHeader("Set-Cookie", sessionCookie("", 0));
+}
+
+// ----- Login rate limiting -----
+// Bounds brute-force attempts against /api/auth/login. In-memory sliding window
+// keyed by client IP; fine for this small single-instance service. Successful
+// logins reset the counter so a legitimate user isn't penalized.
+const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 1000 * 60 * 10; // 10 min
+const loginAttempts = new Map(); // ip -> { count, resetAt }
+
+function clientIp(request) {
+  // The rate limiter must key off an IP the client can't forge. The socket
+  // address is always trustworthy. X-Forwarded-For is client-settable, so we only
+  // consult it when a proxy is explicitly declared via CONTAS_FLOW_TRUSTED_PROXIES
+  // (the number of trusted hops in front of us — Railway = 1). In that case the
+  // real client IP is that many entries from the RIGHT (proxies append, so the
+  // rightmost are added by infrastructure we trust). Taking the first/left entry
+  // would let an attacker rotate XFF per request and bypass the limit.
+  const trusted = Number(process.env.CONTAS_FLOW_TRUSTED_PROXIES ?? 0);
+  if (trusted > 0) {
+    const xff = request.headers["x-forwarded-for"];
+    if (typeof xff === "string" && xff.length > 0) {
+      const parts = xff
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      // Pick the entry `trusted` hops from the right (the IP the outermost
+      // trusted proxy observed). Clamp to the leftmost if XFF is shorter.
+      const idx = Math.max(0, parts.length - trusted);
+      if (parts[idx]) return parts[idx];
+    }
+  }
+  return request.socket?.remoteAddress ?? "unknown";
+}
+
+// Returns true if this IP is over the limit (request should be refused). Records
+// the attempt and prunes the window. Does not count successes (see resetLoginRate).
+function loginRateLimited(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > LOGIN_MAX_ATTEMPTS;
+}
+
+function resetLoginRate(ip) {
+  loginAttempts.delete(ip);
 }
 
 // /api/* paths reachable without a session: the auth endpoints themselves, and
@@ -117,20 +212,16 @@ function isPublicApi(pathname) {
   );
 }
 
-// Returns true when the request may proceed to a protected handler. On failure
-// it writes a 401 and the caller must stop handling the request.
-function checkAuth(request, response) {
-  if (!authEnabled) {
-    return true;
-  }
-  if (hasValidSession(request)) {
-    return true;
-  }
+// Resolves the authenticated user for a protected request. On failure it writes a
+// 401 and returns null, and the caller must stop handling the request.
+async function requireUser(request, response) {
+  const user = await getSessionUser(request);
+  if (user) return user;
   response.writeHead(401, {
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify({ error: "unauthorized" }));
-  return false;
+  return null;
 }
 
 const DEFAULT_GROUP_NAME = "Vitissouls";
@@ -185,48 +276,90 @@ function normalizeGroup(input = {}) {
   return {
     id: asString(input.id) || randomUUID(),
     name: asString(input.name).trim() || "Grupo",
+    // Owner of the group. May be "" on legacy data; backfillOwners() assigns
+    // those to the bootstrap admin at startup.
+    ownerId: asString(input.ownerId),
     accounts,
   };
 }
 
 function emptyDb() {
-  const group = normalizeGroup({ name: DEFAULT_GROUP_NAME });
-  return { groups: [group], activeGroupId: group.id };
+  return { groups: [] };
 }
 
-// Reads the database. On first run, migrates a legacy accounts.json array
+// Account fields that hold secrets / sensitive PII and are encrypted at rest.
+// Everything else (email, username, label, niche, ...) stays readable in the
+// JSON for backups and debugging. See server/crypto.mjs.
+const ENCRYPTED_ACCOUNT_FIELDS = [
+  "password",
+  "recoveryEmail",
+  "phone",
+  "notes",
+];
+
+// In-place transform of a db object's sensitive fields. `transform` is
+// encryptField (on write) or decryptField (on read). Both are idempotent, so a
+// store written before encryption was enabled migrates transparently on the next
+// write. Returns the same object for convenience.
+function transformDbSecrets(db, transform) {
+  for (const group of db.groups ?? []) {
+    for (const account of group.accounts ?? []) {
+      for (const field of ENCRYPTED_ACCOUNT_FIELDS) {
+        if (account[field] != null) {
+          account[field] = transform(account[field]);
+        }
+      }
+    }
+  }
+  return db;
+}
+
+// Reads the database, decrypting sensitive fields so the rest of the server works
+// with plaintext in memory. On first run, migrates a legacy accounts.json array
 // into a single "Vitissouls" group so existing accounts are preserved.
+//
+// IMPORTANT: only a *missing* file (ENOENT) triggers the migrate-and-write path.
+// Any other failure — corrupt JSON, or (critically) a decrypt error because
+// CONTAS_FLOW_ENC_KEY was changed/lost — must NOT fall through to writing an
+// empty store, which would silently destroy the real data. We rethrow instead so
+// the operator notices and can fix the key/file before anything is overwritten.
 async function readDb() {
   await ensureStorage();
 
+  let raw;
   try {
-    const raw = await readFile(dbFile, "utf8");
-    const parsed = JSON.parse(raw);
-    return normalizeDb(parsed);
-  } catch {
-    // No groups file yet: try to migrate the legacy accounts.json.
-    const migrated = await migrateLegacy();
-    await writeDb(migrated);
-    return migrated;
+    raw = await readFile(dbFile, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      // No groups file yet: migrate the legacy accounts.json (or start empty).
+      const migrated = await migrateLegacy();
+      await writeDb(migrated);
+      return migrated;
+    }
+    throw error; // permission error, etc. — don't clobber the file
+  }
+
+  // The file exists: a parse/decrypt failure here means corruption or a wrong
+  // encryption key. Surface it loudly; never overwrite the existing data.
+  try {
+    return transformDbSecrets(normalizeDb(JSON.parse(raw)), decryptField);
+  } catch (error) {
+    throw new Error(
+      `Falha ao ler ${dbFile}: dados ilegiveis (JSON corrompido ou ` +
+        `CONTAS_FLOW_ENC_KEY incorreta/ausente). O arquivo NAO foi alterado. ` +
+        `Causa: ${error instanceof Error ? error.message : "desconhecida"}`,
+    );
   }
 }
 
+// The active group is now per-user client state (each browser remembers its own
+// selection), so the server only stores the groups themselves.
 function normalizeDb(parsed) {
   const groups = Array.isArray(parsed?.groups)
     ? parsed.groups.map(normalizeGroup)
     : [];
 
-  if (!groups.length) {
-    return emptyDb();
-  }
-
-  const activeGroupId = groups.some(
-    (group) => group.id === parsed?.activeGroupId,
-  )
-    ? parsed.activeGroupId
-    : groups[0].id;
-
-  return { groups, activeGroupId };
+  return { groups };
 }
 
 async function migrateLegacy() {
@@ -235,26 +368,109 @@ async function migrateLegacy() {
     const parsed = JSON.parse(raw);
     const accounts = Array.isArray(parsed) ? parsed : [];
 
+    // Owner is backfilled to the admin at startup (backfillOwners).
     const group = normalizeGroup({ name: DEFAULT_GROUP_NAME, accounts });
-    return { groups: [group], activeGroupId: group.id };
+    return { groups: [group] };
   } catch {
     return emptyDb();
   }
 }
 
+// Assigns any ownerless group (legacy data, or migrated accounts.json) to the
+// given admin id, so pre-multiuser data stays visible to the admin. Writes only
+// when something changed. Safe to call on every startup.
+async function backfillOwners(adminId) {
+  if (!adminId) return;
+  const db = await readDb();
+  let changed = false;
+  for (const group of db.groups) {
+    if (!group.ownerId) {
+      group.ownerId = adminId;
+      changed = true;
+    }
+  }
+  if (changed) await writeDb(db);
+}
+
+// Re-homes every group owned by `fromUserId` to `toUserId`. Called when a user is
+// deleted so their groups don't become orphaned (a dangling ownerId would hide
+// them from all members, leaving them reachable only via the admin bypass and
+// never reassignable). Writes only when something changed.
+async function reassignGroups(fromUserId, toUserId) {
+  const db = await readDb();
+  let changed = false;
+  for (const group of db.groups) {
+    if (group.ownerId === fromUserId) {
+      group.ownerId = toUserId;
+      changed = true;
+    }
+  }
+  if (changed) await writeDb(db);
+}
+
 async function writeDb(db) {
   await ensureStorage();
-  await writeFile(dbFile, `${JSON.stringify(db, null, 2)}\n`, "utf8");
+  // Encrypt sensitive fields on a deep copy so the in-memory db (used by the
+  // calling handler) keeps its plaintext values.
+  const encrypted = transformDbSecrets(structuredClone(db), encryptField);
+  await writeFile(dbFile, `${JSON.stringify(encrypted, null, 2)}\n`, "utf8");
 }
 
 function groupSummary(group) {
-  return { id: group.id, name: group.name, count: group.accounts.length };
+  return {
+    id: group.id,
+    name: group.name,
+    ownerId: group.ownerId,
+    count: group.accounts.length,
+  };
+}
+
+// Ownership: admins see and manage every group; members only their own.
+function canSeeGroup(user, group) {
+  return user.role === "admin" || group.ownerId === user.id;
+}
+
+function visibleGroups(user, groups) {
+  return groups.filter((group) => canSeeGroup(user, group));
+}
+
+// Max accepted request body. Account records are tiny; 1 MB is generous and
+// still bounds memory use so a giant POST can't exhaust the process.
+const MAX_BODY_BYTES = 1024 * 1024;
+
+// Thrown when a request body exceeds MAX_BODY_BYTES; the dispatcher maps it to a
+// 413 instead of letting the connection buffer unbounded data.
+class PayloadTooLargeError extends Error {}
+
+// Consumes and discards a request body. Used when a handler answers a POST/PUT
+// without parsing the body (e.g. the disabled upload endpoint), so the socket
+// closes cleanly instead of resetting on the unread body. Bounded by the same
+// cap as readBody.
+async function drainBody(request) {
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      request.pause();
+      return;
+    }
+  }
 }
 
 async function readBody(request) {
   const chunks = [];
+  let size = 0;
 
   for await (const chunk of request) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      // Stop buffering and let the dispatcher answer 413. We pause the stream
+      // rather than destroy() it so the response can still be written cleanly
+      // (destroying mid-request resets the socket -> the client sees ECONNRESET
+      // instead of the 413).
+      request.pause();
+      throw new PayloadTooLargeError("payload_too_large");
+    }
     chunks.push(chunk);
   }
 
@@ -262,11 +478,53 @@ async function readBody(request) {
   return raw ? JSON.parse(raw) : {};
 }
 
-function sendJson(response, statusCode, data) {
-  response.writeHead(statusCode, {
+// Sets baseline security headers on every response. Done via setHeader at the
+// start of the request so they apply uniformly to JSON, static files, HTML and
+// error responses (writeHead later merges these in). The app is self-contained
+// (no external scripts/styles/fonts), so a strict CSP doesn't break anything;
+// 'unsafe-inline' on style-src covers the inline styles React/Tailwind emit.
+function applySecurityHeaders(request, response) {
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "img-src 'self' data:",
+      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  );
+  // HSTS only makes sense over HTTPS; gate it on the same signal as Secure
+  // cookies so local http isn't told to force TLS.
+  if (cookieSecure) {
+    response.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+  }
+}
+
+// CORS headers, only emitted when an explicit allowed origin is configured.
+// Same-origin requests (the normal case) need none of this.
+function corsHeaders() {
+  if (!allowedOrigin) return {};
+  return {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
+
+function sendJson(response, statusCode, data) {
+  response.writeHead(statusCode, {
+    ...corsHeaders(),
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(data));
@@ -280,36 +538,46 @@ function badRequest(response, message) {
   sendJson(response, 400, { error: message ?? "bad_request" });
 }
 
-async function handleApi(request, response, url) {
+// `user` is the authenticated user for protected routes (resolved by the
+// dispatcher), or null for the public auth/OAuth-callback routes handled first.
+async function handleApi(request, response, url, user) {
   if (request.method === "OPTIONS") {
-    response.writeHead(204, {
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-      "Access-Control-Allow-Origin": "*",
-    });
+    response.writeHead(204, corsHeaders());
     response.end();
     return;
   }
 
   // ----- Auth (public: these gate the rest) -----
 
-  // Validate credentials and issue a session cookie. Wrong/missing creds -> 401.
+  // Validate credentials against the user store and issue a session cookie.
+  // Wrong user or wrong password -> the same 401 (no account enumeration).
+  // Rate limited per IP to bound brute-force attempts.
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
-    if (!authEnabled) {
-      // No server credentials configured: nothing to log into.
-      sendJson(response, 200, { authenticated: true });
+    const ip = clientIp(request);
+    if (loginRateLimited(ip)) {
+      await drainBody(request);
+      sendJson(response, 429, { error: "too_many_attempts" });
       return;
     }
+
     const body = await readBody(request);
     const name = asString(body.name);
     const password = asString(body.password);
-    // Evaluate both comparisons so a wrong user and wrong password take the
-    // same path.
-    const okUser = safeEqual(name, authUser);
-    const okPass = safeEqual(password, authPassword);
-    if (okUser && okPass) {
-      setSessionCookie(response, createSession());
-      sendJson(response, 200, { authenticated: true });
+
+    const account = await findByUsername(storageDir, name);
+    // Always run a verify so a missing user and a wrong password take a similar
+    // path (the dummy hash makes the timing comparable).
+    const ok = account
+      ? await verifyPassword(password, account.passwordHash)
+      : await verifyPassword(password, DUMMY_HASH);
+
+    if (account && ok) {
+      resetLoginRate(ip); // don't penalize a user who just logged in
+      setSessionCookie(response, createSession(account.id));
+      sendJson(response, 200, {
+        authenticated: true,
+        user: { username: account.username, role: account.role },
+      });
       return;
     }
     sendJson(response, 401, { error: "invalid_credentials" });
@@ -325,11 +593,125 @@ async function handleApi(request, response, url) {
     return;
   }
 
-  // Report whether the caller has a valid session (drives the login screen).
+  // Report whether the caller has a valid session (drives the login screen) and,
+  // if so, who they are (username + role drive the UI's admin features).
   if (url.pathname === "/api/auth/status" && request.method === "GET") {
+    const current = await getSessionUser(request);
     sendJson(response, 200, {
-      authenticated: !authEnabled || hasValidSession(request),
+      authenticated: Boolean(current),
+      user: current ? { username: current.username, role: current.role } : null,
     });
+    return;
+  }
+
+  // ----- Backup (admin only) -----
+  // Full export of all groups and accounts (decrypted plaintext, so the backup
+  // is actually usable) plus the user roster WITHOUT password hashes (restoring
+  // people means re-setting their passwords; we don't ship hashes in a download).
+  // Downloaded as a dated JSON attachment for the admin to store off-platform.
+  if (url.pathname === "/api/admin/backup" && request.method === "GET") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const db = await readDb();
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      users: await listUsers(storageDir), // id, username, role, createdAt (no hash)
+      groups: db.groups,
+    };
+    const date = new Date().toISOString().slice(0, 10);
+    response.writeHead(200, {
+      ...corsHeaders(),
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="contas-backup-${date}.json"`,
+    });
+    response.end(JSON.stringify(backup, null, 2));
+    return;
+  }
+
+  // ----- Users (admin only) -----
+
+  if (url.pathname === "/api/users") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    if (request.method === "GET") {
+      sendJson(response, 200, { users: await listUsers(storageDir) });
+      return;
+    }
+    if (request.method === "POST") {
+      const body = await readBody(request);
+      try {
+        const created = await createUser(storageDir, {
+          username: body.username,
+          password: body.password,
+          role: body.role === "admin" ? "admin" : "member",
+        });
+        sendJson(response, 201, created);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "invalid";
+        badRequest(response, code);
+      }
+      return;
+    }
+    notFound(response);
+    return;
+  }
+
+  const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+  if (userMatch) {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const targetId = decodeURIComponent(userMatch[1]);
+
+    if (request.method === "DELETE") {
+      try {
+        const removed = await deleteUser(storageDir, targetId);
+        if (!removed) {
+          notFound(response);
+          return;
+        }
+        // Re-home the deleted user's groups to the acting admin so their data
+        // stays visible and manageable instead of becoming orphaned.
+        await reassignGroups(targetId, user.id);
+        sendJson(response, 200, { ok: true });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "invalid";
+        badRequest(response, code);
+      }
+      return;
+    }
+    notFound(response);
+    return;
+  }
+
+  const userPwMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/password$/);
+  if (userPwMatch && request.method === "PUT") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const body = await readBody(request);
+    const password = asString(body.password);
+    if (!password) {
+      badRequest(response, "password_required");
+      return;
+    }
+    const ok = await setPassword(
+      storageDir,
+      decodeURIComponent(userPwMatch[1]),
+      password,
+    );
+    if (!ok) {
+      notFound(response);
+      return;
+    }
+    sendJson(response, 200, { ok: true });
     return;
   }
 
@@ -379,34 +761,30 @@ async function handleApi(request, response, url) {
     return;
   }
 
-  // Phase 0 test upload. Body: { channelId, filePath, title, description?,
-  // tags?, publishAt? }. publishAt is an ISO date in the future to schedule.
+  // Upload is DISABLED while the YouTube integration is paused (Phase 0). The
+  // old handler took an arbitrary `filePath` from the body and streamed it to
+  // YouTube — that's arbitrary file read on the server. Until the feature is
+  // resumed with a safe design (uploads confined to a dedicated directory, no
+  // caller-controlled absolute paths), the endpoint returns 503. uploadVideo()
+  // in youtube.mjs is kept intact for when it's re-enabled.
   if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
-    const body = await readBody(request);
-
-    if (!body.channelId || !body.filePath || !body.title) {
-      badRequest(response, "channelId, filePath e title são obrigatórios");
-      return;
-    }
-
-    try {
-      const result = await uploadVideo(body);
-      sendJson(response, 201, result);
-    } catch (error) {
-      sendJson(response, 500, {
-        error: "youtube_upload",
-        message: error instanceof Error ? error.message : "unknown",
-      });
-    }
+    await drainBody(request);
+    sendJson(response, 503, {
+      error: "youtube_upload_disabled",
+      message:
+        "Upload temporariamente desativado enquanto a integração YouTube está em pausa.",
+    });
     return;
   }
 
   // ----- Groups -----
+  // Every group route below is ownership-scoped: a member only ever sees or
+  // touches groups they own; an admin sees all. A group the caller can't see is
+  // reported as 404 (not 403) so its existence isn't revealed.
   if (url.pathname === "/api/groups" && request.method === "GET") {
     const db = await readDb();
     sendJson(response, 200, {
-      groups: db.groups.map(groupSummary),
-      activeGroupId: db.activeGroupId,
+      groups: visibleGroups(user, db.groups).map(groupSummary),
     });
     return;
   }
@@ -416,28 +794,15 @@ async function handleApi(request, response, url) {
     const db = await readDb();
     const group = normalizeGroup({
       name: asString(body.name).trim() || "Novo grupo",
+      // New groups belong to their creator. (Admins create their own groups too;
+      // they can still see everyone's.)
+      ownerId: user.id,
       accounts: Array.isArray(body.accounts) ? body.accounts : [],
     });
 
     db.groups.push(group);
-    db.activeGroupId = group.id;
     await writeDb(db);
     sendJson(response, 201, groupSummary(group));
-    return;
-  }
-
-  if (url.pathname === "/api/groups/active" && request.method === "PUT") {
-    const body = await readBody(request);
-    const db = await readDb();
-
-    if (!db.groups.some((group) => group.id === body.activeGroupId)) {
-      notFound(response);
-      return;
-    }
-
-    db.activeGroupId = body.activeGroupId;
-    await writeDb(db);
-    sendJson(response, 200, { activeGroupId: db.activeGroupId });
     return;
   }
 
@@ -447,7 +812,7 @@ async function handleApi(request, response, url) {
     const id = decodeURIComponent(groupMatch[1]);
     const index = db.groups.findIndex((group) => group.id === id);
 
-    if (index === -1) {
+    if (index === -1 || !canSeeGroup(user, db.groups[index])) {
       notFound(response);
       return;
     }
@@ -468,21 +833,10 @@ async function handleApi(request, response, url) {
     }
 
     if (request.method === "DELETE") {
-      if (db.groups.length <= 1) {
-        badRequest(response, "cannot_delete_last_group");
-        return;
-      }
-
       db.groups.splice(index, 1);
-
-      if (db.activeGroupId === id) {
-        db.activeGroupId = db.groups[0].id;
-      }
-
       await writeDb(db);
       sendJson(response, 200, {
-        groups: db.groups.map(groupSummary),
-        activeGroupId: db.activeGroupId,
+        groups: visibleGroups(user, db.groups).map(groupSummary),
       });
       return;
     }
@@ -492,18 +846,25 @@ async function handleApi(request, response, url) {
   }
 
   // ----- Accounts within a group -----
+  // Resolves a group the caller is allowed to touch, or writes 404 and returns
+  // null. Centralizes the ownership check for all account routes.
+  async function resolveOwnedGroup(db, rawId) {
+    const groupId = decodeURIComponent(rawId);
+    const group = db.groups.find((item) => item.id === groupId);
+    if (!group || !canSeeGroup(user, group)) {
+      notFound(response);
+      return null;
+    }
+    return group;
+  }
+
   const accountsMatch = url.pathname.match(
     /^\/api\/groups\/([^/]+)\/accounts$/,
   );
   if (accountsMatch) {
     const db = await readDb();
-    const groupId = decodeURIComponent(accountsMatch[1]);
-    const group = db.groups.find((item) => item.id === groupId);
-
-    if (!group) {
-      notFound(response);
-      return;
-    }
+    const group = await resolveOwnedGroup(db, accountsMatch[1]);
+    if (!group) return;
 
     if (request.method === "GET") {
       sendJson(response, 200, group.accounts);
@@ -530,13 +891,8 @@ async function handleApi(request, response, url) {
   if (importMatch && request.method === "POST") {
     const body = await readBody(request);
     const db = await readDb();
-    const groupId = decodeURIComponent(importMatch[1]);
-    const group = db.groups.find((item) => item.id === groupId);
-
-    if (!group) {
-      notFound(response);
-      return;
-    }
+    const group = await resolveOwnedGroup(db, importMatch[1]);
+    if (!group) return;
 
     const imported = Array.isArray(body) ? body : body.accounts;
     group.accounts = Array.isArray(imported)
@@ -553,15 +909,10 @@ async function handleApi(request, response, url) {
   );
   if (accountMatch) {
     const db = await readDb();
-    const groupId = decodeURIComponent(accountMatch[1]);
+    const group = await resolveOwnedGroup(db, accountMatch[1]);
+    if (!group) return;
+
     const accountId = decodeURIComponent(accountMatch[2]);
-    const group = db.groups.find((item) => item.id === groupId);
-
-    if (!group) {
-      notFound(response);
-      return;
-    }
-
     const index = group.accounts.findIndex(
       (account) => account.id === accountId,
     );
@@ -631,6 +982,7 @@ async function serveStatic(request, response, url) {
 
 const server = createServer(async (request, response) => {
   try {
+    applySecurityHeaders(request, response);
     const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
 
     // Health check stays open so the host's probe works without credentials.
@@ -640,34 +992,69 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname.startsWith("/api/")) {
-      // The auth endpoints are public (they're how you obtain a session);
-      // everything else under /api/ requires a valid session cookie. The static
-      // UI bundle below is intentionally public (no secrets) so the login
+      // The auth endpoints (and the YouTube OAuth callback) are public — they're
+      // how you obtain a session. Everything else under /api/ requires a valid
+      // session: we resolve the user once here and pass it to the handler. The
+      // static UI bundle below is intentionally public (no secrets) so the login
       // screen can load.
-      if (!isPublicApi(url.pathname) && !checkAuth(request, response)) {
-        return;
+      let user = null;
+      if (!isPublicApi(url.pathname)) {
+        user = await requireUser(request, response);
+        if (!user) return; // requireUser already wrote the 401
       }
-      await handleApi(request, response, url);
+      await handleApi(request, response, url, user);
       return;
     }
 
     await serveStatic(request, response, url);
   } catch (error) {
-    sendJson(response, 500, {
-      error: "server_error",
-      message: error instanceof Error ? error.message : "unknown",
-    });
+    // Map known client-side failures to precise codes; never leak internal error
+    // messages (paths, stack hints) to the client for anything else.
+    if (error instanceof PayloadTooLargeError) {
+      // The oversized body was left unread (we stopped buffering), so the
+      // keep-alive socket can't be safely reused — close it after replying.
+      response.setHeader("Connection", "close");
+      sendJson(response, 413, { error: "payload_too_large" });
+      return;
+    }
+    if (error instanceof SyntaxError) {
+      // Malformed JSON body.
+      sendJson(response, 400, { error: "invalid_json" });
+      return;
+    }
+    console.error("server_error:", error);
+    sendJson(response, 500, { error: "server_error" });
   }
 });
 
-// Ensure the DB exists (and migrate legacy data) before accepting traffic.
+// Startup: ensure storage exists and migrate legacy data, seed the bootstrap
+// admin from APP_AUTH_* if the user store is empty, then assign any ownerless
+// (pre-multiuser) groups to that admin so existing data stays visible.
 await readDb();
+const seededUsers = await ensureSeedAdmin(storageDir);
+const seedAdmin = seededUsers.find((item) => item.role === "admin");
+await backfillOwners(seedAdmin?.id);
+
+// If encryption is on, proactively re-write the store so any pre-existing
+// plaintext secrets get encrypted now rather than waiting for the next edit.
+// readDb()->writeDb() round-trips through decrypt/encrypt; already-encrypted
+// values are left untouched (idempotent).
+if (encryptionEnabled) {
+  await writeDb(await readDb());
+}
 
 server.listen(port, host, () => {
   console.log(`Contas_exe API: listening on ${host}:${port}`);
-  if (!authEnabled) {
+  if (seededUsers.length === 0) {
     console.log(
-      "AVISO: autenticacao desativada (defina APP_AUTH_USER e APP_AUTH_PASSWORD em producao).",
+      "AVISO: nenhum usuario cadastrado. Defina APP_AUTH_USER e APP_AUTH_PASSWORD " +
+        "para criar o admin inicial; depois gerencie a equipe pela UI.",
+    );
+  }
+  if (!encryptionEnabled) {
+    console.log(
+      "AVISO: criptografia em repouso DESATIVADA (senhas ficam em texto plano). " +
+        "Defina CONTAS_FLOW_ENC_KEY (32 bytes em hex/base64) em producao.",
     );
   }
 });

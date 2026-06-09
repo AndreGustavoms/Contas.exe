@@ -14,6 +14,9 @@ const variantClasses = {
   secondary:
     "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent-soft)] hover:border-[color:var(--accent)] hover:bg-[color:var(--accent-surface-strong)]",
   danger: "border-red-700 bg-red-700 text-white hover:bg-red-800",
+  // Animated neon border (see .btn-neon in index.css). Flat themed fill with a
+  // sweeping glow ring; lifts slightly on hover like the other variants.
+  neon: "btn-neon border-transparent bg-[color:var(--accent)] text-[color:var(--accent-foreground)] hover:-translate-y-0.5",
 } as const;
 
 const sizeClasses = {
