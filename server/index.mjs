@@ -9,7 +9,8 @@ import {
   buildAuthUrl,
   handleOAuthCallback,
   listConnectedChannels,
-  uploadVideo,
+  // uploadVideo: intentionally not imported — the upload endpoint is disabled
+  // (see /api/youtube/upload). The function stays in youtube.mjs for later.
 } from "./youtube.mjs";
 import {
   createUser,
@@ -140,6 +141,43 @@ function setSessionCookie(response, token) {
 
 function clearSessionCookie(response) {
   response.setHeader("Set-Cookie", sessionCookie("", 0));
+}
+
+// ----- Login rate limiting -----
+// Bounds brute-force attempts against /api/auth/login. In-memory sliding window
+// keyed by client IP; fine for this small single-instance service. Successful
+// logins reset the counter so a legitimate user isn't penalized.
+const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 1000 * 60 * 10; // 10 min
+const loginAttempts = new Map(); // ip -> { count, resetAt }
+
+function clientIp(request) {
+  // Behind a proxy (Railway), the real IP is the first XFF entry; fall back to
+  // the socket address. XFF is set by the platform, not trusted user input.
+  const xff = request.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.length > 0) {
+    return xff.split(",")[0].trim();
+  }
+  return request.socket?.remoteAddress ?? "unknown";
+}
+
+// Returns true if this IP is over the limit (request should be refused). Records
+// the attempt and prunes the window. Does not count successes (see resetLoginRate).
+function loginRateLimited(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > LOGIN_MAX_ATTEMPTS;
+}
+
+function resetLoginRate(ip) {
+  loginAttempts.delete(ip);
 }
 
 // /api/* paths reachable without a session: the auth endpoints themselves, and
@@ -339,15 +377,80 @@ function visibleGroups(user, groups) {
   return groups.filter((group) => canSeeGroup(user, group));
 }
 
+// Max accepted request body. Account records are tiny; 1 MB is generous and
+// still bounds memory use so a giant POST can't exhaust the process.
+const MAX_BODY_BYTES = 1024 * 1024;
+
+// Thrown when a request body exceeds MAX_BODY_BYTES; the dispatcher maps it to a
+// 413 instead of letting the connection buffer unbounded data.
+class PayloadTooLargeError extends Error {}
+
+// Consumes and discards a request body. Used when a handler answers a POST/PUT
+// without parsing the body (e.g. the disabled upload endpoint), so the socket
+// closes cleanly instead of resetting on the unread body. Bounded by the same
+// cap as readBody.
+async function drainBody(request) {
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      request.pause();
+      return;
+    }
+  }
+}
+
 async function readBody(request) {
   const chunks = [];
+  let size = 0;
 
   for await (const chunk of request) {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      // Stop buffering and let the dispatcher answer 413. We pause the stream
+      // rather than destroy() it so the response can still be written cleanly
+      // (destroying mid-request resets the socket -> the client sees ECONNRESET
+      // instead of the 413).
+      request.pause();
+      throw new PayloadTooLargeError("payload_too_large");
+    }
     chunks.push(chunk);
   }
 
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
+}
+
+// Sets baseline security headers on every response. Done via setHeader at the
+// start of the request so they apply uniformly to JSON, static files, HTML and
+// error responses (writeHead later merges these in). The app is self-contained
+// (no external scripts/styles/fonts), so a strict CSP doesn't break anything;
+// 'unsafe-inline' on style-src covers the inline styles React/Tailwind emit.
+function applySecurityHeaders(request, response) {
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "img-src 'self' data:",
+      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  );
+  // HSTS only makes sense over HTTPS; gate it on the same signal as Secure
+  // cookies so local http isn't told to force TLS.
+  if (cookieSecure) {
+    response.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+  }
 }
 
 // CORS headers, only emitted when an explicit allowed origin is configured.
@@ -391,7 +494,15 @@ async function handleApi(request, response, url, user) {
 
   // Validate credentials against the user store and issue a session cookie.
   // Wrong user or wrong password -> the same 401 (no account enumeration).
+  // Rate limited per IP to bound brute-force attempts.
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    const ip = clientIp(request);
+    if (loginRateLimited(ip)) {
+      await drainBody(request);
+      sendJson(response, 429, { error: "too_many_attempts" });
+      return;
+    }
+
     const body = await readBody(request);
     const name = asString(body.name);
     const password = asString(body.password);
@@ -404,6 +515,7 @@ async function handleApi(request, response, url, user) {
       : await verifyPassword(password, DUMMY_HASH);
 
     if (account && ok) {
+      resetLoginRate(ip); // don't penalize a user who just logged in
       setSessionCookie(response, createSession(account.id));
       sendJson(response, 200, {
         authenticated: true,
@@ -562,25 +674,19 @@ async function handleApi(request, response, url, user) {
     return;
   }
 
-  // Phase 0 test upload. Body: { channelId, filePath, title, description?,
-  // tags?, publishAt? }. publishAt is an ISO date in the future to schedule.
+  // Upload is DISABLED while the YouTube integration is paused (Phase 0). The
+  // old handler took an arbitrary `filePath` from the body and streamed it to
+  // YouTube — that's arbitrary file read on the server. Until the feature is
+  // resumed with a safe design (uploads confined to a dedicated directory, no
+  // caller-controlled absolute paths), the endpoint returns 503. uploadVideo()
+  // in youtube.mjs is kept intact for when it's re-enabled.
   if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
-    const body = await readBody(request);
-
-    if (!body.channelId || !body.filePath || !body.title) {
-      badRequest(response, "channelId, filePath e title são obrigatórios");
-      return;
-    }
-
-    try {
-      const result = await uploadVideo(body);
-      sendJson(response, 201, result);
-    } catch (error) {
-      sendJson(response, 500, {
-        error: "youtube_upload",
-        message: error instanceof Error ? error.message : "unknown",
-      });
-    }
+    await drainBody(request);
+    sendJson(response, 503, {
+      error: "youtube_upload_disabled",
+      message:
+        "Upload temporariamente desativado enquanto a integração YouTube está em pausa.",
+    });
     return;
   }
 
@@ -789,6 +895,7 @@ async function serveStatic(request, response, url) {
 
 const server = createServer(async (request, response) => {
   try {
+    applySecurityHeaders(request, response);
     const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
 
     // Health check stays open so the host's probe works without credentials.
@@ -814,10 +921,22 @@ const server = createServer(async (request, response) => {
 
     await serveStatic(request, response, url);
   } catch (error) {
-    sendJson(response, 500, {
-      error: "server_error",
-      message: error instanceof Error ? error.message : "unknown",
-    });
+    // Map known client-side failures to precise codes; never leak internal error
+    // messages (paths, stack hints) to the client for anything else.
+    if (error instanceof PayloadTooLargeError) {
+      // The oversized body was left unread (we stopped buffering), so the
+      // keep-alive socket can't be safely reused — close it after replying.
+      response.setHeader("Connection", "close");
+      sendJson(response, 413, { error: "payload_too_large" });
+      return;
+    }
+    if (error instanceof SyntaxError) {
+      // Malformed JSON body.
+      sendJson(response, 400, { error: "invalid_json" });
+      return;
+    }
+    console.error("server_error:", error);
+    sendJson(response, 500, { error: "server_error" });
   }
 });
 

@@ -42,13 +42,27 @@ export async function hashPassword(password) {
   return `scrypt:${N}:${r}:${p}:${salt.toString("hex")}:${derived.toString("hex")}`;
 }
 
+function isHex(value) {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length % 2 === 0 &&
+    /^[0-9a-fA-F]+$/.test(value)
+  );
+}
+
 export async function verifyPassword(password, stored) {
   if (typeof stored !== "string") return false;
   const parts = stored.split(":");
   if (parts.length !== 6 || parts[0] !== "scrypt") return false;
   const [, n, r, p, saltHex, hashHex] = parts;
+  // Fail closed on any malformed hash. An empty or non-hex hashHex would decode
+  // to a zero-length buffer, and comparing two empty buffers would wrongly pass —
+  // so a corrupted/hand-edited users.json could otherwise accept any password.
+  if (!isHex(saltHex) || !isHex(hashHex)) return false;
   const salt = Buffer.from(saltHex, "hex");
   const expected = Buffer.from(hashHex, "hex");
+  if (expected.length === 0) return false;
   const derived = await scryptAsync(password, salt, expected.length, {
     N: Number(n),
     r: Number(r),
