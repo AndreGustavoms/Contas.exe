@@ -103,4 +103,3 @@ Duas formas (use as duas):
 - [ ] Backup baixado e guardado pelo menos uma vez.
 - [ ] Checklist LGPD revisado: controlador/canal, base legal, aviso interno,
       retenção, backup e incidente. Ver [LGPD.md](./LGPD.md).
-- [ ] **Senha que vazou no histórico já foi trocada** (pendência de segurança).
