@@ -44,7 +44,6 @@ import {
   type AccountRecord,
   type AccountStatus,
   emptyAccountDraft,
-  initialAccounts,
   platformOptions,
   roleOptions,
   statusLabel,
@@ -74,20 +73,23 @@ import {
 } from "./ui/card";
 import { Input } from "./ui/input";
 
-// Client-side caches are namespaced PER USER so that, on a shared browser, one
-// teammate's cached accounts / selected group don't bleed into the next person's
-// session. "anon" is only used before login resolves.
-function accountsKey(username: string | undefined) {
-  return `contas_exe.accounts.v1:${username || "anon"}`;
-}
-// Which group the user last had selected. The active group is now per-browser
-// client state (the server no longer tracks it), so we persist the choice here
-// and re-validate it against the groups the user can actually see.
+// Account data is NEVER cached in the browser: it holds secrets (passwords,
+// recovery emails, phones, notes) and persisting it to localStorage would leak
+// them to anyone with access to the machine. The API is the source of truth and
+// is fetched fresh on each mount. We only remember the (non-secret) selected
+// group id, namespaced per user so a shared browser doesn't bleed one teammate's
+// choice into the next. "anon" is only used before login resolves.
 function activeGroupKey(username: string | undefined) {
   return `contas_exe.activeGroup.v1:${username || "anon"}`;
 }
 const API_GROUPS = "/api/groups";
 const ALL = "all";
+// A revealed password re-hides itself after this long so it doesn't linger on
+// screen (shoulder-surfing / abandoned tab).
+const REVEAL_TIMEOUT_MS = 15_000;
+// A copied secret is wiped from the clipboard after this long (best-effort: only
+// works while this tab still owns the clipboard and stays focused).
+const CLIPBOARD_CLEAR_MS = 20_000;
 
 type GroupSummary = {
   id: string;
@@ -201,30 +203,6 @@ function createId() {
   }
 
   return `account-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function loadAccounts(storageKey: string) {
-  if (typeof window === "undefined") {
-    return initialAccounts;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(storageKey);
-    if (!stored) {
-      return initialAccounts;
-    }
-
-    const parsed = JSON.parse(stored);
-    const imported = Array.isArray(parsed) ? parsed : parsed.accounts;
-
-    if (!Array.isArray(imported)) {
-      return initialAccounts;
-    }
-
-    return imported.filter(isAccountRecord);
-  } catch {
-    return initialAccounts;
-  }
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -393,13 +371,12 @@ export function AccountVault({
   user,
 }: AccountVaultProps) {
   const isAdmin = user?.role === "admin";
-  // Per-user cache keys (see accountsKey/activeGroupKey). Stable for this mount;
-  // a different user means a different AccountVault mount with different keys.
-  const storageKey = accountsKey(user?.username);
+  // Per-user key for the (non-secret) selected group. Stable for this mount; a
+  // different user means a different AccountVault mount with a different key.
   const activeGroupStorageKey = activeGroupKey(user?.username);
-  const [accounts, setAccounts] = useState<AccountRecord[]>(() =>
-    loadAccounts(storageKey),
-  );
+  // Accounts start empty and are loaded from the API on mount — they are never
+  // read from or written to localStorage (they carry secrets; see activeGroupKey).
+  const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string>(
     () => window.localStorage.getItem(activeGroupStorageKey) ?? "",
@@ -413,6 +390,8 @@ export function AccountVault({
     ALL,
   );
   const [showPassword, setShowPassword] = useState(false);
+  // Whether the quick-view password is currently revealed (it starts masked).
+  const [quickViewReveal, setQuickViewReveal] = useState(false);
   const [copiedKey, setCopiedKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -456,6 +435,32 @@ export function AccountVault({
       window.localStorage.removeItem(activeGroupStorageKey);
     }
   }, [activeGroupId, activeGroupStorageKey]);
+
+  // Auto-hide a revealed password after a short window so it doesn't stay on
+  // screen. Covers both the edit-form field and the quick-view. Re-arms on each
+  // reveal; clears the timer on hide/unmount.
+  useEffect(() => {
+    if (!showPassword) return;
+    const timer = window.setTimeout(
+      () => setShowPassword(false),
+      REVEAL_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [showPassword]);
+
+  useEffect(() => {
+    if (!quickViewReveal) return;
+    const timer = window.setTimeout(
+      () => setQuickViewReveal(false),
+      REVEAL_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [quickViewReveal]);
+
+  // The quick-view always opens with the password masked.
+  useEffect(() => {
+    setQuickViewReveal(false);
+  }, [quickViewAccount]);
 
   useEffect(() => {
     let ignore = false;
@@ -518,10 +523,9 @@ export function AccountVault({
   }, [activeGroupId]);
 
   function setAccountList(nextAccounts: AccountRecord[]) {
-    const sortedAccounts = sortAccounts(nextAccounts.map(migrateAccount));
-
-    setAccounts(sortedAccounts);
-    window.localStorage.setItem(storageKey, JSON.stringify(sortedAccounts));
+    // In-memory only: accounts hold secrets and must not be persisted to the
+    // browser. They are re-fetched from the API on the next mount.
+    setAccounts(sortAccounts(nextAccounts.map(migrateAccount)));
   }
 
   const accountsBase = activeGroupId
@@ -885,6 +889,25 @@ export function AccountVault({
       await navigator.clipboard.writeText(value);
       setCopiedKey(key);
       window.setTimeout(() => setCopiedKey(""), 1200);
+      // For secrets (password), wipe the clipboard after a short window so a
+      // copied password isn't left sitting there. Best-effort and conservative:
+      // we only clear when we can confirm the clipboard STILL holds the password
+      // we put there. If readText is blocked (common — it needs permission), we
+      // skip clearing rather than risk clobbering something the user copied since.
+      if (key.endsWith(":password")) {
+        window.setTimeout(() => {
+          void navigator.clipboard
+            .readText()
+            .then((current) => {
+              if (current === value) {
+                void navigator.clipboard.writeText("").catch(() => {});
+              }
+            })
+            .catch(() => {
+              // Can't verify the clipboard contents; leave it untouched.
+            });
+        }, CLIPBOARD_CLEAR_MS);
+      }
     } catch {
       setCopiedKey("");
     }
@@ -1181,6 +1204,8 @@ export function AccountVault({
           onCopy={copyValue}
           onDelete={() => deleteAccount(quickViewAccount.id)}
           onEdit={() => editAccount(quickViewAccount)}
+          passwordRevealed={quickViewReveal}
+          onTogglePassword={() => setQuickViewReveal((current) => !current)}
         />
       ) : null}
 
@@ -2598,6 +2623,8 @@ type QuickViewModalProps = {
   onCopy: (value: string, key: string) => void;
   onDelete: () => void;
   onEdit: () => void;
+  passwordRevealed: boolean;
+  onTogglePassword: () => void;
 };
 
 function QuickViewModal({
@@ -2607,6 +2634,8 @@ function QuickViewModal({
   onCopy,
   onDelete,
   onEdit,
+  passwordRevealed,
+  onTogglePassword,
 }: QuickViewModalProps) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -2675,6 +2704,9 @@ function QuickViewModal({
             icon={KeyRound}
             label="Senha"
             value={account.password}
+            secret
+            revealed={passwordRevealed}
+            onToggleReveal={onTogglePassword}
             onCopy={() => onCopy(account.password, `${account.id}:password`)}
           />
         </div>
@@ -2704,6 +2736,12 @@ type QuickFieldProps = {
   label: string;
   value: string;
   onCopy: () => void;
+  // When set, the value is treated as a secret: masked until revealed, with a
+  // reveal toggle. `revealed`/`onToggleReveal` are controlled by the parent so
+  // the reveal can auto-hide on a timer.
+  secret?: boolean;
+  revealed?: boolean;
+  onToggleReveal?: () => void;
 };
 
 function QuickField({
@@ -2712,7 +2750,11 @@ function QuickField({
   label,
   value,
   onCopy,
+  secret = false,
+  revealed = false,
+  onToggleReveal,
 }: QuickFieldProps) {
+  const masked = secret && !revealed;
   return (
     <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-3">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--accent-muted)]">
@@ -2721,8 +2763,17 @@ function QuickField({
       </div>
       <div className="mt-2 flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate font-mono text-sm text-[color:var(--text)]">
-          {value || "—"}
+          {value ? (masked ? "••••••••" : value) : "—"}
         </p>
+        {secret ? (
+          <IconButton
+            disabled={!value}
+            icon={revealed ? EyeOff : Eye}
+            label={revealed ? "Ocultar senha" : "Mostrar senha"}
+            onClick={() => onToggleReveal?.()}
+            selected={revealed}
+          />
+        ) : null}
         <IconButton
           disabled={!value}
           icon={Copy}

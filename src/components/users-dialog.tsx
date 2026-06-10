@@ -1,19 +1,38 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Download, Shield, Trash2, UserPlus, X } from "lucide-react";
+import {
+  Download,
+  LogOut,
+  Monitor,
+  Shield,
+  Trash2,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
 import { Switch } from "./ui/switch";
 
-// Admin-only panel to manage the people who can log in. Talks to the
-// /api/users endpoints (all admin-gated server-side). Members never see this.
+// Admin-only panel to manage the people who can log in and their active
+// sessions. Talks to the /api/users and /api/sessions endpoints (all admin-gated
+// server-side). Members never see this.
 
 type ManagedUser = {
   id: string;
   username: string;
   role: "admin" | "member";
   createdAt: string;
+};
+
+type ManagedSession = {
+  sessionId: string;
+  userId: string;
+  createdAt: string;
+  lastSeenAt: number;
+  expiresAt: number;
+  userAgent: string;
+  current: boolean;
 };
 
 type UsersDialogProps = {
@@ -23,6 +42,7 @@ type UsersDialogProps = {
 };
 
 const API_USERS = "/api/users";
+const API_SESSIONS = "/api/sessions";
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -49,6 +69,46 @@ function labelForError(code: string): string {
   return ERROR_LABELS[code] ?? "Algo deu errado. Tente de novo.";
 }
 
+// "há 5 min", "há 2 h", "há 3 d" — coarse relative time for last activity.
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const hours = Math.round(min / 60);
+  if (hours < 24) return `há ${hours} h`;
+  return `há ${Math.round(hours / 24)} d`;
+}
+
+// Best-effort short device label from the user-agent string.
+function deviceLabel(userAgent: string): string {
+  if (!userAgent) return "Dispositivo desconhecido";
+  const browser =
+    /Edg/.test(userAgent)
+      ? "Edge"
+      : /OPR|Opera/.test(userAgent)
+        ? "Opera"
+        : /Chrome/.test(userAgent)
+          ? "Chrome"
+          : /Firefox/.test(userAgent)
+            ? "Firefox"
+            : /Safari/.test(userAgent)
+              ? "Safari"
+              : "Navegador";
+  const os = /Windows/.test(userAgent)
+    ? "Windows"
+    : /Android/.test(userAgent)
+      ? "Android"
+      : /iPhone|iPad|iOS/.test(userAgent)
+        ? "iOS"
+        : /Mac/.test(userAgent)
+          ? "macOS"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : "";
+  return os ? `${browser} · ${os}` : browser;
+}
+
 export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +118,8 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "member">("member");
   const [creating, setCreating] = useState(false);
+
+  const [sessions, setSessions] = useState<ManagedSession[]>([]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -78,11 +140,48 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
     }
   }
 
+  async function loadSessions() {
+    try {
+      const data = await requestJson<{ sessions: ManagedSession[] }>(
+        API_SESSIONS,
+      );
+      setSessions(data.sessions);
+    } catch {
+      // Non-fatal: the sessions panel just stays empty.
+    }
+  }
+
   useEffect(() => {
     void loadUsers();
-    // loadUsers is stable enough for a one-shot mount load.
+    void loadSessions();
+    // Loaders are stable enough for a one-shot mount load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function endSession(session: ManagedSession) {
+    setError("");
+    try {
+      await requestJson(`${API_SESSIONS}/${encodeURIComponent(session.sessionId)}`, {
+        method: "DELETE",
+      });
+      await loadSessions();
+    } catch {
+      setError("Não foi possível encerrar a sessão.");
+    }
+  }
+
+  async function endAllSessions(user: ManagedUser) {
+    setError("");
+    try {
+      await requestJson(
+        `${API_USERS}/${encodeURIComponent(user.id)}/sessions/revoke`,
+        { method: "POST" },
+      );
+      await loadSessions();
+    } catch {
+      setError("Não foi possível encerrar as sessões.");
+    }
+  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,6 +214,7 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
         method: "DELETE",
       });
       await loadUsers();
+      await loadSessions();
     } catch (err) {
       setError(labelForError(err instanceof Error ? err.message : "invalid"));
     }
@@ -266,6 +366,85 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
                 </div>
               );
             })
+          )}
+        </div>
+
+        {/* Active sessions: who is logged in, and the ability to end any session
+            or log a user out everywhere. All server-side revocations (real, not
+            just UI): the next request from a revoked session falls back to login. */}
+        <div className="mt-6">
+          <div className="mb-2 flex items-center gap-2.5">
+            <Monitor className="h-4 w-4 text-[color:var(--accent)]" />
+            <h3 className="text-sm font-semibold text-[color:var(--text)]">
+              Sessões ativas
+            </h3>
+          </div>
+          {sessions.length === 0 ? (
+            <p className="rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 py-3 text-xs text-[color:var(--muted)]">
+              Nenhuma sessão ativa.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {users
+                .map((u) => ({
+                  user: u,
+                  list: sessions.filter((s) => s.userId === u.id),
+                }))
+                .filter((entry) => entry.list.length > 0)
+                .map(({ user, list }) => (
+                  <div
+                    key={user.id}
+                    className="rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-sm font-semibold text-[color:var(--text)]">
+                        {user.username}
+                        <span className="ml-2 text-xs font-normal text-[color:var(--muted)]">
+                          {list.length} sessã{list.length === 1 ? "o" : "es"}
+                        </span>
+                      </p>
+                      <button
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-red-300/80 transition hover:bg-red-500/10 hover:text-red-200"
+                        type="button"
+                        onClick={() => endAllSessions(user)}
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        Sair de todos
+                      </button>
+                    </div>
+                    <ul className="mt-2 space-y-1.5">
+                      {list.map((session) => (
+                        <li
+                          key={session.sessionId}
+                          className="flex items-center justify-between gap-3 rounded-lg bg-[color:var(--surface-soft)] px-2.5 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-[color:var(--text)]">
+                              {deviceLabel(session.userAgent)}
+                              {session.current ? (
+                                <span className="ml-2 text-[color:var(--accent)]">
+                                  este dispositivo
+                                </span>
+                              ) : null}
+                            </p>
+                            <p className="truncate text-[11px] text-[color:var(--muted)]">
+                              ativo {relativeTime(session.lastSeenAt)}
+                            </p>
+                          </div>
+                          <button
+                            aria-label="Encerrar sessão"
+                            className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--muted)] transition hover:bg-red-500/10 hover:text-red-200"
+                            type="button"
+                            onClick={() => endSession(session)}
+                          >
+                            Encerrar
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+            </div>
           )}
         </div>
 

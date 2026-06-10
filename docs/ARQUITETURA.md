@@ -155,11 +155,15 @@ Fora de `/api/`, serve a build de `dist/` (SPA fallback para `index.html`).
   temas. Tudo respeita `prefers-reduced-motion`.
 
 ### Persistência no cliente
-`account-vault.tsx` busca os grupos e as contas do grupo ativo via API e espelha
-em `localStorage` como cache. **As chaves são namespaceadas por usuário**
-(`contas_exe.accounts.v1:<username>`, `contas_exe.activeGroup.v1:<username>`)
-para que, num navegador compartilhado, o estado de um colega não vaze para o
-próximo. A API é a fonte da verdade; se ela estiver fora, aparece "API offline".
+`account-vault.tsx` busca os grupos e as contas do grupo ativo via API a cada
+montagem. **As contas NUNCA são guardadas no navegador** — elas carregam
+segredos (senha, email de recuperação, telefone, notas) e persistir em
+`localStorage` os vazaria para quem tivesse acesso à máquina. A única coisa
+guardada localmente é o **id do grupo ativo** (`contas_exe.activeGroup.v1:<username>`,
+namespaceado por usuário), que não é segredo. A API é a fonte da verdade; se ela
+estiver fora, aparece "API offline". Senhas no quick-view começam ocultas, são
+reveladas sob demanda e se reocultam sozinhas após ~15s; ao copiar uma senha, o
+clipboard é limpo depois de ~20s (best-effort).
 
 ---
 
@@ -178,8 +182,19 @@ próximo. A API é a fonte da verdade; se ela estiver fora, aparece "API offline
   - A chave é a **única** forma de decifrar: se perdida, os campos cifrados são
     irrecuperáveis. Guarde-a separada do volume de dados.
 - **Login:** multiusuário com hash **scrypt** (salt por usuário) em
-  `users.json`; sessão via cookie HttpOnly + `SameSite=Strict` (+ `Secure` em
-  HTTPS). Ver `server/users.mjs`.
+  `users.json`; sessão via cookie HttpOnly + `SameSite=Strict` + `Path=/`
+  (+ `Secure` em HTTPS), `Max-Age` de 3 dias. Ver `server/users.mjs`.
+- **Sessões (server-side, revogáveis):** o cookie carrega só um token opaco; o
+  estado fica em `storage/sessions.json` (ver `server/sessions.mjs`), então
+  sobrevive a redeploy e pode ser **revogado**. Dois prazos independentes
+  (OWASP): **3h de inatividade** (`lastSeenAt`) e **teto absoluto de 3 dias**
+  (`expiresAt`, nunca estendido — mesmo usando todo dia, relogin após 3 dias).
+  `lastSeenAt` só renova em request autenticado real (aba parada não renova; o
+  front não fica fazendo polling). `ipHash` (SHA-256 do IP, nunca o IP cru) e
+  `userAgent` são cifrados em repouso com o mesmo `crypto.mjs`. O admin vê e
+  encerra sessões (uma específica ou "sair de todos os dispositivos") pelo painel
+  Equipe; logout revoga server-side. Rotas: `GET /api/sessions`,
+  `DELETE /api/sessions/:id`, `POST /api/users/:id/sessions/revoke`.
 - **Endurecimento HTTP/API:** login rate-limited em memória por IP
   (10 tentativas/10 min; sucesso limpa o contador). O IP vem do socket por padrão;
   `X-Forwarded-For` só é aceito quando `CONTAS_FLOW_TRUSTED_PROXIES` informa
@@ -199,7 +214,8 @@ próximo. A API é a fonte da verdade; se ela estiver fora, aparece "API offline
 - Em produção: HTTPS (cookie `Secure`), `CONTAS_FLOW_ENC_KEY` definida,
   `CONTAS_FLOW_TRUSTED_PROXIES` correto, e CORS fechado (same-origin por padrão).
 - **LGPD:** o sistema aplica controles técnicos de minimização, segregação por
-  usuário/grupo, criptografia, cache local namespaceado e proteção de backups, mas
+  usuário/grupo, criptografia, sessões revogáveis com duplo timeout, ausência de
+  segredos no navegador e proteção de backups, mas
   a base legal, aviso de privacidade, canal do titular, retenção e resposta a
   incidentes dependem do controlador. Ver **[docs/LGPD.md](./LGPD.md)**.
 

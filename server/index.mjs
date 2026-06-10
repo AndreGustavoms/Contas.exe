@@ -23,6 +23,16 @@ import {
   verifyPassword,
 } from "./users.mjs";
 import { decryptField, encryptField, encryptionEnabled } from "./crypto.mjs";
+import {
+  createSession,
+  listAllSessions,
+  pruneSessions,
+  resolveAndTouch,
+  revokeAllForUser,
+  revokeSession,
+  SESSION_ABSOLUTE_MS,
+  SESSION_IDLE_MS,
+} from "./sessions.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 // In production set CONTAS_FLOW_STORAGE_DIR to a persistent volume (e.g. /data
@@ -65,10 +75,10 @@ const DUMMY_HASH =
 // at startup; see ensureSeedAdmin).
 
 const SESSION_COOKIE = "contas_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12h
-// In-memory session store: token -> { userId, expiry }. Fine for a single small
-// service; sessions reset on redeploy (users re-login), which is acceptable.
-const sessions = new Map();
+// Session state lives server-side in storage/sessions.json (see sessions.mjs):
+// it survives redeploys and, more importantly, is revocable. The cookie only
+// carries the opaque token. Two expirations are enforced there: 3h idle and a
+// 3-day absolute ceiling.
 
 function parseCookies(request) {
   const header = request.headers.cookie ?? "";
@@ -82,43 +92,30 @@ function parseCookies(request) {
   return jar;
 }
 
-function pruneSessions() {
+// Drops expired login-attempt buckets so the rate-limit map can't grow unbounded
+// from one-off IPs that never return.
+function pruneLoginAttempts() {
   const now = Date.now();
-  for (const [token, session] of sessions) {
-    if (session.expiry <= now) sessions.delete(token);
-  }
-  // Also drop expired login-attempt buckets so the map can't grow unbounded from
-  // one-off IPs that never return (loginAttempts is declared below; this runs at
-  // call time, after module init).
   for (const [ip, entry] of loginAttempts) {
     if (entry.resetAt <= now) loginAttempts.delete(ip);
   }
 }
 
-function createSession(userId) {
-  pruneSessions();
-  const token = randomUUID() + randomUUID().replaceAll("-", "");
-  sessions.set(token, { userId, expiry: Date.now() + SESSION_TTL_MS });
-  return token;
+function sessionToken(request) {
+  return parseCookies(request)[SESSION_COOKIE] ?? null;
 }
 
-// Returns the live session record ({ userId, expiry }) for the request, or null
-// if there is no valid (unexpired) session cookie. Expired tokens are evicted.
-function getSession(request) {
-  const token = parseCookies(request)[SESSION_COOKIE];
-  if (!token) return null;
-  const session = sessions.get(token);
-  if (!session || session.expiry <= Date.now()) {
-    if (token) sessions.delete(token);
-    return null;
-  }
-  return session;
-}
-
-// Resolves the request to a stored user, or null when unauthenticated or when the
-// user behind the session no longer exists (e.g. deleted by an admin).
+// Resolves the request to a stored user, or null when unauthenticated, when the
+// session is invalid/expired/revoked, or when the user behind the session no
+// longer exists (e.g. deleted by an admin). On a valid session this also renews
+// lastSeenAt: every authenticated request counts as real activity (which is why
+// the client must NOT poll /api/auth/status on a timer — that would keep an idle
+// tab alive). The absolute 3-day ceiling is never extended.
 async function getSessionUser(request) {
-  const session = getSession(request);
+  const token = sessionToken(request);
+  // One serialized read-modify-write: validate + renew lastSeenAt together, so a
+  // concurrent revoke can't be clobbered by a stale touch.
+  const session = await resolveAndTouch(storageDir, token);
   if (!session) return null;
   return findById(storageDir, session.userId);
 }
@@ -139,9 +136,12 @@ function sessionCookie(value, maxAge) {
 }
 
 function setSessionCookie(response, token) {
+  // Cookie lifetime tracks the absolute session ceiling (3 days). The server still
+  // enforces the 3h idle timeout independently, so the cookie outliving an idle
+  // session is fine — the token just stops validating server-side.
   response.setHeader(
     "Set-Cookie",
-    sessionCookie(token, Math.floor(SESSION_TTL_MS / 1000)),
+    sessionCookie(token, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
   );
 }
 
@@ -553,6 +553,7 @@ async function handleApi(request, response, url, user) {
   // Wrong user or wrong password -> the same 401 (no account enumeration).
   // Rate limited per IP to bound brute-force attempts.
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    pruneLoginAttempts(); // sweep stale per-IP buckets so the map stays bounded
     const ip = clientIp(request);
     if (loginRateLimited(ip)) {
       await drainBody(request);
@@ -573,7 +574,12 @@ async function handleApi(request, response, url, user) {
 
     if (account && ok) {
       resetLoginRate(ip); // don't penalize a user who just logged in
-      setSessionCookie(response, createSession(account.id));
+      const token = await createSession(storageDir, {
+        userId: account.id,
+        ip,
+        userAgent: request.headers["user-agent"],
+      });
+      setSessionCookie(response, token);
       sendJson(response, 200, {
         authenticated: true,
         user: { username: account.username, role: account.role },
@@ -584,19 +590,24 @@ async function handleApi(request, response, url, user) {
     return;
   }
 
-  // Drop the session.
+  // Drop the session: revoke it server-side AND clear the cookie.
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {
-    const token = parseCookies(request)[SESSION_COOKIE];
-    if (token) sessions.delete(token);
+    const token = sessionToken(request);
+    if (token) await revokeSession(storageDir, token);
     clearSessionCookie(response);
     sendJson(response, 200, { authenticated: false });
     return;
   }
 
   // Report whether the caller has a valid session (drives the login screen) and,
-  // if so, who they are (username + role drive the UI's admin features).
+  // if so, who they are (username + role drive the UI's admin features). When the
+  // session has expired (idle/absolute) or was revoked, clear the now-stale cookie
+  // so the browser stops sending it and the UI falls back to the login screen.
   if (url.pathname === "/api/auth/status" && request.method === "GET") {
     const current = await getSessionUser(request);
+    if (!current && sessionToken(request)) {
+      clearSessionCookie(response);
+    }
     sendJson(response, 200, {
       authenticated: Boolean(current),
       user: current ? { username: current.username, role: current.role } : null,
@@ -712,6 +723,51 @@ async function handleApi(request, response, url, user) {
       return;
     }
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  // "Log out of all devices" for a user: revoke every active session they hold.
+  // Admin only (same gate as the rest of /api/users).
+  const userSessionsMatch = url.pathname.match(
+    /^\/api\/users\/([^/]+)\/sessions\/revoke$/,
+  );
+  if (userSessionsMatch && request.method === "POST") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const revoked = await revokeAllForUser(
+      storageDir,
+      decodeURIComponent(userSessionsMatch[1]),
+    );
+    sendJson(response, 200, { ok: true, revoked });
+    return;
+  }
+
+  // ----- Sessions (admin: view & revoke) -----
+  // Lets an admin see who is logged in and end specific sessions. The requester's
+  // own session is flagged `current` so the UI can label "this device".
+  if (url.pathname === "/api/sessions" && request.method === "GET") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const sessions = await listAllSessions(storageDir, sessionToken(request));
+    sendJson(response, 200, { sessions });
+    return;
+  }
+
+  const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (sessionMatch && request.method === "DELETE") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const revoked = await revokeSession(
+      storageDir,
+      decodeURIComponent(sessionMatch[1]),
+    );
+    sendJson(response, 200, { ok: revoked });
     return;
   }
 
@@ -1042,6 +1098,14 @@ await backfillOwners(seedAdmin?.id);
 if (encryptionEnabled) {
   await writeDb(await readDb());
 }
+
+// Drop revoked/expired sessions at startup, then periodically, so sessions.json
+// doesn't accumulate dead records. unref() keeps the timer from holding the
+// process open.
+await pruneSessions(storageDir);
+setInterval(() => {
+  void pruneSessions(storageDir);
+}, SESSION_IDLE_MS).unref();
 
 server.listen(port, host, () => {
   console.log(`Contas_exe API: listening on ${host}:${port}`);

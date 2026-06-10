@@ -31,7 +31,8 @@ avaliacao de necessidade, base legal, retencao e seguranca antes de coletar.
 - YouTube OAuth esta em pausa e o upload esta desativado; se a integracao voltar,
   documentar escopos, finalidade, titulares afetados, retencao dos tokens e
   revogacao.
-- `localStorage` e apenas cache por usuario; a API e a fonte da verdade.
+- `localStorage` guarda so preferencia de tema e id do grupo ativo (nao
+  sensiveis); a API e a fonte da verdade e nenhum dado de conta fica no navegador.
 
 ## Base legal e transparencia
 
@@ -50,11 +51,16 @@ Antes de producao, o controlador deve registrar fora do codigo:
 - Criptografia em repouso AES-256-GCM para `password`, `recoveryEmail`, `phone`,
   `notes` e tokens OAuth, quando `CONTAS_FLOW_ENC_KEY` esta definida.
 - Senhas dos usuarios com hash scrypt e salt por usuario.
-- Sessao por cookie HttpOnly, `SameSite=Strict` e `Secure` em HTTPS.
+- Sessao por cookie HttpOnly, `SameSite=Strict`, `Path=/` e `Secure` em HTTPS,
+  com estado server-side em `sessions.json`: revogavel (encerrar uma sessao ou
+  todas de um usuario) e com duplo prazo (3h de inatividade, 3 dias absolutos,
+  OWASP). `ipHash` e `userAgent` das sessoes sao cifrados em repouso.
 - Isolamento por grupo/owner: membros acessam apenas seus grupos; admin acessa
   tudo para governanca e backup.
-- Chaves de `localStorage` namespaceadas por usuario para evitar vazamento em
-  navegador compartilhado.
+- Segredos nao ficam no navegador: as contas (senha, email de recuperacao,
+  telefone, notas) nao sao gravadas em `localStorage`; senha revelada se
+  reoculta sozinha e o clipboard e limpo apos a copia. So o id do grupo ativo
+  (nao sensivel) e guardado, namespaceado por usuario.
 - Rate limit no login, headers de seguranca, CORS fechado por padrao e limite de
   corpo de requisicao.
 - `storage/`, `.env`, exports e backups sao ignorados pelo Git.
