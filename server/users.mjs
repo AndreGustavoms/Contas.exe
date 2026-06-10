@@ -48,6 +48,42 @@ const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: SCRYPT_MAXMEM };
 
 export const ROLES = new Set(["admin", "member"]);
 
+// --- Input validation constants ---
+export const USERNAME_MIN = 2;
+export const USERNAME_MAX = 80;
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 128;
+export const TOTP_CODE_MIN = 6;
+export const TOTP_CODE_MAX = 8;
+
+const COMMON_PASSWORDS = new Set([
+  "12345678", "123456789", "1234567890", "password", "password1",
+  "qwerty123", "iloveyou", "admin123", "letmein1", "welcome1",
+  "monkey123", "dragon123", "master123", "abcdefgh", "passw0rd",
+]);
+
+// Returns null if valid, or a string error code if invalid.
+export function validateUsername(username) {
+  if (typeof username !== "string") return "invalid_username";
+  const name = username.trim();
+  if (name.length < USERNAME_MIN) return "username_too_short";
+  if (name.length > USERNAME_MAX) return "username_too_long";
+  return null;
+}
+
+export function validatePassword(password, username = "") {
+  if (typeof password !== "string") return "invalid_password";
+  if (password.length < PASSWORD_MIN) return "password_too_short";
+  if (password.length > PASSWORD_MAX) return "password_too_long";
+  if (!/[A-Z]/.test(password)) return "password_no_uppercase";
+  if (!/[a-z]/.test(password)) return "password_no_lowercase";
+  if (!/[0-9]/.test(password)) return "password_no_number";
+  if (!/[^A-Za-z0-9]/.test(password)) return "password_no_special";
+  if (COMMON_PASSWORDS.has(password.toLowerCase())) return "password_too_common";
+  if (username && password.toLowerCase() === username.trim().toLowerCase()) return "password_same_as_username";
+  return null;
+}
+
 // --- Password hashing (scrypt) ---
 
 // Returns "scrypt:N:r:p:saltHex:hashHex" so the verifier is self-describing and
@@ -152,6 +188,8 @@ export function publicUser(user) {
   return {
     id: user.id,
     username: user.username,
+    fullName: user.fullName ?? null,
+    email: user.email ?? null,
     role: user.role,
     createdAt: user.createdAt,
     twoFactorEnabled: Boolean(user.twoFactor?.enabled),
@@ -199,20 +237,37 @@ export async function findById(storageDir, id) {
   return users.find((user) => user.id === id) ?? null;
 }
 
-// Creates a user. Throws Error("username_taken") / Error("invalid") on bad input.
-export function createUser(storageDir, { username, password, role }) {
+export async function findByEmail(storageDir, email) {
+  if (!email) return null;
+  const normalized = email.trim().toLowerCase();
+  const users = await readUsersFile(storageDir);
+  return users.find((user) => user.email?.toLowerCase() === normalized) ?? null;
+}
+
+// Creates a user. Throws Error("username_taken") / Error("invalid") / Error(validation code) on bad input.
+export function createUser(storageDir, { username, password, role, email, fullName }) {
   return withLock(async () => {
     const name = normalizeUsername(username);
     if (!name || !password || !ROLES.has(role)) {
       throw new Error("invalid");
     }
+    const usernameErr = validateUsername(username);
+    if (usernameErr) throw new Error(usernameErr);
+    const passwordErr = validatePassword(password, name);
+    if (passwordErr) throw new Error(passwordErr);
     const users = await readUsersFile(storageDir);
     if (users.some((user) => user.username === name)) {
       throw new Error("username_taken");
     }
+    const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+    if (normalizedEmail && users.some((u) => u.email?.toLowerCase() === normalizedEmail)) {
+      throw new Error("email_taken");
+    }
     const user = {
       id: randomUUID(),
       username: name,
+      ...(fullName ? { fullName: fullName.trim() } : {}),
+      ...(normalizedEmail ? { email: normalizedEmail } : {}),
       role,
       passwordHash: await hashPassword(password),
       createdAt: new Date().toISOString(),
@@ -240,6 +295,19 @@ export function deleteUser(storageDir, id) {
     users.splice(index, 1);
     await writeUsersFile(storageDir, users);
     return publicUser(target);
+  });
+}
+
+// Updates a user's recovery e-mail. Pass null/empty to clear it.
+export function setEmail(storageDir, id, email) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((item) => item.id === id);
+    if (!user) return false;
+    const normalized = typeof email === "string" ? email.trim().toLowerCase() : null;
+    user.email = normalized || null;
+    await writeUsersFile(storageDir, users);
+    return true;
   });
 }
 
