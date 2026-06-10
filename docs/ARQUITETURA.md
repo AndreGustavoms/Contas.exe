@@ -186,6 +186,18 @@ reautenticação e é refeita automaticamente após o usuário confirmar a senha
 - **Login:** multiusuário com hash **scrypt** (salt por usuário) em
   `users.json`; sessão via cookie HttpOnly + `SameSite=Strict` + `Path=/`
   (+ `Secure` em HTTPS), `Max-Age` de 3 dias. Ver `server/users.mjs`.
+- **2FA opcional (TOTP):** cada usuário ativa/desativa o seu na tela "Minha conta"
+  (estilo Riot): adiciona a chave no app autenticador, confirma um código de 6
+  dígitos para ligar e recebe **8 códigos de recuperação** (uso único, mostrados
+  uma vez). Implementado com `crypto` nativo, RFC 6238 (`server/totp.mjs`), sem
+  dependência nova. Com 2FA ativo o login é em **duas etapas**: `/api/auth/login`
+  responde `{ twoFactorRequired: true }` (sem cookie) e o cliente finaliza em
+  `POST /api/auth/login/totp` com o código (TOTP ou de recuperação). O **secret**
+  e os hashes dos códigos de recuperação são **cifrados em repouso** em
+  `users.json` (mesmo `crypto.mjs`); `publicUser` nunca os expõe. Ativar/desativar/
+  gerar códigos exige reauth recente. Um **admin** pode resetar o 2FA de um usuário
+  trancado para fora (painel Equipe). Rotas: `GET/POST /api/account/2fa[/setup|
+  /enable|/disable|/recovery-codes]`, `POST /api/users/:id/2fa/reset`.
 - **Sessões (server-side, revogáveis):** o cookie carrega só um token opaco; o
   estado fica em `storage/sessions.json` (ver `server/sessions.mjs`), então
   sobrevive a redeploy e pode ser **revogado**. Dois prazos independentes

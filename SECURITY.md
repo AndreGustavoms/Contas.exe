@@ -60,7 +60,9 @@ O app aplica controles de acesso server-side: reautenticação (redigitar a senh
 para ações críticas — revelar/copiar senha, exportar backup, trocar senha,
 criar/remover admin, apagar grupo — e uma trilha de auditoria (sem segredos) do
 que cada um fez. A senha não trafega na listagem; é buscada sob demanda atrás de
-reauth. Ver [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+reauth. Há ainda **2FA opcional (TOTP)** por usuário, ativável em "Minha conta";
+o secret e os códigos de recuperação ficam cifrados em repouso. Ver
+[docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ## Se um segredo vazar mesmo assim
 

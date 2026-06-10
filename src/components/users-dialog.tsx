@@ -5,6 +5,7 @@ import {
   Monitor,
   ScrollText,
   Shield,
+  ShieldCheck,
   Trash2,
   UserPlus,
   X,
@@ -24,6 +25,7 @@ type ManagedUser = {
   username: string;
   role: "admin" | "member";
   createdAt: string;
+  twoFactorEnabled?: boolean;
 };
 
 type ManagedSession = {
@@ -60,6 +62,13 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   group_deleted: "Excluiu grupo",
   session_revoked: "Encerrou sessão",
   sessions_revoked_all: "Encerrou todas as sessões",
+  login_2fa_ok: "Entrou (2FA)",
+  login_2fa_fail: "Falha no código 2FA",
+  recovery_code_used: "Entrou (código de recuperação)",
+  "2fa_enabled": "Ativou 2FA",
+  "2fa_disabled": "Desativou 2FA",
+  "2fa_reset_by_admin": "Resetou 2FA de um usuário",
+  recovery_codes_regenerated: "Gerou novos códigos de recuperação",
 };
 
 function auditActionLabel(action: string): string {
@@ -290,6 +299,23 @@ export function UsersDialog({
     }
   }
 
+  // Admin force-reset of a user's 2FA (safety net for someone locked out).
+  async function resetUserTwoFactor(target: ManagedUser) {
+    setError("");
+    try {
+      await withReauth(() =>
+        requestJson(`${API_USERS}/${encodeURIComponent(target.id)}/2fa/reset`, {
+          method: "POST",
+        }),
+      );
+      await loadUsers();
+      await loadEvents();
+    } catch (err) {
+      if (isReauthCancelled(err)) return;
+      setError("Não foi possível resetar o 2FA.");
+    }
+  }
+
   // Backup is a file download AND reauth-gated, so a plain <a> won't work (a 403
   // would render as a JSON page). Fetch it through withReauth, then save the blob.
   async function downloadBackup() {
@@ -443,24 +469,38 @@ export function UsersDialog({
                           (você)
                         </span>
                       ) : null}
+                      {user.twoFactorEnabled ? (
+                        <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-[color:var(--accent)]">
+                          <ShieldCheck className="h-3 w-3" />
+                          2FA
+                        </span>
+                      ) : null}
                     </p>
                     <p className="text-xs text-[color:var(--muted)]">
                       {user.role === "admin" ? "Administrador" : "Membro"}
                     </p>
                   </div>
-                  <Button
-                    aria-label={`Remover ${user.username}`}
-                    className={cn(
-                      "shrink-0",
-                      isSelf && "pointer-events-none opacity-40",
-                    )}
-                    disabled={isSelf}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleDelete(user)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-300" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {user.twoFactorEnabled ? (
+                      <button
+                        className="rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
+                        type="button"
+                        onClick={() => resetUserTwoFactor(user)}
+                      >
+                        Resetar 2FA
+                      </button>
+                    ) : null}
+                    <Button
+                      aria-label={`Remover ${user.username}`}
+                      className={cn(isSelf && "pointer-events-none opacity-40")}
+                      disabled={isSelf}
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDelete(user)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-300" />
+                    </Button>
+                  </div>
                 </div>
               );
             })

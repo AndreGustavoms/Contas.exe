@@ -27,6 +27,7 @@ import {
   KeyRound,
   Settings,
   Trash,
+  UserCog,
   Users,
   Mail,
   Pencil,
@@ -63,6 +64,7 @@ import { Badge } from "./ui/badge";
 import { Spinner } from "./ui/spinner";
 import { Toast } from "./ui/toast";
 import { UsersDialog } from "./users-dialog";
+import { AccountSettings } from "./account-settings";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -437,6 +439,7 @@ export function AccountVault({
   } | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [usersDialogOpen, setUsersDialogOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [quickViewAccount, setQuickViewAccount] =
@@ -1219,6 +1222,17 @@ export function AccountVault({
               </button>
             ) : null}
 
+            <button
+              className="group/acct flex h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-all duration-300 hover:translate-x-0.5 hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
+              type="button"
+              onClick={() => setAccountSettingsOpen(true)}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] text-[color:var(--accent)] transition duration-300 group-hover/acct:bg-[color:var(--field-hover)]">
+                <UserCog className="h-5 w-5" />
+              </span>
+              <span className="truncate">Minha conta</span>
+            </button>
+
             {onLock ? (
               <button
                 className="group/exit flex h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-all duration-300 hover:translate-x-0.5 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-200"
@@ -1405,6 +1419,13 @@ export function AccountVault({
         <UsersDialog
           currentUsername={user?.username ?? ""}
           onClose={() => setUsersDialogOpen(false)}
+          withReauth={withReauth}
+        />
+      ) : null}
+
+      {accountSettingsOpen ? (
+        <AccountSettings
+          onClose={() => setAccountSettingsOpen(false)}
           withReauth={withReauth}
         />
       ) : null}

@@ -65,6 +65,10 @@ Antes de producao, o controlador deve registrar fora do codigo:
 - Reautenticacao para acoes criticas: revelar/copiar senha, exportar backup,
   trocar senha, criar/remover admin e apagar grupo exigem redigitar a senha
   (libera por 5 min). Reduz o risco de uma sessao aberta numa maquina destravada.
+- 2FA opcional por usuario (TOTP, RFC 6238): cada um ativa na tela "Minha conta";
+  com 2FA ativo o login pede um codigo do app autenticador. Secret e codigos de
+  recuperacao cifrados em repouso; nunca expostos. Admin pode resetar o 2FA de
+  quem ficar trancado fora.
 - Trilha de auditoria (`audit.json`): registra quem fez o que e quando (incl.
   quem viu/copiou senha, exportou backup, trocou/criou/removeu), SEM gravar
   qualquer segredo. Atende ao dever de informar sobre acesso/compartilhamento.

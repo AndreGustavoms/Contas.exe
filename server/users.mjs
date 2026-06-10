@@ -14,6 +14,28 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { decryptField, encryptField } from "./crypto.mjs";
+import {
+  generateRecoveryCodes,
+  generateSecret,
+  otpauthUri,
+  verifyTotp,
+} from "./totp.mjs";
+
+// Serialize read-modify-write of users.json (same rationale as sessions.mjs):
+// 2FA setup/enable/disable add concurrent writers, and an interleaved write could
+// otherwise lose a change. All mutating ops below go through this.
+let lock = Promise.resolve();
+function withLock(fn) {
+  const run = lock.then(fn, fn);
+  lock = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+const ISSUER = "Contas_exe"; // shown in the authenticator app
 
 const scryptAsync = promisify(scrypt);
 
@@ -81,11 +103,30 @@ function userStoreFile(storageDir) {
   return process.env.CONTAS_FLOW_USERS_DB ?? join(storageDir, "users.json");
 }
 
+// The 2FA secret and recovery-code hashes are encrypted at rest, the same way the
+// vault secrets are (idempotent enc:v1: format; no-op without CONTAS_FLOW_ENC_KEY).
+// passwordHash stays as a plain scrypt hash (it's already non-reversible). These
+// transforms run only at the I/O boundary so the rest of the code sees plaintext.
+function transformUserSecrets(user, transform) {
+  const tf = user?.twoFactor;
+  if (!tf) return user;
+  const next = { ...tf };
+  if (next.secret != null) next.secret = transform(next.secret);
+  if (Array.isArray(next.recoveryCodes)) {
+    next.recoveryCodes = next.recoveryCodes.map((rc) => ({
+      ...rc,
+      hash: rc.hash != null ? transform(rc.hash) : rc.hash,
+    }));
+  }
+  return { ...user, twoFactor: next };
+}
+
 async function readUsersFile(storageDir) {
   try {
     const raw = await readFile(userStoreFile(storageDir), "utf8");
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.users) ? parsed.users : [];
+    const list = Array.isArray(parsed?.users) ? parsed.users : [];
+    return list.map((user) => transformUserSecrets(user, decryptField));
   } catch {
     return [];
   }
@@ -93,9 +134,10 @@ async function readUsersFile(storageDir) {
 
 async function writeUsersFile(storageDir, users) {
   await mkdir(storageDir, { recursive: true });
+  const encrypted = users.map((user) => transformUserSecrets(user, encryptField));
   await writeFile(
     userStoreFile(storageDir),
-    `${JSON.stringify({ users }, null, 2)}\n`,
+    `${JSON.stringify({ users: encrypted }, null, 2)}\n`,
     "utf8",
   );
 }
@@ -104,13 +146,15 @@ function normalizeUsername(name) {
   return typeof name === "string" ? name.trim().toLowerCase() : "";
 }
 
-// Public view of a user (never leaks the password hash).
+// Public view of a user (never leaks the password hash, the 2FA secret, or the
+// recovery-code hashes — only whether 2FA is on).
 export function publicUser(user) {
   return {
     id: user.id,
     username: user.username,
     role: user.role,
     createdAt: user.createdAt,
+    twoFactorEnabled: Boolean(user.twoFactor?.enabled),
   };
 }
 
@@ -156,52 +200,198 @@ export async function findById(storageDir, id) {
 }
 
 // Creates a user. Throws Error("username_taken") / Error("invalid") on bad input.
-export async function createUser(storageDir, { username, password, role }) {
-  const name = normalizeUsername(username);
-  if (!name || !password || !ROLES.has(role)) {
-    throw new Error("invalid");
-  }
-  const users = await readUsersFile(storageDir);
-  if (users.some((user) => user.username === name)) {
-    throw new Error("username_taken");
-  }
-  const user = {
-    id: randomUUID(),
-    username: name,
-    role,
-    passwordHash: await hashPassword(password),
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  await writeUsersFile(storageDir, users);
-  return publicUser(user);
+export function createUser(storageDir, { username, password, role }) {
+  return withLock(async () => {
+    const name = normalizeUsername(username);
+    if (!name || !password || !ROLES.has(role)) {
+      throw new Error("invalid");
+    }
+    const users = await readUsersFile(storageDir);
+    if (users.some((user) => user.username === name)) {
+      throw new Error("username_taken");
+    }
+    const user = {
+      id: randomUUID(),
+      username: name,
+      role,
+      passwordHash: await hashPassword(password),
+      createdAt: new Date().toISOString(),
+    };
+    users.push(user);
+    await writeUsersFile(storageDir, users);
+    return publicUser(user);
+  });
 }
 
 // Deletes a user by id. Refuses to remove the last remaining admin so the team is
 // never locked out. Returns the deleted user's public view, or null if missing.
-export async function deleteUser(storageDir, id) {
-  const users = await readUsersFile(storageDir);
-  const index = users.findIndex((user) => user.id === id);
-  if (index === -1) return null;
+export function deleteUser(storageDir, id) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const index = users.findIndex((user) => user.id === id);
+    if (index === -1) return null;
 
-  const target = users[index];
-  if (target.role === "admin") {
-    const admins = users.filter((user) => user.role === "admin");
-    if (admins.length <= 1) throw new Error("last_admin");
-  }
+    const target = users[index];
+    if (target.role === "admin") {
+      const admins = users.filter((user) => user.role === "admin");
+      if (admins.length <= 1) throw new Error("last_admin");
+    }
 
-  users.splice(index, 1);
-  await writeUsersFile(storageDir, users);
-  return publicUser(target);
+    users.splice(index, 1);
+    await writeUsersFile(storageDir, users);
+    return publicUser(target);
+  });
 }
 
 // Resets a user's password (admin action). Returns true if the user existed.
-export async function setPassword(storageDir, id, password) {
-  if (!password) throw new Error("invalid");
-  const users = await readUsersFile(storageDir);
-  const user = users.find((item) => item.id === id);
-  if (!user) return false;
-  user.passwordHash = await hashPassword(password);
-  await writeUsersFile(storageDir, users);
-  return true;
+export function setPassword(storageDir, id, password) {
+  return withLock(async () => {
+    if (!password) throw new Error("invalid");
+    const users = await readUsersFile(storageDir);
+    const user = users.find((item) => item.id === id);
+    if (!user) return false;
+    user.passwordHash = await hashPassword(password);
+    await writeUsersFile(storageDir, users);
+    return true;
+  });
+}
+
+// --- Two-factor (TOTP) ---
+
+// Begins 2FA setup: generates a fresh secret and stashes it as PENDING (not yet
+// enabled) on the user, so /enable can verify a code against it. Returns the
+// secret + otpauth URI for the QR. A second call regenerates (overwrites pending).
+export function startTwoFactorSetup(storageDir, userId) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user) return null;
+    const secret = generateSecret();
+    user.twoFactor = {
+      enabled: false,
+      secret,
+      recoveryCodes: [],
+      pending: true,
+    };
+    await writeUsersFile(storageDir, users);
+    return {
+      secret,
+      otpauthUri: otpauthUri({ secret, label: user.username, issuer: ISSUER }),
+    };
+  });
+}
+
+// Confirms setup: verifies `code` against the pending secret and, on success,
+// enables 2FA and returns fresh recovery codes IN CLEAR (shown once). Throws
+// "no_pending" if setup wasn't started, "invalid_code" on a bad code.
+export function enableTwoFactor(storageDir, userId, code) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user) return null;
+    const tf = user.twoFactor;
+    if (!tf?.pending || !tf.secret) throw new Error("no_pending");
+    if (!verifyTotp(tf.secret, code)) throw new Error("invalid_code");
+
+    const codes = generateRecoveryCodes(8);
+    user.twoFactor = {
+      enabled: true,
+      secret: tf.secret,
+      recoveryCodes: await Promise.all(
+        codes.map(async (c) => ({ hash: await hashPassword(c), usedAt: null })),
+      ),
+      enabledAt: new Date().toISOString(),
+    };
+    await writeUsersFile(storageDir, users);
+    return { recoveryCodes: codes };
+  });
+}
+
+// Turns 2FA off, clearing the secret and recovery codes. Verifies a TOTP code OR a
+// recovery code first (caller passes whatever the user typed). Returns true if it
+// was on and the code matched; throws "invalid_code" otherwise.
+export function disableTwoFactor(storageDir, userId, code) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user?.twoFactor?.enabled) return false;
+
+    const ok =
+      verifyTotp(user.twoFactor.secret, code) ||
+      (await matchRecoveryCode(user.twoFactor, code)) !== -1;
+    if (!ok) throw new Error("invalid_code");
+
+    delete user.twoFactor;
+    await writeUsersFile(storageDir, users);
+    return true;
+  });
+}
+
+// Admin reset: force-disables a user's 2FA (no code needed). For when someone
+// loses both their authenticator and recovery codes. Returns true if changed.
+export function resetTwoFactor(storageDir, userId) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user?.twoFactor) return false;
+    delete user.twoFactor;
+    await writeUsersFile(storageDir, users);
+    return true;
+  });
+}
+
+// Regenerates recovery codes (invalidating the old ones). Returns the new codes in
+// clear (shown once), or null if 2FA isn't enabled.
+export function regenerateRecoveryCodes(storageDir, userId) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user?.twoFactor?.enabled) return null;
+    const codes = generateRecoveryCodes(8);
+    user.twoFactor.recoveryCodes = await Promise.all(
+      codes.map(async (c) => ({ hash: await hashPassword(c), usedAt: null })),
+    );
+    await writeUsersFile(storageDir, users);
+    return { recoveryCodes: codes };
+  });
+}
+
+// Finds an unused recovery code matching `code`, returning its index or -1. Does
+// NOT consume it (see consumeRecoveryCode). Constant-time-ish via verifyPassword.
+async function matchRecoveryCode(twoFactor, code) {
+  const cleaned = String(code ?? "").trim().toLowerCase();
+  if (!cleaned) return -1;
+  const list = twoFactor.recoveryCodes ?? [];
+  for (let i = 0; i < list.length; i += 1) {
+    if (list[i].usedAt) continue;
+    if (await verifyPassword(cleaned, list[i].hash)) return i;
+  }
+  return -1;
+}
+
+// Marks a matching unused recovery code as used (single-use). Returns true if one
+// was consumed. Used during 2FA login when the user can't produce a TOTP code.
+export function consumeRecoveryCode(storageDir, userId, code) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const user = users.find((u) => u.id === userId);
+    if (!user?.twoFactor?.enabled) return false;
+    const idx = await matchRecoveryCode(user.twoFactor, code);
+    if (idx === -1) return false;
+    user.twoFactor.recoveryCodes[idx].usedAt = new Date().toISOString();
+    await writeUsersFile(storageDir, users);
+    return true;
+  });
+}
+
+// Verifies a TOTP code for an already-enabled user (used at login). Pure check,
+// no state change.
+export function verifyUserTotp(user, code) {
+  if (!user?.twoFactor?.enabled || !user.twoFactor.secret) return false;
+  return verifyTotp(user.twoFactor.secret, code);
+}
+
+// Count of unused recovery codes, for the account UI.
+export function recoveryCodesRemaining(user) {
+  return (user?.twoFactor?.recoveryCodes ?? []).filter((rc) => !rc.usedAt).length;
 }

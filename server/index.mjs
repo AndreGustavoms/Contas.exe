@@ -13,14 +13,22 @@ import {
   // (see /api/youtube/upload). The function stays in youtube.mjs for later.
 } from "./youtube.mjs";
 import {
+  consumeRecoveryCode,
   createUser,
   deleteUser,
+  disableTwoFactor,
+  enableTwoFactor,
   ensureSeedAdmin,
   findById,
   findByUsername,
   listUsers,
+  recoveryCodesRemaining,
+  regenerateRecoveryCodes,
+  resetTwoFactor,
   setPassword,
+  startTwoFactorSetup,
   verifyPassword,
+  verifyUserTotp,
 } from "./users.mjs";
 import { decryptField, encryptField, encryptionEnabled } from "./crypto.mjs";
 import {
@@ -220,6 +228,7 @@ function resetLoginRate(ip) {
 function isPublicApi(pathname) {
   return (
     pathname === "/api/auth/login" ||
+    pathname === "/api/auth/login/totp" ||
     pathname === "/api/auth/logout" ||
     pathname === "/api/auth/status" ||
     pathname === "/api/auth/reauth" ||
@@ -610,6 +619,14 @@ async function handleApi(request, response, url, user, session) {
       : await verifyPassword(password, DUMMY_HASH);
 
     if (account && ok) {
+      // If 2FA is on, don't issue a session yet: tell the client to collect a
+      // code and finish at /api/auth/login/totp. The password was correct, so we
+      // clear the rate-limit penalty here too.
+      if (account.twoFactor?.enabled) {
+        resetLoginRate(ip);
+        sendJson(response, 200, { twoFactorRequired: true });
+        return;
+      }
       resetLoginRate(ip); // don't penalize a user who just logged in
       const token = await createSession(storageDir, {
         userId: account.id,
@@ -638,6 +655,73 @@ async function handleApi(request, response, url, user, session) {
       ip,
     });
     sendJson(response, 401, { error: "invalid_credentials" });
+    return;
+  }
+
+  // Second step of 2FA login: re-validate password AND a TOTP (or recovery) code,
+  // then issue the session. Public + rate-limited like login (bounds code
+  // brute-force). The client resends name+password (it has them) so we don't need
+  // a separate pending-login store.
+  if (url.pathname === "/api/auth/login/totp" && request.method === "POST") {
+    pruneLoginAttempts();
+    const ip = clientIp(request);
+    if (loginRateLimited(ip)) {
+      await drainBody(request);
+      sendJson(response, 429, { error: "too_many_attempts" });
+      return;
+    }
+
+    const body = await readBody(request);
+    const name = asString(body.name);
+    const password = asString(body.password);
+    const code = asString(body.code);
+
+    const account = await findByUsername(storageDir, name);
+    const passwordOk = account
+      ? await verifyPassword(password, account.passwordHash)
+      : await verifyPassword(password, DUMMY_HASH);
+
+    if (!account || !passwordOk || !account.twoFactor?.enabled) {
+      sendJson(response, 401, { error: "invalid_credentials" });
+      return;
+    }
+
+    // Accept either a current TOTP code or a single-use recovery code.
+    const totpOk = verifyUserTotp(account, code);
+    const recoveryOk = totpOk
+      ? false
+      : await consumeRecoveryCode(storageDir, account.id, code);
+
+    if (!totpOk && !recoveryOk) {
+      void logEvent(storageDir, {
+        userId: account.id,
+        username: account.username,
+        action: "login_2fa_fail",
+        target: null,
+        ip,
+      });
+      sendJson(response, 401, { error: "invalid_code" });
+      return;
+    }
+
+    resetLoginRate(ip);
+    const token = await createSession(storageDir, {
+      userId: account.id,
+      ip,
+      userAgent: request.headers["user-agent"],
+    });
+    setSessionCookie(response, token);
+    void logEvent(storageDir, {
+      userId: account.id,
+      username: account.username,
+      action: recoveryOk ? "recovery_code_used" : "login_2fa_ok",
+      target: null,
+      ip,
+    });
+    sendJson(response, 200, {
+      authenticated: true,
+      user: { username: account.username, role: account.role },
+    });
     return;
   }
 
@@ -713,6 +797,97 @@ async function handleApi(request, response, url, user, session) {
       authenticated: Boolean(current),
       user: current ? { username: current.username, role: current.role } : null,
     });
+    return;
+  }
+
+  // ----- Two-factor: the user manages their OWN 2FA (derives from session). -----
+
+  // Current status (no secrets).
+  if (url.pathname === "/api/account/2fa" && request.method === "GET") {
+    sendJson(response, 200, {
+      enabled: Boolean(user.twoFactor?.enabled),
+      recoveryCodesRemaining: recoveryCodesRemaining(user),
+    });
+    return;
+  }
+
+  // Begin setup: returns the secret + otpauth URI for the QR. Reauth required.
+  if (url.pathname === "/api/account/2fa/setup" && request.method === "POST") {
+    if (!requireRecentReauth(session, response)) return;
+    const result = await startTwoFactorSetup(storageDir, user.id);
+    sendJson(response, 200, result ?? { error: "not_found" });
+    return;
+  }
+
+  // Confirm setup with a code -> enable + return recovery codes (shown once).
+  if (url.pathname === "/api/account/2fa/enable" && request.method === "POST") {
+    if (!requireRecentReauth(session, response)) return;
+    const body = await readBody(request);
+    try {
+      const result = await enableTwoFactor(
+        storageDir,
+        user.id,
+        asString(body.code),
+      );
+      void logEvent(storageDir, {
+        userId: user.id,
+        username: user.username,
+        action: "2fa_enabled",
+        target: null,
+        ip: clientIp(request),
+      });
+      sendJson(response, 200, result);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "invalid_code";
+      sendJson(response, 400, { error: code });
+    }
+    return;
+  }
+
+  // Disable, verifying a TOTP or recovery code. Reauth required.
+  if (url.pathname === "/api/account/2fa/disable" && request.method === "POST") {
+    if (!requireRecentReauth(session, response)) return;
+    const body = await readBody(request);
+    try {
+      const ok = await disableTwoFactor(storageDir, user.id, asString(body.code));
+      if (!ok) {
+        sendJson(response, 400, { error: "not_enabled" });
+        return;
+      }
+      void logEvent(storageDir, {
+        userId: user.id,
+        username: user.username,
+        action: "2fa_disabled",
+        target: null,
+        ip: clientIp(request),
+      });
+      sendJson(response, 200, { ok: true });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "invalid_code";
+      sendJson(response, 400, { error: code });
+    }
+    return;
+  }
+
+  // Regenerate recovery codes (invalidates the old set). Reauth required.
+  if (
+    url.pathname === "/api/account/2fa/recovery-codes" &&
+    request.method === "POST"
+  ) {
+    if (!requireRecentReauth(session, response)) return;
+    const result = await regenerateRecoveryCodes(storageDir, user.id);
+    if (!result) {
+      sendJson(response, 400, { error: "not_enabled" });
+      return;
+    }
+    void logEvent(storageDir, {
+      userId: user.id,
+      username: user.username,
+      action: "recovery_codes_regenerated",
+      target: null,
+      ip: clientIp(request),
+    });
+    sendJson(response, 200, result);
     return;
   }
 
@@ -860,6 +1035,32 @@ async function handleApi(request, response, url, user, session) {
       ip: clientIp(request),
     });
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  // Admin force-resets another user's 2FA (safety net for someone locked out of
+  // their authenticator and recovery codes). Admin only + reauth.
+  const user2faResetMatch = url.pathname.match(
+    /^\/api\/users\/([^/]+)\/2fa\/reset$/,
+  );
+  if (user2faResetMatch && request.method === "POST") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    if (!requireRecentReauth(session, response)) return;
+    const targetId = decodeURIComponent(user2faResetMatch[1]);
+    const ok = await resetTwoFactor(storageDir, targetId);
+    if (ok) {
+      void logEvent(storageDir, {
+        userId: user.id,
+        username: user.username,
+        action: "2fa_reset_by_admin",
+        target: `user:${targetId}`,
+        ip: clientIp(request),
+      });
+    }
+    sendJson(response, 200, { ok });
     return;
   }
 
