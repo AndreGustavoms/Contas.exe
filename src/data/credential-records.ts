@@ -8,7 +8,10 @@ export type AccountRecord = {
   label: string;
   email: string;
   username: string;
+  // Sent masked ("") by the API listing; the real value is fetched on demand from
+  // the reauth-gated /secret endpoint. `hasPassword` says whether one is set.
   password: string;
+  hasPassword?: boolean;
   recoveryEmail: string;
   phone: string;
   status: AccountStatus;

@@ -161,9 +161,11 @@ segredos (senha, email de recuperação, telefone, notas) e persistir em
 `localStorage` os vazaria para quem tivesse acesso à máquina. A única coisa
 guardada localmente é o **id do grupo ativo** (`contas_exe.activeGroup.v1:<username>`,
 namespaceado por usuário), que não é segredo. A API é a fonte da verdade; se ela
-estiver fora, aparece "API offline". Senhas no quick-view começam ocultas, são
-reveladas sob demanda e se reocultam sozinhas após ~15s; ao copiar uma senha, o
-clipboard é limpo depois de ~20s (best-effort).
+estiver fora, aparece "API offline". A senha nem vem na listagem: ao revelar ou
+copiar, o front a busca sob demanda no endpoint `/secret` (que exige reauth),
+mantém o valor só em memória, reoculta após ~15s e limpa o clipboard após ~20s
+(best-effort). Uma ação crítica que receba `403 reauth_required` abre o modal de
+reautenticação e é refeita automaticamente após o usuário confirmar a senha.
 
 ---
 
@@ -195,6 +197,24 @@ clipboard é limpo depois de ~20s (best-effort).
   encerra sessões (uma específica ou "sair de todos os dispositivos") pelo painel
   Equipe; logout revoga server-side. Rotas: `GET /api/sessions`,
   `DELETE /api/sessions/:id`, `POST /api/users/:id/sessions/revoke`.
+- **Reautenticação para ações críticas:** revelar/copiar uma senha, exportar
+  backup, trocar senha, criar/remover admin, apagar grupo e "sair de todos os
+  dispositivos" exigem que o usuário **redigite a senha** (`POST /api/auth/reauth`,
+  rate-limited como o login). O sucesso grava `reauthAt` na sessão e libera essas
+  ações por **5 min** (`hasRecentReauth`); depois pede de novo. Sem reauth recente
+  o servidor responde `403 reauth_required` e o front abre o modal e refaz a ação.
+- **Senha sob demanda:** a listagem de contas NÃO traz mais a senha (campo
+  mascarado + `hasPassword`); o valor real é buscado por
+  `GET /api/groups/:gid/accounts/:aid/secret`, atrás de reauth, e registrado na
+  auditoria. Editar uma conta sem mexer na senha não a apaga (senha vazia =
+  "inalterada"). O backup (admin) ainda exporta as senhas em claro — mas só atrás
+  de reauth.
+- **Auditoria:** `storage/audit.json` (ver `server/audit.mjs`) registra os eventos
+  sensíveis (login/ logout, reauth, ver/copiar senha, exportar backup, trocar
+  senha, criar/remover usuário, apagar grupo, revogar sessões) com
+  `{ ts, userId, username, action, target, ipHash }`. **Nunca** grava senha, valor
+  copiado ou token. O admin vê os últimos eventos no painel Equipe
+  (`GET /api/audit`). Rotação simples: mantém os últimos 5000.
 - **Endurecimento HTTP/API:** login rate-limited em memória por IP
   (10 tentativas/10 min; sucesso limpa o contador). O IP vem do socket por padrão;
   `X-Forwarded-For` só é aceito quando `CONTAS_FLOW_TRUSTED_PROXIES` informa
@@ -215,7 +235,8 @@ clipboard é limpo depois de ~20s (best-effort).
   `CONTAS_FLOW_TRUSTED_PROXIES` correto, e CORS fechado (same-origin por padrão).
 - **LGPD:** o sistema aplica controles técnicos de minimização, segregação por
   usuário/grupo, criptografia, sessões revogáveis com duplo timeout, ausência de
-  segredos no navegador e proteção de backups, mas
+  segredos no navegador, reautenticação para ações críticas, trilha de auditoria
+  e proteção de backups, mas
   a base legal, aviso de privacidade, canal do titular, retenção e resposta a
   incidentes dependem do controlador. Ver **[docs/LGPD.md](./LGPD.md)**.
 

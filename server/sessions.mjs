@@ -22,6 +22,11 @@ import { decryptField, encryptField } from "./crypto.mjs";
 
 export const SESSION_IDLE_MS = 3 * 60 * 60 * 1000; // 3h sem uso = logout
 export const SESSION_ABSOLUTE_MS = 3 * 24 * 60 * 60 * 1000; // 3 dias = relogar
+// How long a successful re-auth (typing the password again) unlocks the critical
+// actions — reveal/copy a stored password, export a backup, change passwords,
+// create/remove an admin, delete a group. Short window: confirm once, act for a
+// few minutes, then it expires.
+export const REAUTH_WINDOW_MS = 5 * 60 * 1000; // 5 min
 
 // --- Write serialization ---
 // Every mutating op is read-modify-write on sessions.json with awaits in between.
@@ -106,6 +111,12 @@ function isExpired(session, now = Date.now()) {
   return false;
 }
 
+// Whether this session re-authenticated within the last REAUTH_WINDOW_MS. Pure
+// check on a session already resolved by resolveAndTouch (which carries reauthAt).
+export function hasRecentReauth(session, now = Date.now()) {
+  return Boolean(session?.reauthAt) && now - session.reauthAt <= REAUTH_WINDOW_MS;
+}
+
 // Public view of a session for the admin panel (no ipHash, no raw metadata leak).
 function publicSession(session, currentSessionId) {
   return {
@@ -137,6 +148,7 @@ export function createSession(storageDir, { userId, ip, userAgent }) {
       userAgent: clampUserAgent(userAgent),
       ipHash: hashIp(ip),
       revokedAt: null,
+      reauthAt: null, // last time the user re-typed their password (epoch ms)
     };
     // Opportunistically drop dead sessions so the file can't grow unbounded.
     const pruned = sessions.filter((item) => !isExpired(item, now));
@@ -173,6 +185,21 @@ export function resolveAndTouch(storageDir, sessionId) {
     session.lastSeenAt = now;
     await writeSessionsFile(storageDir, sessions);
     return session;
+  });
+}
+
+// Records a successful re-authentication (the user re-typed their password),
+// unlocking critical actions for REAUTH_WINDOW_MS. Serialized like the other
+// writers. No-ops on an invalid/expired session. Returns true if it marked one.
+export function markReauth(storageDir, sessionId) {
+  if (!sessionId) return Promise.resolve(false);
+  return withLock(async () => {
+    const sessions = await readSessionsFile(storageDir);
+    const session = sessions.find((item) => item.sessionId === sessionId);
+    if (!session || isExpired(session)) return false;
+    session.reauthAt = Date.now();
+    await writeSessionsFile(storageDir, sessions);
+    return true;
   });
 }
 

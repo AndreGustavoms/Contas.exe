@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type CSSProperties,
+  type FormEvent,
   type MouseEvent,
   type ReactNode,
   useCallback,
@@ -205,6 +206,18 @@ function createId() {
   return `account-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+// Error carrying the HTTP status and the server's `error` code, so callers can
+// branch on specific failures (notably 403 reauth_required).
+class RequestError extends Error {
+  status: number;
+  code: string;
+  constructor(status: number, code: string) {
+    super(code || "request_failed");
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
@@ -215,10 +228,21 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error("request_failed");
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new RequestError(response.status, body.error ?? "request_failed");
   }
 
   return response.json() as Promise<T>;
+}
+
+// Recognizes a reauth_required failure. Matches our RequestError.code and also a
+// plain Error whose message is the code (the users-dialog uses its own thin
+// requestJson that throws Error(body.error)).
+function isReauthRequired(error: unknown): boolean {
+  if (error instanceof RequestError) return error.code === "reauth_required";
+  return error instanceof Error && error.message === "reauth_required";
 }
 
 function isAccountStatus(value: unknown): value is AccountStatus {
@@ -378,6 +402,15 @@ export function AccountVault({
   // read from or written to localStorage (they carry secrets; see activeGroupKey).
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  // Re-auth modal state. When a critical action gets 403 reauth_required, we open
+  // this modal; the resolver is fulfilled once the user re-authenticates so the
+  // pending action can retry. `reauthError` shows a wrong-password message.
+  const reauthResolverRef = useRef<((ok: boolean) => void) | null>(null);
+  // The single in-flight reauth prompt, shared by concurrent callers so a second
+  // request doesn't orphan the first's resolver.
+  const reauthPromiseRef = useRef<Promise<boolean> | null>(null);
+  const [reauthOpen, setReauthOpen] = useState(false);
+  const [reauthError, setReauthError] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string>(
     () => window.localStorage.getItem(activeGroupStorageKey) ?? "",
   );
@@ -392,6 +425,9 @@ export function AccountVault({
   const [showPassword, setShowPassword] = useState(false);
   // Whether the quick-view password is currently revealed (it starts masked).
   const [quickViewReveal, setQuickViewReveal] = useState(false);
+  // The password fetched on demand from the reauth-gated /secret endpoint. Held
+  // only in memory, only while revealed; never persisted.
+  const [quickViewSecret, setQuickViewSecret] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -450,16 +486,17 @@ export function AccountVault({
 
   useEffect(() => {
     if (!quickViewReveal) return;
-    const timer = window.setTimeout(
-      () => setQuickViewReveal(false),
-      REVEAL_TIMEOUT_MS,
-    );
+    const timer = window.setTimeout(() => {
+      setQuickViewReveal(false);
+      setQuickViewSecret(""); // drop the fetched secret when it re-hides
+    }, REVEAL_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [quickViewReveal]);
 
-  // The quick-view always opens with the password masked.
+  // The quick-view always opens with the password masked and no secret loaded.
   useEffect(() => {
     setQuickViewReveal(false);
+    setQuickViewSecret("");
   }, [quickViewAccount]);
 
   useEffect(() => {
@@ -632,9 +669,11 @@ export function AccountVault({
     }
 
     try {
-      const data = await requestJson<{ groups: GroupSummary[] }>(
-        `${API_GROUPS}/${encodeURIComponent(activeGroup.id)}`,
-        { method: "DELETE" },
+      const data = await withReauth(() =>
+        requestJson<{ groups: GroupSummary[] }>(
+          `${API_GROUPS}/${encodeURIComponent(activeGroup.id)}`,
+          { method: "DELETE" },
+        ),
       );
 
       setGroups(data.groups);
@@ -642,7 +681,8 @@ export function AccountVault({
       setActiveGroupId(pickActiveGroup(data.groups, ""));
       setConfirmDeleteGroup(false);
       notify("Grupo excluído");
-    } catch {
+    } catch (error) {
+      if (isReauthRequired(error)) return; // user cancelled re-auth
       notify("Erro ao excluir grupo", "error");
     }
   }
@@ -913,25 +953,128 @@ export function AccountVault({
     }
   }
 
-  function exportBackup() {
-    const groupName = activeGroup?.name ?? "contas";
-    const payload = JSON.stringify(
-      {
-        group: groupName,
-        exportedAt: new Date().toISOString(),
-        accounts,
-      },
-      null,
-      2,
-    );
-    const blob = new Blob([payload], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  // Runs a critical action that may require recent re-authentication. If the
+  // server answers 403 reauth_required, opens the re-auth modal, waits for the
+  // user to confirm their password, then retries the action once. Other errors
+  // propagate to the caller.
+  async function withReauth<T>(action: () => Promise<T>): Promise<T> {
+    try {
+      return await action();
+    } catch (error) {
+      if (!isReauthRequired(error)) throw error;
+      const ok = await promptReauth();
+      if (!ok) throw error; // user cancelled
+      return action();
+    }
+  }
 
-    link.href = url;
-    link.download = `contas-${slugify(groupName)}-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  // Opens the modal and resolves true once re-auth succeeds, false if cancelled.
+  // If a prompt is already open (two critical actions raced into reauth_required),
+  // both callers share the SAME pending promise instead of the second clobbering
+  // the first's resolver (which would leave the first action hung forever).
+  function promptReauth(): Promise<boolean> {
+    if (reauthPromiseRef.current) return reauthPromiseRef.current;
+    setReauthError("");
+    setReauthOpen(true);
+    const promise = new Promise<boolean>((resolve) => {
+      reauthResolverRef.current = resolve;
+    });
+    reauthPromiseRef.current = promise;
+    return promise;
+  }
+
+  function settleReauth(ok: boolean) {
+    setReauthOpen(false);
+    const resolve = reauthResolverRef.current;
+    reauthResolverRef.current = null;
+    reauthPromiseRef.current = null;
+    resolve?.(ok);
+  }
+
+  // Called by the modal when the user submits their password.
+  async function submitReauth(password: string) {
+    setReauthError("");
+    try {
+      await requestJson("/api/auth/reauth", {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      settleReauth(true);
+    } catch {
+      setReauthError("Senha incorreta.");
+    }
+  }
+
+  // Fetches one account's password on demand from the reauth-gated endpoint. The
+  // value is returned to the caller and never stored beyond the ephemeral
+  // reveal/copy use. Returns "" on failure (e.g. cancelled re-auth).
+  async function fetchSecret(accountId: string): Promise<string> {
+    if (!activeGroupId) return "";
+    try {
+      const data = await withReauth(() =>
+        requestJson<{ password: string }>(
+          `${API_GROUPS}/${encodeURIComponent(activeGroupId)}/accounts/${encodeURIComponent(accountId)}/secret`,
+        ),
+      );
+      return data.password ?? "";
+    } catch {
+      notify("Não foi possível obter a senha", "error");
+      return "";
+    }
+  }
+
+  // Quick-view "reveal": fetch the secret (prompting re-auth if needed), then show
+  // it (auto-hides on the existing timer).
+  async function revealQuickViewSecret(accountId: string) {
+    if (quickViewReveal) {
+      // Toggling off: hide and drop the secret.
+      setQuickViewReveal(false);
+      setQuickViewSecret("");
+      return;
+    }
+    const password = await fetchSecret(accountId);
+    if (!password) return;
+    setQuickViewSecret(password);
+    setQuickViewReveal(true);
+  }
+
+  // Quick-view "copy password": fetch the secret then copy it (clipboard is
+  // auto-cleared by copyValue).
+  async function copyQuickViewSecret(accountId: string) {
+    const password = await fetchSecret(accountId);
+    if (!password) return;
+    await copyValue(password, `${accountId}:password`);
+  }
+
+  async function exportBackup() {
+    if (!activeGroupId) return;
+    const groupName = activeGroup?.name ?? "contas";
+    try {
+      // Passwords aren't in the listing anymore, so fetch each on demand (one
+      // re-auth unlocks the whole batch for the 5-min window). Build the export
+      // with the real secrets restored.
+      const withSecrets: AccountRecord[] = [];
+      for (const account of accounts) {
+        const password = account.hasPassword
+          ? await fetchSecret(account.id)
+          : "";
+        withSecrets.push({ ...account, password });
+      }
+      const payload = JSON.stringify(
+        { group: groupName, exportedAt: new Date().toISOString(), accounts: withSecrets },
+        null,
+        2,
+      );
+      const blob = new Blob([payload], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `contas-${slugify(groupName)}-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notify("Não foi possível exportar", "error");
+    }
   }
 
   function importBackup(event: ChangeEvent<HTMLInputElement>) {
@@ -1202,10 +1345,20 @@ export function AccountVault({
           copiedKey={copiedKey}
           onClose={() => setQuickViewAccount(null)}
           onCopy={copyValue}
+          onCopyPassword={() => copyQuickViewSecret(quickViewAccount.id)}
           onDelete={() => deleteAccount(quickViewAccount.id)}
           onEdit={() => editAccount(quickViewAccount)}
           passwordRevealed={quickViewReveal}
-          onTogglePassword={() => setQuickViewReveal((current) => !current)}
+          revealedPassword={quickViewSecret}
+          onTogglePassword={() => revealQuickViewSecret(quickViewAccount.id)}
+        />
+      ) : null}
+
+      {reauthOpen ? (
+        <ReauthModal
+          error={reauthError}
+          onCancel={() => settleReauth(false)}
+          onSubmit={submitReauth}
         />
       ) : null}
 
@@ -1252,6 +1405,7 @@ export function AccountVault({
         <UsersDialog
           currentUsername={user?.username ?? ""}
           onClose={() => setUsersDialogOpen(false)}
+          withReauth={withReauth}
         />
       ) : null}
 
@@ -2616,14 +2770,69 @@ function IconButton({
   );
 }
 
+// Re-auth prompt shown when a critical action needs the password re-typed.
+// Controlled by the vault (open/error state); submitting calls back into it.
+function ReauthModal({
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  error: string;
+  onCancel: () => void;
+  onSubmit: (password: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!password || submitting) return;
+    setSubmitting(true);
+    await onSubmit(password);
+    setSubmitting(false);
+  }
+
+  return (
+    <ModalShell onClose={onCancel} size="sm" title="Confirme sua senha">
+      <p className="mt-1 text-sm text-[color:var(--muted)]">
+        Esta ação é sensível. Digite sua senha para continuar.
+      </p>
+      <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
+        <Input
+          autoFocus
+          autoComplete="current-password"
+          className="h-11 rounded-2xl px-4"
+          placeholder="Senha"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        {error ? <p className="text-sm text-red-300">{error}</p> : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="neon" disabled={!password || submitting}>
+            {submitting ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
+            Confirmar
+          </Button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
 type QuickViewModalProps = {
   account: AccountRecord;
   copiedKey: string;
   onClose: () => void;
   onCopy: (value: string, key: string) => void;
+  onCopyPassword: () => void;
   onDelete: () => void;
   onEdit: () => void;
   passwordRevealed: boolean;
+  // The password fetched on demand; only meaningful while passwordRevealed.
+  revealedPassword: string;
   onTogglePassword: () => void;
 };
 
@@ -2632,9 +2841,11 @@ function QuickViewModal({
   copiedKey,
   onClose,
   onCopy,
+  onCopyPassword,
   onDelete,
   onEdit,
   passwordRevealed,
+  revealedPassword,
   onTogglePassword,
 }: QuickViewModalProps) {
   useEffect(() => {
@@ -2702,12 +2913,20 @@ function QuickViewModal({
           <QuickField
             copied={copiedKey === `${account.id}:password`}
             icon={KeyRound}
+            // While revealed, show the fetched secret; while masked, a non-empty
+            // sentinel so the dots render when a password exists ("" → "—").
+            value={
+              passwordRevealed
+                ? revealedPassword
+                : account.hasPassword
+                  ? "set"
+                  : ""
+            }
             label="Senha"
-            value={account.password}
             secret
             revealed={passwordRevealed}
             onToggleReveal={onTogglePassword}
-            onCopy={() => onCopy(account.password, `${account.id}:password`)}
+            onCopy={onCopyPassword}
           />
         </div>
 

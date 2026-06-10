@@ -3,6 +3,7 @@ import {
   Download,
   LogOut,
   Monitor,
+  ScrollText,
   Shield,
   Trash2,
   UserPlus,
@@ -35,14 +36,48 @@ type ManagedSession = {
   current: boolean;
 };
 
+type AuditEvent = {
+  ts: string;
+  userId: string | null;
+  username: string | null;
+  action: string;
+  target: string | null;
+  ipHash: string;
+};
+
+// PT labels for audit action codes (server-side stable codes -> friendly text).
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  login_ok: "Entrou",
+  login_fail: "Falha de login",
+  logout: "Saiu",
+  reauth_ok: "Reautenticou",
+  reauth_fail: "Falha na reautenticação",
+  secret_viewed: "Viu/copiou senha",
+  backup_exported: "Exportou backup",
+  password_changed: "Trocou senha",
+  user_created: "Criou usuário",
+  user_deleted: "Removeu usuário",
+  group_deleted: "Excluiu grupo",
+  session_revoked: "Encerrou sessão",
+  sessions_revoked_all: "Encerrou todas as sessões",
+};
+
+function auditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABELS[action] ?? action;
+}
+
 type UsersDialogProps = {
   // The current admin's username, so we can prevent self-deletion in the UI.
   currentUsername: string;
   onClose: () => void;
+  // Runs a critical action, handling the re-auth prompt+retry centrally (the
+  // modal lives in the parent vault). Privileged admin actions go through this.
+  withReauth: <T>(action: () => Promise<T>) => Promise<T>;
 };
 
 const API_USERS = "/api/users";
 const API_SESSIONS = "/api/sessions";
+const API_AUDIT = "/api/audit";
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -67,6 +102,12 @@ const ERROR_LABELS: Record<string, string> = {
 
 function labelForError(code: string): string {
   return ERROR_LABELS[code] ?? "Algo deu errado. Tente de novo.";
+}
+
+// When the user cancels the re-auth prompt, withReauth re-throws the original
+// reauth_required error. Treat that as a silent no-op (not a real failure).
+function isReauthCancelled(error: unknown): boolean {
+  return error instanceof Error && error.message === "reauth_required";
 }
 
 // "há 5 min", "há 2 h", "há 3 d" — coarse relative time for last activity.
@@ -109,7 +150,11 @@ function deviceLabel(userAgent: string): string {
   return os ? `${browser} · ${os}` : browser;
 }
 
-export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
+export function UsersDialog({
+  currentUsername,
+  onClose,
+  withReauth,
+}: UsersDialogProps) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,6 +165,7 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
   const [creating, setCreating] = useState(false);
 
   const [sessions, setSessions] = useState<ManagedSession[]>([]);
+  const [events, setEvents] = useState<AuditEvent[]>([]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -151,9 +197,19 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
     }
   }
 
+  async function loadEvents() {
+    try {
+      const data = await requestJson<{ events: AuditEvent[] }>(API_AUDIT);
+      setEvents(data.events);
+    } catch {
+      // Non-fatal: the activity panel just stays empty.
+    }
+  }
+
   useEffect(() => {
     void loadUsers();
     void loadSessions();
+    void loadEvents();
     // Loaders are stable enough for a one-shot mount load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -165,6 +221,7 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
         method: "DELETE",
       });
       await loadSessions();
+      await loadEvents();
     } catch {
       setError("Não foi possível encerrar a sessão.");
     }
@@ -173,12 +230,16 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
   async function endAllSessions(user: ManagedUser) {
     setError("");
     try {
-      await requestJson(
-        `${API_USERS}/${encodeURIComponent(user.id)}/sessions/revoke`,
-        { method: "POST" },
+      await withReauth(() =>
+        requestJson(
+          `${API_USERS}/${encodeURIComponent(user.id)}/sessions/revoke`,
+          { method: "POST" },
+        ),
       );
       await loadSessions();
-    } catch {
+      await loadEvents();
+    } catch (err) {
+      if (isReauthCancelled(err)) return;
       setError("Não foi possível encerrar as sessões.");
     }
   }
@@ -188,19 +249,24 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
     setError("");
     setCreating(true);
     try {
-      await requestJson<ManagedUser>(API_USERS, {
-        method: "POST",
-        body: JSON.stringify({
-          username: newName.trim(),
-          password: newPassword,
-          role: newRole,
+      // withReauth only prompts if the server demands it (creating an admin).
+      await withReauth(() =>
+        requestJson<ManagedUser>(API_USERS, {
+          method: "POST",
+          body: JSON.stringify({
+            username: newName.trim(),
+            password: newPassword,
+            role: newRole,
+          }),
         }),
-      });
+      );
       setNewName("");
       setNewPassword("");
       setNewRole("member");
       await loadUsers();
+      await loadEvents();
     } catch (err) {
+      if (isReauthCancelled(err)) return;
       setError(labelForError(err instanceof Error ? err.message : "invalid"));
     } finally {
       setCreating(false);
@@ -210,13 +276,45 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
   async function handleDelete(user: ManagedUser) {
     setError("");
     try {
-      await requestJson(`${API_USERS}/${encodeURIComponent(user.id)}`, {
-        method: "DELETE",
-      });
+      await withReauth(() =>
+        requestJson(`${API_USERS}/${encodeURIComponent(user.id)}`, {
+          method: "DELETE",
+        }),
+      );
       await loadUsers();
       await loadSessions();
+      await loadEvents();
     } catch (err) {
+      if (isReauthCancelled(err)) return;
       setError(labelForError(err instanceof Error ? err.message : "invalid"));
+    }
+  }
+
+  // Backup is a file download AND reauth-gated, so a plain <a> won't work (a 403
+  // would render as a JSON page). Fetch it through withReauth, then save the blob.
+  async function downloadBackup() {
+    setError("");
+    try {
+      const blob = await withReauth(async () => {
+        const res = await fetch("/api/admin/backup");
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(body.error ?? `http_${res.status}`);
+        }
+        return res.blob();
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `contas-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      await loadEvents();
+    } catch (err) {
+      if (isReauthCancelled(err)) return;
+      setError("Não foi possível baixar o backup.");
     }
   }
 
@@ -459,13 +557,58 @@ export function UsersDialog({ currentUsername, onClose }: UsersDialogProps) {
               Baixa todos os grupos e contas. Guarde em local seguro.
             </p>
           </div>
-          <a
+          <button
             className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 text-sm font-semibold text-[color:var(--text)] transition hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)]"
-            href="/api/admin/backup"
+            type="button"
+            onClick={downloadBackup}
           >
             <Download className="h-4 w-4" />
             Baixar
-          </a>
+          </button>
+        </div>
+
+        {/* Activity log: recent security-relevant events (who did what, when).
+            Contains no secrets — just actions, targets and timestamps. */}
+        <div className="mt-6">
+          <div className="mb-2 flex items-center gap-2.5">
+            <ScrollText className="h-4 w-4 text-[color:var(--accent)]" />
+            <h3 className="text-sm font-semibold text-[color:var(--text)]">
+              Registro de atividade
+            </h3>
+          </div>
+          {events.length === 0 ? (
+            <p className="rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 py-3 text-xs text-[color:var(--muted)]">
+              Nenhuma atividade registrada.
+            </p>
+          ) : (
+            <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-2">
+              {events.map((event, index) => (
+                <li
+                  key={`${event.ts}-${index}`}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-[color:var(--surface-soft)] px-2.5 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-[color:var(--text)]">
+                      {auditActionLabel(event.action)}
+                      {event.username ? (
+                        <span className="ml-2 font-normal text-[color:var(--muted)]">
+                          {event.username}
+                        </span>
+                      ) : null}
+                    </p>
+                    {event.target ? (
+                      <p className="truncate text-[11px] text-[color:var(--muted)]">
+                        {event.target}
+                      </p>
+                    ) : null}
+                  </div>
+                  <time className="shrink-0 text-[11px] text-[color:var(--muted)]">
+                    {new Date(event.ts).toLocaleString("pt-BR")}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </div>

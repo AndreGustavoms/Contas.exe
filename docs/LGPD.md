@@ -58,11 +58,18 @@ Antes de producao, o controlador deve registrar fora do codigo:
 - Isolamento por grupo/owner: membros acessam apenas seus grupos; admin acessa
   tudo para governanca e backup.
 - Segredos nao ficam no navegador: as contas (senha, email de recuperacao,
-  telefone, notas) nao sao gravadas em `localStorage`; senha revelada se
-  reoculta sozinha e o clipboard e limpo apos a copia. So o id do grupo ativo
+  telefone, notas) nao sao gravadas em `localStorage`. A senha nem vem na
+  listagem: e buscada sob demanda no endpoint `/secret` (atras de reauth), some
+  da tela sozinha e o clipboard e limpo apos a copia. So o id do grupo ativo
   (nao sensivel) e guardado, namespaceado por usuario.
-- Rate limit no login, headers de seguranca, CORS fechado por padrao e limite de
-  corpo de requisicao.
+- Reautenticacao para acoes criticas: revelar/copiar senha, exportar backup,
+  trocar senha, criar/remover admin e apagar grupo exigem redigitar a senha
+  (libera por 5 min). Reduz o risco de uma sessao aberta numa maquina destravada.
+- Trilha de auditoria (`audit.json`): registra quem fez o que e quando (incl.
+  quem viu/copiou senha, exportou backup, trocou/criou/removeu), SEM gravar
+  qualquer segredo. Atende ao dever de informar sobre acesso/compartilhamento.
+- Rate limit no login (e na reautenticacao), headers de seguranca, CORS fechado
+  por padrao e limite de corpo de requisicao.
 - `storage/`, `.env`, exports e backups sao ignorados pelo Git.
 - `readDb` falha alto em erro de leitura/decifragem e nao sobrescreve
   `groups.json` com store vazio.
@@ -79,8 +86,9 @@ Fluxo minimo para atender solicitacoes:
    - correcao: editar a conta/grupo/usuario pela UI;
    - eliminacao/bloqueio: apagar conta, grupo ou usuario quando nao houver motivo
      operacional/legal para retencao;
-   - informacao sobre compartilhamento: listar administradores, operadores de
-     infraestrutura e backups onde o dado existe.
+   - informacao sobre acesso/compartilhamento: listar administradores, operadores
+     de infraestrutura e backups onde o dado existe; o painel "Registro de
+     atividade" (audit log) mostra quem viu/alterou/exportou e quando.
 5. Registrar a resposta e qualquer excecao de retencao.
 
 Observacao operacional: ao remover um usuario, os grupos dele sao reatribuidos ao

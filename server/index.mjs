@@ -25,7 +25,9 @@ import {
 import { decryptField, encryptField, encryptionEnabled } from "./crypto.mjs";
 import {
   createSession,
+  hasRecentReauth,
   listAllSessions,
+  markReauth,
   pruneSessions,
   resolveAndTouch,
   revokeAllForUser,
@@ -33,6 +35,7 @@ import {
   SESSION_ABSOLUTE_MS,
   SESSION_IDLE_MS,
 } from "./sessions.mjs";
+import { listEvents, logEvent } from "./audit.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 // In production set CONTAS_FLOW_STORAGE_DIR to a persistent volume (e.g. /data
@@ -111,13 +114,24 @@ function sessionToken(request) {
 // lastSeenAt: every authenticated request counts as real activity (which is why
 // the client must NOT poll /api/auth/status on a timer — that would keep an idle
 // tab alive). The absolute 3-day ceiling is never extended.
-async function getSessionUser(request) {
+// Resolves both the session record and the user for a request. Returns
+// { session, user } or { session: null, user: null }. The session is needed
+// (beyond the user) so reauth-gated handlers can check `reauthAt` without
+// re-reading the store.
+async function getSessionContext(request) {
   const token = sessionToken(request);
   // One serialized read-modify-write: validate + renew lastSeenAt together, so a
   // concurrent revoke can't be clobbered by a stale touch.
   const session = await resolveAndTouch(storageDir, token);
-  if (!session) return null;
-  return findById(storageDir, session.userId);
+  if (!session) return { session: null, user: null };
+  const user = await findById(storageDir, session.userId);
+  if (!user) return { session: null, user: null };
+  return { session, user };
+}
+
+// Thin wrapper for the public status route, which only needs the user.
+async function getSessionUser(request) {
+  return (await getSessionContext(request)).user;
 }
 
 // Secure is required in production (HTTPS) but breaks login over plain http on
@@ -208,20 +222,31 @@ function isPublicApi(pathname) {
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
     pathname === "/api/auth/status" ||
+    pathname === "/api/auth/reauth" ||
     pathname === "/api/youtube/callback"
   );
 }
 
-// Resolves the authenticated user for a protected request. On failure it writes a
-// 401 and returns null, and the caller must stop handling the request.
-async function requireUser(request, response) {
-  const user = await getSessionUser(request);
-  if (user) return user;
+// Resolves the authenticated context ({ session, user }) for a protected request.
+// On failure it writes a 401 and returns null, and the caller must stop handling
+// the request.
+async function requireContext(request, response) {
+  const ctx = await getSessionContext(request);
+  if (ctx.user) return ctx;
   response.writeHead(401, {
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify({ error: "unauthorized" }));
   return null;
+}
+
+// Guard for critical actions: requires a recent re-auth on this session. Writes a
+// 403 reauth_required and returns false when the window has lapsed; the caller
+// must stop. `session` is the one already resolved by requireContext.
+function requireRecentReauth(session, response) {
+  if (hasRecentReauth(session)) return true;
+  sendJson(response, 403, { error: "reauth_required" });
+  return false;
 }
 
 const DEFAULT_GROUP_NAME = "Vitissouls";
@@ -285,6 +310,16 @@ function normalizeGroup(input = {}) {
 
 function emptyDb() {
   return { groups: [] };
+}
+
+// Strips the password out of an account before sending it to the browser. The
+// listing must not carry the secret: the client fetches it on demand from the
+// reauth-gated /secret endpoint when the user explicitly reveals/copies it. We
+// keep a `hasPassword` flag so the UI can show whether one is set. (Other
+// sensitive fields stay as-is for now; the password is the high-value target.)
+function maskAccount(account) {
+  const { password, ...rest } = account;
+  return { ...rest, password: "", hasPassword: Boolean(password) };
 }
 
 // Account fields that hold secrets / sensitive PII and are encrypted at rest.
@@ -538,9 +573,11 @@ function badRequest(response, message) {
   sendJson(response, 400, { error: message ?? "bad_request" });
 }
 
-// `user` is the authenticated user for protected routes (resolved by the
-// dispatcher), or null for the public auth/OAuth-callback routes handled first.
-async function handleApi(request, response, url, user) {
+// `user`/`session` are the authenticated user and their session record for
+// protected routes (resolved by the dispatcher), or null for the public
+// auth/OAuth-callback routes handled first. `session` carries reauthAt so
+// critical handlers can gate on a recent re-auth (requireRecentReauth).
+async function handleApi(request, response, url, user, session) {
   if (request.method === "OPTIONS") {
     response.writeHead(204, corsHeaders());
     response.end();
@@ -580,12 +617,76 @@ async function handleApi(request, response, url, user) {
         userAgent: request.headers["user-agent"],
       });
       setSessionCookie(response, token);
+      void logEvent(storageDir, {
+        userId: account.id,
+        username: account.username,
+        action: "login_ok",
+        target: null,
+        ip,
+      });
       sendJson(response, 200, {
         authenticated: true,
         user: { username: account.username, role: account.role },
       });
       return;
     }
+    void logEvent(storageDir, {
+      userId: null,
+      username: name || null,
+      action: "login_fail",
+      target: null,
+      ip,
+    });
+    sendJson(response, 401, { error: "invalid_credentials" });
+    return;
+  }
+
+  // Re-authentication: the user re-types their password to unlock critical
+  // actions for a short window (REAUTH_WINDOW_MS). Only valid on an authenticated
+  // session; rate-limited per IP like login to bound brute-force. NOTE: this is a
+  // public route (no requireContext upstream), so we resolve the session here.
+  if (url.pathname === "/api/auth/reauth" && request.method === "POST") {
+    pruneLoginAttempts();
+    const ip = clientIp(request);
+    if (loginRateLimited(ip)) {
+      await drainBody(request);
+      sendJson(response, 429, { error: "too_many_attempts" });
+      return;
+    }
+    const token = sessionToken(request);
+    const current = await resolveAndTouch(storageDir, token);
+    if (!current) {
+      await drainBody(request);
+      sendJson(response, 401, { error: "unauthorized" });
+      return;
+    }
+    const account = await findById(storageDir, current.userId);
+    const body = await readBody(request);
+    const password = asString(body.password);
+    const ok = account
+      ? await verifyPassword(password, account.passwordHash)
+      : await verifyPassword(password, DUMMY_HASH);
+
+    if (account && ok) {
+      resetLoginRate(ip);
+      await markReauth(storageDir, token);
+      void logEvent(storageDir, {
+        userId: account.id,
+        username: account.username,
+        action: "reauth_ok",
+        target: null,
+        ip,
+      });
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    void logEvent(storageDir, {
+      userId: account?.id ?? null,
+      username: account?.username ?? null,
+      action: "reauth_fail",
+      target: null,
+      ip,
+    });
     sendJson(response, 401, { error: "invalid_credentials" });
     return;
   }
@@ -625,6 +726,7 @@ async function handleApi(request, response, url, user) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
+    if (!requireRecentReauth(session, response)) return;
     const db = await readDb();
     const backup = {
       version: 1,
@@ -632,6 +734,13 @@ async function handleApi(request, response, url, user) {
       users: await listUsers(storageDir), // id, username, role, createdAt (no hash)
       groups: db.groups,
     };
+    void logEvent(storageDir, {
+      userId: user.id,
+      username: user.username,
+      action: "backup_exported",
+      target: null,
+      ip: clientIp(request),
+    });
     const date = new Date().toISOString().slice(0, 10);
     response.writeHead(200, {
       ...corsHeaders(),
@@ -655,11 +764,21 @@ async function handleApi(request, response, url, user) {
     }
     if (request.method === "POST") {
       const body = await readBody(request);
+      const role = body.role === "admin" ? "admin" : "member";
+      // Creating an admin is a privileged action: require a recent re-auth.
+      if (role === "admin" && !requireRecentReauth(session, response)) return;
       try {
         const created = await createUser(storageDir, {
           username: body.username,
           password: body.password,
-          role: body.role === "admin" ? "admin" : "member",
+          role,
+        });
+        void logEvent(storageDir, {
+          userId: user.id,
+          username: user.username,
+          action: "user_created",
+          target: `user:${created.id}`,
+          ip: clientIp(request),
         });
         sendJson(response, 201, created);
       } catch (error) {
@@ -681,6 +800,12 @@ async function handleApi(request, response, url, user) {
     const targetId = decodeURIComponent(userMatch[1]);
 
     if (request.method === "DELETE") {
+      // Removing an admin is privileged: require a recent re-auth. (Check the
+      // target's role before deleting.)
+      const target = await findById(storageDir, targetId);
+      if (target?.role === "admin" && !requireRecentReauth(session, response)) {
+        return;
+      }
       try {
         const removed = await deleteUser(storageDir, targetId);
         if (!removed) {
@@ -690,6 +815,13 @@ async function handleApi(request, response, url, user) {
         // Re-home the deleted user's groups to the acting admin so their data
         // stays visible and manageable instead of becoming orphaned.
         await reassignGroups(targetId, user.id);
+        void logEvent(storageDir, {
+          userId: user.id,
+          username: user.username,
+          action: "user_deleted",
+          target: `user:${targetId}`,
+          ip: clientIp(request),
+        });
         sendJson(response, 200, { ok: true });
       } catch (error) {
         const code = error instanceof Error ? error.message : "invalid";
@@ -707,27 +839,33 @@ async function handleApi(request, response, url, user) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
+    if (!requireRecentReauth(session, response)) return;
     const body = await readBody(request);
     const password = asString(body.password);
     if (!password) {
       badRequest(response, "password_required");
       return;
     }
-    const ok = await setPassword(
-      storageDir,
-      decodeURIComponent(userPwMatch[1]),
-      password,
-    );
+    const targetId = decodeURIComponent(userPwMatch[1]);
+    const ok = await setPassword(storageDir, targetId, password);
     if (!ok) {
       notFound(response);
       return;
     }
+    void logEvent(storageDir, {
+      userId: user.id,
+      username: user.username,
+      action: "password_changed",
+      target: `user:${targetId}`,
+      ip: clientIp(request),
+    });
     sendJson(response, 200, { ok: true });
     return;
   }
 
   // "Log out of all devices" for a user: revoke every active session they hold.
-  // Admin only (same gate as the rest of /api/users).
+  // Admin only (same gate as the rest of /api/users) + recent re-auth (it can lock
+  // people out, including the acting admin).
   const userSessionsMatch = url.pathname.match(
     /^\/api\/users\/([^/]+)\/sessions\/revoke$/,
   );
@@ -736,10 +874,16 @@ async function handleApi(request, response, url, user) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
-    const revoked = await revokeAllForUser(
-      storageDir,
-      decodeURIComponent(userSessionsMatch[1]),
-    );
+    if (!requireRecentReauth(session, response)) return;
+    const targetId = decodeURIComponent(userSessionsMatch[1]);
+    const revoked = await revokeAllForUser(storageDir, targetId);
+    void logEvent(storageDir, {
+      userId: user.id,
+      username: user.username,
+      action: "sessions_revoked_all",
+      target: `user:${targetId}`,
+      ip: clientIp(request),
+    });
     sendJson(response, 200, { ok: true, revoked });
     return;
   }
@@ -763,11 +907,30 @@ async function handleApi(request, response, url, user) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
-    const revoked = await revokeSession(
-      storageDir,
-      decodeURIComponent(sessionMatch[1]),
-    );
+    const targetSid = decodeURIComponent(sessionMatch[1]);
+    const revoked = await revokeSession(storageDir, targetSid);
+    if (revoked) {
+      void logEvent(storageDir, {
+        userId: user.id,
+        username: user.username,
+        action: "session_revoked",
+        target: `session:${targetSid.slice(0, 8)}`,
+        ip: clientIp(request),
+      });
+    }
     sendJson(response, 200, { ok: revoked });
+    return;
+  }
+
+  // ----- Audit trail (admin only) -----
+  // The recent security-relevant events (who did what, when). No secrets.
+  if (url.pathname === "/api/audit" && request.method === "GET") {
+    if (user.role !== "admin") {
+      sendJson(response, 403, { error: "forbidden" });
+      return;
+    }
+    const events = await listEvents(storageDir, { limit: 200 });
+    sendJson(response, 200, { events });
     return;
   }
 
@@ -889,8 +1052,16 @@ async function handleApi(request, response, url, user) {
     }
 
     if (request.method === "DELETE") {
+      if (!requireRecentReauth(session, response)) return;
       db.groups.splice(index, 1);
       await writeDb(db);
+      void logEvent(storageDir, {
+        userId: user.id,
+        username: user.username,
+        action: "group_deleted",
+        target: `group:${id}`,
+        ip: clientIp(request),
+      });
       sendJson(response, 200, {
         groups: visibleGroups(user, db.groups).map(groupSummary),
       });
@@ -923,7 +1094,7 @@ async function handleApi(request, response, url, user) {
     if (!group) return;
 
     if (request.method === "GET") {
-      sendJson(response, 200, group.accounts);
+      sendJson(response, 200, group.accounts.map(maskAccount));
       return;
     }
 
@@ -933,7 +1104,7 @@ async function handleApi(request, response, url, user) {
 
       group.accounts.unshift(account);
       await writeDb(db);
-      sendJson(response, 201, account);
+      sendJson(response, 201, maskAccount(account));
       return;
     }
 
@@ -956,7 +1127,35 @@ async function handleApi(request, response, url, user) {
       : [];
 
     await writeDb(db);
-    sendJson(response, 200, group.accounts);
+    sendJson(response, 200, group.accounts.map(maskAccount));
+    return;
+  }
+
+  // Fetch ONE account's password in clear text, on demand. Ownership-scoped and
+  // gated by a recent re-auth; the reveal/copy is recorded in the audit trail.
+  const secretMatch = url.pathname.match(
+    /^\/api\/groups\/([^/]+)\/accounts\/([^/]+)\/secret$/,
+  );
+  if (secretMatch && request.method === "GET") {
+    const db = await readDb();
+    const group = await resolveOwnedGroup(db, secretMatch[1]);
+    if (!group) return;
+    if (!requireRecentReauth(session, response)) return;
+
+    const accountId = decodeURIComponent(secretMatch[2]);
+    const account = group.accounts.find((item) => item.id === accountId);
+    if (!account) {
+      notFound(response);
+      return;
+    }
+    void logEvent(storageDir, {
+      userId: user.id,
+      username: user.username,
+      action: "secret_viewed",
+      target: `account:${accountId}`,
+      ip: clientIp(request),
+    });
+    sendJson(response, 200, { password: account.password ?? "" });
     return;
   }
 
@@ -980,11 +1179,21 @@ async function handleApi(request, response, url, user) {
 
     if (request.method === "PUT") {
       const body = await readBody(request);
-      const updated = normalizeRecord(body, group.accounts[index]);
+      const existing = group.accounts[index];
+      // The listing sends the password masked (""), so an edit that didn't touch
+      // it would otherwise wipe the stored password. Treat an empty incoming
+      // password as "unchanged" and keep the existing one. (Clearing a password
+      // isn't a flow the UI offers; deleting the account is.)
+      const incomingPassword = asString(body.password);
+      const merged =
+        incomingPassword === ""
+          ? { ...body, password: existing.password }
+          : body;
+      const updated = normalizeRecord(merged, existing);
 
       group.accounts[index] = updated;
       await writeDb(db);
-      sendJson(response, 200, updated);
+      sendJson(response, 200, maskAccount(updated));
       return;
     }
 
@@ -1054,11 +1263,13 @@ const server = createServer(async (request, response) => {
       // static UI bundle below is intentionally public (no secrets) so the login
       // screen can load.
       let user = null;
+      let session = null;
       if (!isPublicApi(url.pathname)) {
-        user = await requireUser(request, response);
-        if (!user) return; // requireUser already wrote the 401
+        const ctx = await requireContext(request, response);
+        if (!ctx) return; // requireContext already wrote the 401
+        ({ session, user } = ctx);
       }
-      await handleApi(request, response, url, user);
+      await handleApi(request, response, url, user, session);
       return;
     }
 
