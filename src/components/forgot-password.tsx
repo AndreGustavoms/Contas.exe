@@ -4,12 +4,10 @@ import { useTranslation } from "react-i18next";
 import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
 import { LANGUAGES, type LangCode } from "../i18n";
-import { ThemeToggle } from "./theme-toggle";
 import { Spinner } from "./ui/spinner";
 
 type ForgotPasswordProps = {
   onBack: () => void;
-  onThemeChange: (theme: AppTheme) => void;
   theme: AppTheme;
 };
 
@@ -58,7 +56,7 @@ function LangTerminal() {
   );
 }
 
-export function ForgotPassword({ onBack, onThemeChange, theme }: ForgotPasswordProps) {
+export function ForgotPassword({ onBack, theme }: ForgotPasswordProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -99,14 +97,6 @@ export function ForgotPassword({ onBack, onThemeChange, theme }: ForgotPasswordP
           <LangTerminal />
 
           <div className="login-form-shell animate-pop-in">
-            <div className="login-theme-row">
-              <ThemeToggle
-                value={theme}
-                onChange={onThemeChange}
-                menuPlacement="down"
-              />
-            </div>
-
             <div className="login-heading">
               <div className="login-mobile-brand">
                 <div className="login-mobile-mark">

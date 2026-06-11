@@ -2,13 +2,11 @@ import { type FormEvent, useState } from "react";
 import { CheckCircle, Eye, EyeOff, KeyRound } from "lucide-react";
 import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
-import { ThemeToggle } from "./theme-toggle";
 import { Spinner } from "./ui/spinner";
 
 type ResetPasswordProps = {
   token: string;
   onDone: () => void;
-  onThemeChange: (theme: AppTheme) => void;
   theme: AppTheme;
 };
 
@@ -30,7 +28,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   password_too_common: "Senha muito comum. Escolha outra.",
 };
 
-export function ResetPassword({ token, onDone, onThemeChange, theme }: ResetPasswordProps) {
+export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);

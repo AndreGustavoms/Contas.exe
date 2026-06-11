@@ -95,7 +95,6 @@ export default function App() {
         <ResetPassword
           token={resetToken}
           theme={theme}
-          onThemeChange={changeTheme}
           onDone={() => setView("login")}
         />
       </>
@@ -108,7 +107,6 @@ export default function App() {
         {floatingToggle}
         <ForgotPassword
           theme={theme}
-          onThemeChange={changeTheme}
           onBack={() => setView("login")}
         />
       </>
