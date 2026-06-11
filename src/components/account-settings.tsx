@@ -215,16 +215,18 @@ export function AccountSettings({ onClose, withReauth }: AccountSettingsProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6">
+    // Wrapper rolável + m-auto: o modal centraliza quando cabe e rola desde o
+    // topo quando é mais alto que a tela (items-center cortava o início).
+    <div className="fixed inset-0 z-50 flex overflow-y-auto overscroll-contain px-4 py-6">
       <button
         aria-label="Fechar"
-        className="absolute inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+        className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
         type="button"
         onClick={onClose}
       />
       <section
         aria-modal="true"
-        className="app-panel animate-pop-in relative w-full max-w-lg overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6"
+        className="app-panel animate-pop-in relative m-auto w-full max-w-lg overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6"
         role="dialog"
       >
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
@@ -252,7 +254,7 @@ export function AccountSettings({ onClose, withReauth }: AccountSettingsProps) {
             <Input
               type="email"
               autoComplete="email"
-              className="h-10 flex-1 rounded-xl px-3 text-sm"
+              className="h-10 min-w-0 flex-1 rounded-xl px-3"
               placeholder="seu@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
