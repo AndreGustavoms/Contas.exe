@@ -350,16 +350,18 @@ export function UsersDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6">
+    // Wrapper rolável + m-auto: este é o modal mais alto do app; com
+    // items-center o topo ficava cortado e inalcançável no mobile.
+    <div className="fixed inset-0 z-50 flex overflow-y-auto overscroll-contain px-4 py-6">
       <button
         aria-label="Fechar"
-        className="absolute inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+        className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
         type="button"
         onClick={onClose}
       />
       <section
         aria-modal="true"
-        className="app-panel animate-pop-in relative w-full max-w-lg overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6"
+        className="app-panel animate-pop-in relative m-auto w-full max-w-lg overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6"
         role="dialog"
       >
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
