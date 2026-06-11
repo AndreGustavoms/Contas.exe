@@ -19,10 +19,12 @@ const variantClasses = {
   neon: "btn-neon border-transparent bg-[color:var(--accent)] text-[color:var(--accent-foreground)] hover:-translate-y-0.5",
 } as const;
 
+// No mobile os botões sobem para ≥44px (alvo de toque recomendado); a partir
+// de sm voltam ao tamanho compacto original do desktop.
 const sizeClasses = {
-  sm: "h-9 px-3",
-  md: "h-10 px-4",
-  icon: "h-10 w-10 p-0",
+  sm: "h-10 px-3 sm:h-9",
+  md: "h-11 px-4 sm:h-10",
+  icon: "h-11 w-11 p-0 sm:h-10 sm:w-10",
 } as const;
 
 type ButtonVariant = keyof typeof variantClasses;

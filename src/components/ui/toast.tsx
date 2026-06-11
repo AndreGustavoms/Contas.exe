@@ -25,13 +25,14 @@ export function Toast({
   const Icon = tone === "error" ? AlertTriangle : CheckCircle2;
 
   return (
+    // bottom respeita o home indicator (safe-area) em iPhone/Android gesture nav.
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] z-[60] flex justify-center px-4"
     >
       <div
         className={cn(
-          "toast app-panel pointer-events-auto flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-[0_24px_70px_var(--accent-glow)] backdrop-blur-2xl",
+          "toast app-panel pointer-events-auto flex max-w-full items-center gap-3 rounded-2xl border px-4 py-3 shadow-[0_24px_70px_var(--accent-glow)] backdrop-blur-2xl",
         )}
         role="status"
       >
@@ -41,7 +42,7 @@ export function Toast({
             tone === "error" ? "text-red-300" : "text-[color:var(--accent)]",
           )}
         />
-        <span className="text-sm font-medium text-[color:var(--text)]">
+        <span className="min-w-0 break-words text-sm font-medium text-[color:var(--text)]">
           {message}
         </span>
         <button
