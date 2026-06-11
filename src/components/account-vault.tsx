@@ -144,7 +144,7 @@ type PlatformMeta = {
 };
 
 const defaultPlatformMeta: PlatformMeta = {
-  color: "#22d3ee",
+  color: "#22c55e",
   icon: Globe,
 };
 
@@ -881,6 +881,12 @@ export function AccountVault({
       return;
     }
 
+    setQuickViewAccount(null);
+    setQuickViewReveal(false);
+    setQuickViewSecret("");
+    setIsAccountModalOpen(false);
+    setWizardStep(0);
+    resetForm();
     setDeleteAccountId(id);
   }
 
@@ -1338,7 +1344,7 @@ export function AccountVault({
           step={wizardStep}
           onBack={previousWizardStep}
           onClose={closeAccountModal}
-          onDelete={deleteAccount}
+          onDelete={() => deleteAccount()}
           onNext={nextWizardStep}
           onSave={saveAccount}
           onTogglePassword={() => setShowPassword((current) => !current)}
@@ -1441,6 +1447,7 @@ type DraftUpdater = <K extends keyof AccountDraft>(
 
 type ModalShellProps = {
   children: ReactNode;
+  layer?: "base" | "confirm" | "reauth";
   onClose: () => void;
   // "sm" for short forms, "md"/"lg" for dialogs with a sentence or two of
   // body text so it has room to breathe instead of wrapping awkwardly.
@@ -1448,8 +1455,15 @@ type ModalShellProps = {
   title: string;
 };
 
+const modalLayerClass = {
+  base: "z-50",
+  confirm: "z-[70]",
+  reauth: "z-[80]",
+} as const;
+
 function ModalShell({
   children,
+  layer = "base",
   onClose,
   size = "sm",
   title,
@@ -1468,7 +1482,12 @@ function ModalShell({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6">
+    <div
+      className={cn(
+        "fixed inset-0 flex items-center justify-center overflow-y-auto px-4 py-6",
+        modalLayerClass[layer],
+      )}
+    >
       <button
         aria-label={t("vault.close")}
         className="absolute inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
@@ -1582,7 +1601,7 @@ function ConfirmDialog({
     // Empty title => ModalShell skips its header; we render a fully centered,
     // symmetric layout instead (radar on top, title + message centered, two
     // equal-width buttons). This avoids the lopsided icon-beside-text look.
-    <ModalShell onClose={onCancel} size="lg" title="">
+    <ModalShell layer="confirm" onClose={onCancel} size="lg" title="">
       <div className="flex flex-col items-center text-center">
         <RadarGlyph />
         <h2 className="mt-4 text-xl font-semibold tracking-normal text-[color:var(--text)]">
@@ -2804,7 +2823,12 @@ function ReauthModal({
   }
 
   return (
-    <ModalShell onClose={onCancel} size="sm" title={t("vault.reauth_title")}>
+    <ModalShell
+      layer="reauth"
+      onClose={onCancel}
+      size="sm"
+      title={t("vault.reauth_title")}
+    >
       <p className="mt-1 text-sm text-[color:var(--muted)]">
         {t("vault.reauth_instruction")}
       </p>
