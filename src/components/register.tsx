@@ -23,6 +23,8 @@ const ERROR_MAP: Record<string, { title: string; message: string }> = {
   password_no_special: { title: "Senha fraca",          message: "Inclua ao menos um caractere especial." },
   password_too_common: { title: "Senha muito comum",    message: "Escolha uma senha mais segura." },
   forbidden:           { title: "Sem permissão",        message: "Apenas administradores podem criar contas." },
+  register_failed:     { title: "Erro ao criar conta",  message: "Não foi possível criar a conta. Tente novamente." },
+  too_many_attempts:   { title: "Muitas tentativas",    message: "Aguarde alguns minutos e tente novamente." },
 };
 
 export function Register({ onBack, onDone, theme }: RegisterProps) {
@@ -46,7 +48,7 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
     setError(null);
 
     try {
-      const response = await fetch("/api/users", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -54,7 +56,6 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
           fullName: fullName.trim(),
           email: email.trim(),
           password,
-          role: "member",
         }),
       });
 
