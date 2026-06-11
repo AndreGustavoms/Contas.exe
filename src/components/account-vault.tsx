@@ -68,13 +68,6 @@ import { UsersDialog } from "./users-dialog";
 import { AccountSettings } from "./account-settings";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
 import { Input } from "./ui/input";
 
 // Account data is NEVER cached in the browser: it holds secrets (passwords,
@@ -1136,39 +1129,42 @@ export function AccountVault({
         onChange={importBackup}
       />
 
-      <nav className="app-navbar sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-2xl sm:px-6">
-        <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent opacity-70" />
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BrandLogo />
-            <div className="min-w-0">
-              <p className="truncate font-mono text-sm font-semibold tracking-wide text-[color:var(--text)]">
-                Contas_exe
-              </p>
-            </div>
+      <nav className="vault-navbar">
+        <div className="flex min-w-0 items-center gap-3">
+          <BrandLogo />
+          <div className="min-w-0">
+            <p className="truncate font-mono text-sm font-semibold tracking-wide text-[color:var(--text)]">
+              Contas_exe
+            </p>
           </div>
+        </div>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <NavAction
-              icon={Download}
-              label={t("vault.export")}
-              onClick={exportBackup}
-            />
-            <NavAction
-              icon={Upload}
-              label={t("vault.import")}
-              onClick={() => importInputRef.current?.click()}
-            />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            className="vault-nav-btn"
+            type="button"
+            onClick={exportBackup}
+          >
+            <Download className="h-4 w-4" />
+            {t("vault.export")}
+          </button>
+          <button
+            className="vault-nav-btn"
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            {t("vault.import")}
+          </button>
 
-            <span className="mx-1 hidden h-7 w-px bg-[color:var(--border)] lg:block" />
+          <span className="mx-1 hidden h-7 w-px bg-[color:var(--border)] lg:block" />
 
-            <ThemeToggle value={theme} onChange={onThemeChange} />
-          </div>
+          <ThemeToggle value={theme} onChange={onThemeChange} />
         </div>
       </nav>
 
       <div className="grid grid-cols-1 xl:grid-cols-[228px_minmax(0,1fr)]">
-        <aside className="app-sidebar relative flex flex-col gap-5 border-b py-5 pl-5 pr-4 backdrop-blur-2xl xl:sticky xl:top-[73px] xl:h-[calc(100vh-73px)] xl:border-b-0 xl:border-r xl:pl-6">
+        <aside className="vault-sidebar relative flex flex-col gap-5 border-b py-5 pl-5 pr-4 xl:sticky xl:top-[73px] xl:h-[calc(100vh-73px)] xl:border-b-0 xl:pl-6">
           <SidebarSection label={t("vault.group_section")}>
             <GroupSwitcher
               activeGroup={activeGroup}
@@ -1256,16 +1252,16 @@ export function AccountVault({
             onChange={setStatusFilter}
           />
 
-          <Card
-            className="animate-rise mt-6 overflow-hidden"
+          <div
+            className="vault-card animate-rise mt-6"
             style={{ animationDelay: "60ms" }}
           >
-            <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="shrink-0">
-                <CardTitle>{t("vault.records")}</CardTitle>
-                <CardDescription>
+                <p className="text-base font-semibold text-[color:var(--text)]">{t("vault.records")}</p>
+                <p className="mt-0.5 text-sm text-[color:var(--muted)]">
                   {filteredAccounts.length} / {accounts.length}
-                </CardDescription>
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 {message && !isAccountModalOpen ? (
@@ -1293,16 +1289,20 @@ export function AccountVault({
                   value={roleFilter}
                   onChange={setRoleFilter}
                 />
-                <Button size="sm" onClick={openCreateModal}>
+                <button
+                  className="vault-btn-primary"
+                  type="button"
+                  onClick={openCreateModal}
+                >
                   <Plus className="h-4 w-4" />
                   {t("vault.new_account")}
-                </Button>
+                </button>
               </div>
-            </CardHeader>
+            </div>
 
-            <CardContent className="p-0">
+            <div className="border-t border-[color:var(--border)]">
               {filteredAccounts.length ? (
-                <div className="divide-y divide-[color:var(--border)]">
+                <div>
                   {filteredAccounts.map((account, index) => (
                     <AccountRow
                       key={account.id}
@@ -1317,12 +1317,12 @@ export function AccountVault({
                   ))}
                 </div>
               ) : (
-                <div className="flex min-h-[360px] items-center justify-center p-8 text-sm text-[color:var(--muted)]">
-                  {t("vault.no_accounts")}
+                <div className="vault-empty">
+                  <span className="text-[color:var(--muted)]">{t("vault.no_accounts")}</span>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -2305,30 +2305,6 @@ function SidebarSection({ label, children }: SidebarSectionProps) {
   );
 }
 
-type NavActionProps = {
-  active?: boolean;
-  icon: LucideIcon;
-  label: string;
-  onClick?: () => void;
-};
-
-function NavAction({ active, icon: Icon, label, onClick }: NavActionProps) {
-  return (
-    <button
-      className={cn(
-        "flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition duration-300",
-        active
-          ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent-soft)] shadow-[0_0_24px_var(--accent-glow)]"
-          : "border-transparent text-[color:var(--muted)] hover:-translate-y-0.5 hover:border-[color:var(--border)] hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--text)]",
-      )}
-      type="button"
-      onClick={onClick}
-    >
-      <Icon className="h-4 w-4" />
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-}
 
 type SidebarButtonProps = {
   active?: boolean;
