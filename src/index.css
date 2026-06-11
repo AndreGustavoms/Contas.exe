@@ -12,13 +12,13 @@
 .theme-dark {
   color-scheme: dark;
   --page-bg: #070a12;
-  --grid-line-a: rgba(34, 211, 238, 0.05);
+  --grid-line-a: rgba(34, 197, 94, 0.05);
   --grid-line-b: rgba(167, 139, 250, 0.05);
   --grid-base: linear-gradient(135deg, #070a12 0%, #101827 48%, #120a1f 100%);
-  --grid-sheen: rgba(34, 211, 238, 0.08);
+  --grid-sheen: rgba(34, 197, 94, 0.08);
   --grid-top: rgba(255, 255, 255, 0.04);
   --text: #f0f6ff;
-  --text-glow: rgba(103, 232, 249, 0.6);
+  --text-glow: rgba(74, 222, 128, 0.6);
   --muted: #dbe7f5;
   --muted-soft: #c2d2e4;
   --panel: rgba(2, 6, 23, 0.58);
@@ -28,16 +28,16 @@
   --field-hover: rgba(15, 23, 42, 0.7);
   --border: rgba(255, 255, 255, 0.1);
   --surface-soft: rgba(255, 255, 255, 0.055);
-  --accent: #22d3ee;
-  --accent-hover: #67e8f9;
-  --accent-soft: #cffafe;
-  --accent-muted: rgba(165, 243, 252, 0.72);
-  --accent-border: rgba(103, 232, 249, 0.35);
-  --accent-surface: rgba(103, 232, 249, 0.11);
-  --accent-surface-strong: rgba(103, 232, 249, 0.16);
+  --accent: #22c55e;
+  --accent-hover: #4ade80;
+  --accent-soft: #dcfce7;
+  --accent-muted: rgba(134, 239, 172, 0.72);
+  --accent-border: rgba(74, 222, 128, 0.35);
+  --accent-surface: rgba(74, 222, 128, 0.11);
+  --accent-surface-strong: rgba(74, 222, 128, 0.16);
   --accent-foreground: #020617;
-  --accent-glow: rgba(34, 211, 238, 0.2);
-  --focus-ring: rgba(103, 232, 249, 0.16);
+  --accent-glow: rgba(34, 197, 94, 0.2);
+  --focus-ring: rgba(74, 222, 128, 0.16);
   --overlay: rgba(2, 6, 23, 0.7);
   --nav-bg: rgba(255, 255, 255, 0.035);
   --inset-light: rgba(255, 255, 255, 0.05);
@@ -228,7 +228,7 @@ textarea {
 .theme-dark.login-shell {
   --login-page-bg: #0f1117;
   --login-brand-bg: #0a0d14;
-  --login-brand-accent: #22d3ee;
+  --login-brand-accent: #22c55e;
   --login-form-bg: #181c27;
   --login-form-text: #e2e8f0;
   --login-form-muted: #94a3b8;
@@ -237,7 +237,7 @@ textarea {
   --login-input-border: #2d3447;
   --login-primary: #e2e8f0;
   --login-primary-hover: #f1f5f9;
-  --login-focus: rgba(34, 211, 238, 0.14);
+  --login-focus: rgba(34, 197, 94, 0.14);
   --muted: #94a3b8;
   --text: #e2e8f0;
   --panel-strong: #1e2435;
@@ -771,11 +771,11 @@ textarea {
 
 .theme-dark .animated-field input:focus,
 .theme-dark .animated-field input:valid {
-  border-bottom-color: #22d3ee;
+  border-bottom-color: #22c55e;
 }
 
 .theme-dark .login-shell::before {
-  background: radial-gradient(ellipse at 30% 60%, rgba(34,211,238,0.08) 0%, transparent 55%),
+  background: radial-gradient(ellipse at 30% 60%, rgba(34,197,94,0.08) 0%, transparent 55%),
               radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.06) 0%, transparent 45%);
 }
 
@@ -799,7 +799,7 @@ textarea {
 .animated-field input:focus,
 .animated-field input:valid {
   outline: 0;
-  border-bottom-color: lightblue;
+  border-bottom-color: #22c55e;
 }
 
 .animated-field-toggle {
