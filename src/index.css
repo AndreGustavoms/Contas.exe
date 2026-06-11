@@ -81,78 +81,6 @@
   --login-bg: linear-gradient(135deg, #eef7ff 0%, #ffffff 45%, #f7f2ff 100%);
 }
 
-.theme-andre {
-  color-scheme: dark;
-  --page-bg: #070103;
-  --grid-line-a: rgba(225, 29, 72, 0.08);
-  --grid-line-b: rgba(244, 63, 94, 0.04);
-  --grid-base: linear-gradient(135deg, #070103 0%, #1a060c 50%, #0a0103 100%);
-  --grid-sheen: rgba(190, 18, 60, 0.18);
-  --grid-top: rgba(255, 255, 255, 0.03);
-  --text: #fff4f3;
-  --text-glow: rgba(255, 80, 70, 0.6);
-  --muted: #ffe4e0;
-  --muted-soft: #ffd4ce;
-  --panel: rgba(10, 2, 2, 0.74);
-  --panel-strong: rgba(6, 1, 1, 0.97);
-  --sidebar: rgba(8, 1, 1, 0.72);
-  --field: rgba(18, 3, 3, 0.8);
-  --field-hover: rgba(36, 6, 6, 0.9);
-  --border: rgba(248, 113, 100, 0.16);
-  --surface-soft: rgba(200, 16, 24, 0.12);
-  --accent: #d10019;
-  --accent-hover: #f01124;
-  --accent-soft: #ffd9d4;
-  --accent-muted: rgba(255, 196, 188, 0.78);
-  --accent-border: rgba(225, 16, 28, 0.42);
-  --accent-surface: rgba(164, 14, 22, 0.26);
-  --accent-surface-strong: rgba(200, 16, 24, 0.36);
-  --accent-foreground: #fff4f3;
-  --accent-glow: rgba(209, 0, 25, 0.5);
-  --focus-ring: rgba(209, 0, 25, 0.28);
-  --overlay: rgba(5, 1, 1, 0.85);
-  --nav-bg: rgba(24, 4, 5, 0.64);
-  --inset-light: rgba(255, 255, 255, 0.08);
-  --field-shadow: rgba(3, 0, 0, 0.58);
-  --vault-edge: rgba(248, 113, 100, 0.24);
-  --vault-gold: rgba(253, 224, 138, 0.24);
-  --vault-teal: rgba(225, 16, 28, 0.26);
-  --metal-sheen: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 120, 110, 0.06) 22%,
-    transparent 38%,
-    rgba(0, 0, 0, 0.22) 70%,
-    rgba(120, 6, 12, 0.16) 100%
-  );
-  --login-bg:
-    radial-gradient(
-      ellipse at 50% 70%,
-      rgba(164, 14, 22, 0.46) 0%,
-      transparent 42%
-    ),
-    radial-gradient(
-      ellipse at 70% 32%,
-      rgba(209, 0, 25, 0.22) 0%,
-      transparent 36%
-    ),
-    radial-gradient(
-      ellipse at 18% 18%,
-      rgba(36, 4, 4, 0.76) 0%,
-      transparent 48%
-    ),
-    conic-gradient(
-      from 245deg at 54% 48%,
-      rgba(44, 4, 6, 0.82) 0deg,
-      rgba(5, 1, 1, 0.96) 78deg,
-      rgba(30, 3, 4, 0.88) 142deg,
-      rgba(140, 8, 14, 0.6) 205deg,
-      rgba(56, 4, 6, 0.16) 257deg,
-      rgba(4, 1, 1, 0.98) 318deg,
-      rgba(44, 4, 6, 0.82) 360deg
-    ),
-    linear-gradient(135deg, #060101 0%, #150303 38%, #2c0606 68%, #090101 100%);
-}
 
 body {
   min-width: 320px;
@@ -296,13 +224,6 @@ textarea {
   --login-focus: rgba(16, 32, 51, 0.14);
 }
 
-.theme-andre.login-shell {
-  --login-brand-bg: #111827;
-  --login-brand-accent: #e11d48;
-  --login-primary: #111827;
-  --login-primary-hover: #1f2937;
-  --login-focus: rgba(17, 24, 39, 0.16);
-}
 
 .theme-dark.login-shell {
   --login-page-bg: #0f1117;
@@ -1231,17 +1152,6 @@ textarea {
   }
 }
 
-.theme-andre .brand-mark {
-  box-shadow:
-    0 0 38px rgba(190, 18, 60, 0.75),
-    inset 0 0 16px rgba(255, 255, 255, 0.06);
-}
-
-.theme-andre .brand-mark-core {
-  background:
-    radial-gradient(circle at 50% 45%, rgba(225, 29, 72, 0.2), transparent 52%),
-    #0a0103;
-}
 
 .tech-grid {
   background:
@@ -1289,9 +1199,6 @@ textarea {
   --navbar-glass: rgba(7, 10, 18, 0.08);
 }
 
-.theme-andre .app-navbar {
-  --navbar-glass: rgba(10, 2, 3, 0.1);
-}
 
 .theme-white .app-navbar {
   --navbar-glass: rgba(248, 250, 253, 0.14);
@@ -1508,61 +1415,6 @@ textarea {
   color: #92400e;
 }
 
-.theme-andre .metric-card-warn,
-.theme-andre .metric-card-total {
-  background-image: linear-gradient(
-    135deg,
-    var(--accent-surface-strong),
-    var(--surface-soft)
-  );
-  color: var(--accent-soft);
-}
-
-/* Metallic racing-red sheen across primary surfaces */
-.theme-andre .metric-card-main,
-.theme-andre .metric-card-warn,
-.theme-andre .metric-card-total {
-  background-image:
-    var(--metal-sheen),
-    linear-gradient(135deg, var(--accent-surface-strong), var(--surface-soft));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.theme-andre .metric-card-warn {
-  color: #fde68a;
-}
-
-.theme-andre .accent-pill,
-.theme-andre .app-panel {
-  background-image: var(--metal-sheen);
-}
-
-/* Metallic racing-red primary button (default variant uses bg-[var(--accent)]) */
-.theme-andre .bg-\[color\:var\(--accent\)\] {
-  background-image: linear-gradient(
-    160deg,
-    #f01124 0%,
-    #d10019 46%,
-    #8c060e 100%
-  );
-  box-shadow:
-    0 14px 34px -8px var(--accent-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.3);
-}
-
-.theme-andre.login-shell .login-submit {
-  border-color: var(--login-primary);
-  background: var(--login-primary);
-  background-image: none;
-  box-shadow: none;
-}
-
-.theme-andre.login-shell .login-submit:hover {
-  border-color: var(--login-primary-hover);
-  background: var(--login-primary-hover);
-  background-image: none;
-}
 
 /*
   Radar: each signal arc fades in small near the dish and expands outward

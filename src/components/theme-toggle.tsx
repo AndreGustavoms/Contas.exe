@@ -8,7 +8,7 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ onChange, value }: ThemeToggleProps) {
-  const isDark = value === "dark" || value === "andre";
+  const isDark = value === "dark";
 
   function toggle() {
     onChange(isDark ? "white" : "dark");
