@@ -1,19 +1,14 @@
 import { type FormEvent, useState } from "react";
-import { Eye, EyeOff, Globe, LogIn, UserPlus } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type SessionUser } from "../App";
 import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
 
-import { LANGUAGES, type LangCode } from "../i18n";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
-
-// O login agora e validado no SERVIDOR: enviamos as credenciais para
-// POST /api/auth/login, que confere contra a tabela de usuarios (users.json,
-// hashes scrypt) e devolve um cookie de sessao HttpOnly + os dados do usuario
-// (username + role). Nenhuma credencial fica no bundle.
+import { LangTerminal } from "./lang-terminal";
 
 type LocalLoginProps = {
   onForgotPassword: () => void;
@@ -21,51 +16,6 @@ type LocalLoginProps = {
   onUnlock: (user: SessionUser) => void;
   theme: AppTheme;
 };
-
-function LangTerminal() {
-  const { i18n } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const currentLang = i18n.language as LangCode;
-  const activeLang = LANGUAGES.find((l) => l.code === currentLang) ?? LANGUAGES[0];
-
-  return (
-    <div className={cn("login-terminal", !open && "login-terminal--collapsed")}>
-      <div
-        className="login-terminal-header"
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpen((v) => !v)}
-      >
-        <span className="login-terminal-title">
-          <Globe width={13} height={13} />
-          {open ? "lang" : <span className="login-terminal-active-code">{activeLang.flag} {activeLang.code.toUpperCase()}</span>}
-        </span>
-        <div className="login-terminal-controls">
-          <span className="login-terminal-dot login-terminal-dot--close" />
-          <span className="login-terminal-dot login-terminal-dot--min" />
-          <span className="login-terminal-dot login-terminal-dot--max" />
-        </div>
-      </div>
-      <div className="login-terminal-body">
-        {LANGUAGES.map((lang) => (
-          <button
-            key={lang.code}
-            className={cn(
-              "login-terminal-lang",
-              currentLang === lang.code && "login-terminal-lang--active",
-            )}
-            type="button"
-            onClick={() => { i18n.changeLanguage(lang.code); setOpen(false); }}
-          >
-            <span>{lang.flag}</span>
-            <span>{lang.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export function LocalLogin({
   onForgotPassword,
@@ -184,10 +134,10 @@ export function LocalLogin({
                 <div className="login-brand-circle">
                   <svg viewBox="0 0 200 200" className="login-brand-circle-svg" aria-hidden="true">
                     <defs>
-                      <path id="circleArc" d="M 100,18 A 82,82 0 1,1 99.999,18" />
+                      <path id="circleArc" d="M 100,20 A 80,80 0 0,1 180,100 A 80,80 0 0,1 100,180 A 80,80 0 0,1 20,100 A 80,80 0 0,1 100,20 Z" />
                     </defs>
                     <text className="login-brand-circle-text">
-                      <textPath href="#circleArc" startOffset="0%">Contas_exe · Contas_exe · Contas_exe · Contas_exe ·</textPath>
+                      <textPath href="#circleArc" startOffset="0%" textLength="503" lengthAdjust="spacing">CONTAS_EXE · CONTAS_EXE · CONTAS_EXE · CONTAS_EXE ·</textPath>
                     </text>
                   </svg>
                   <img src="/logo-square.png" alt="Contas_exe" className="login-brand-logo" />
@@ -249,6 +199,7 @@ export function LocalLogin({
                     required
                     maxLength={80}
                     value={name}
+                    onFocus={() => setError("")}
                     onChange={(event) => { setName(event.target.value); setFieldErrors(e => ({ ...e, name: undefined })); }}
                   />
                   <label htmlFor="login-user">
@@ -267,6 +218,7 @@ export function LocalLogin({
                     maxLength={128}
                     type={showPassword ? "text" : "password"}
                     value={password}
+                    onFocus={() => setError("")}
                     onChange={(event) => { setPassword(event.target.value); setFieldErrors(e => ({ ...e, password: undefined })); }}
                   />
                   <label htmlFor="login-password">

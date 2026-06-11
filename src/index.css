@@ -888,8 +888,10 @@ textarea {
 
 .login-brand-circle {
   position: relative;
-  width: 210px;
-  height: 210px;
+  width: 270px;
+  height: 270px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
   margin: 0 auto 1.75rem;
   transform: translateY(-40px);
 }
@@ -904,13 +906,12 @@ textarea {
 
 .login-brand-circle-text {
   fill: var(--login-form-text);
-  font-size: 15px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.55;
+  opacity: 0.7;
 }
-
 
 .login-brand-logo {
   position: absolute;
@@ -918,7 +919,7 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 10px;
+  padding: 17px;
 }
 
 @keyframes login-brand-spin {
@@ -983,9 +984,38 @@ textarea {
 }
 
 .login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 1rem;
-  color: #b91c1c;
-  font-size: 0.875rem;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  background: rgba(185, 28, 28, 0.12);
+  border: 1px solid rgba(185, 28, 28, 0.35);
+  color: #f87171;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: login-error-in 0.25s ease;
+}
+
+.login-error::before {
+  content: "✕";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(185, 28, 28, 0.25);
+  font-size: 0.6rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+@keyframes login-error-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .login-field-error {

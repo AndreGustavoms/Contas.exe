@@ -4,6 +4,7 @@ import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
 import { FormAlert } from "./ui/form-alert";
 import { Spinner } from "./ui/spinner";
+import { LangTerminal } from "./lang-terminal";
 
 type RegisterProps = {
   onBack: () => void;
@@ -85,6 +86,7 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
         </section>
 
         <section className="login-form-panel">
+          <LangTerminal />
           <div className="login-form-shell animate-pop-in">
             <div className="login-heading">
               <div className="login-mobile-brand">
