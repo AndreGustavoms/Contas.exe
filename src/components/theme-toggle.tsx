@@ -16,16 +16,20 @@ export function ThemeToggle({ onChange, value }: ThemeToggleProps) {
 
   return (
     <div className="theme-switch-wrap">
-      <Sun className="theme-switch-icon theme-switch-icon--sun" width={18} height={18} />
+      <Sun
+        className="theme-switch-icon theme-switch-icon--sun"
+        width={18}
+        height={18}
+      />
       <label className="theme-switch">
-        <input
-          type="checkbox"
-          checked={isDark}
-          onChange={toggle}
-        />
+        <input type="checkbox" checked={isDark} onChange={toggle} />
         <span className="theme-switch-inner" data-on="Dark" data-off="Light" />
       </label>
-      <Moon className="theme-switch-icon theme-switch-icon--moon" width={18} height={18} />
+      <Moon
+        className="theme-switch-icon theme-switch-icon--moon"
+        width={18}
+        height={18}
+      />
     </div>
   );
 }

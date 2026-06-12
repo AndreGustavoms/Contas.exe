@@ -141,10 +141,7 @@ export default function App() {
     return (
       <>
         {floatingToggle}
-        <ForgotPassword
-          theme={theme}
-          onBack={() => setView("login")}
-        />
+        <ForgotPassword theme={theme} onBack={() => setView("login")} />
       </>
     );
   }

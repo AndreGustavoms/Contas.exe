@@ -1127,7 +1127,10 @@ async function handleApi(request, response, url, user, session) {
   // Request a password-reset link. Always returns 200 to avoid username/email
   // enumeration — the caller can't tell whether an account was found.
   // Rate-limited to prevent e-mail flood and Resend cost abuse.
-  if (url.pathname === "/api/auth/forgot-password" && request.method === "POST") {
+  if (
+    url.pathname === "/api/auth/forgot-password" &&
+    request.method === "POST"
+  ) {
     const ip = clientIp(request);
     const body = await readBody(request);
     const email = asString(body.email).trim().toLowerCase();
@@ -1189,7 +1192,7 @@ async function handleApi(request, response, url, user, session) {
     // Sanitize all inputs through asString so non-string values become "".
     const username = asString(body.username).trim();
     const password = asString(body.password);
-    const email    = asString(body.email).trim();
+    const email = asString(body.email).trim();
     const fullName = asString(body.fullName).trim();
 
     // Whitelist of error codes the client may receive. Any internal/unexpected
@@ -1237,7 +1240,10 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // Consume a reset token and set a new password.
-  if (url.pathname === "/api/auth/reset-password" && request.method === "POST") {
+  if (
+    url.pathname === "/api/auth/reset-password" &&
+    request.method === "POST"
+  ) {
     const ip = clientIp(request);
     const body = await readBody(request);
     const token = asString(body.token).trim();
@@ -1374,7 +1380,10 @@ async function handleApi(request, response, url, user, session) {
     if (rejectIfRateLimited(response, limitKeys)) return;
 
     const full = await findById(storageDir, user.id);
-    if (!full) { notFound(response); return; }
+    if (!full) {
+      notFound(response);
+      return;
+    }
     const valid = await verifyPassword(current, full.passwordHash);
     if (!valid) {
       noteAuthFailure(limitKeys, {
@@ -1387,19 +1396,32 @@ async function handleApi(request, response, url, user, session) {
     }
     clearFailures(limitKeys);
     const pwErr = validatePassword(password, full.username);
-    if (pwErr) { badRequest(response, pwErr); return; }
+    if (pwErr) {
+      badRequest(response, pwErr);
+      return;
+    }
     await setPassword(storageDir, user.id, password);
     // A senha mudou: derruba toda sessão aberta em outros dispositivos. A sessão
     // atual sobrevive (foi ela que provou conhecer a senha nova via reauth).
-    const revoked = await revokeAllForUser(storageDir, user.id, session.sessionId);
+    const revoked = await revokeAllForUser(
+      storageDir,
+      user.id,
+      session.sessionId,
+    );
     void logEvent(storageDir, {
-      userId: user.id, username: user.username,
-      action: "password_changed", target: "self", ip: clientIp(request),
+      userId: user.id,
+      username: user.username,
+      action: "password_changed",
+      target: "self",
+      ip: clientIp(request),
     });
     if (revoked > 0) {
       void logEvent(storageDir, {
-        userId: user.id, username: user.username,
-        action: "sessions_revoked_all", target: `count:${revoked}`, ip: clientIp(request),
+        userId: user.id,
+        username: user.username,
+        action: "sessions_revoked_all",
+        target: `count:${revoked}`,
+        ip: clientIp(request),
       });
     }
     sendJson(response, 200, { ok: true, revokedSessions: revoked });
@@ -1418,8 +1440,11 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     void logEvent(storageDir, {
-      userId: user.id, username: user.username,
-      action: "username_changed", target: username, ip: clientIp(request),
+      userId: user.id,
+      username: user.username,
+      action: "username_changed",
+      target: username,
+      ip: clientIp(request),
     });
     sendJson(response, 200, { ok: true, username });
     return;
@@ -1436,12 +1461,18 @@ async function handleApi(request, response, url, user, session) {
       }
     }
     const removed = await deleteUser(storageDir, user.id);
-    if (!removed) { notFound(response); return; }
+    if (!removed) {
+      notFound(response);
+      return;
+    }
     await revokeAllForUser(storageDir, user.id);
     clearSessionCookie(response);
     void logEvent(storageDir, {
-      userId: user.id, username: user.username,
-      action: "account_deleted", target: "self", ip: clientIp(request),
+      userId: user.id,
+      username: user.username,
+      action: "account_deleted",
+      target: "self",
+      ip: clientIp(request),
     });
     sendJson(response, 200, { ok: true });
     return;
@@ -1449,7 +1480,11 @@ async function handleApi(request, response, url, user, session) {
 
   // List own active sessions.
   if (url.pathname === "/api/account/sessions" && request.method === "GET") {
-    const sessions = await listSessionsForUser(storageDir, user.id, session.sessionId);
+    const sessions = await listSessionsForUser(
+      storageDir,
+      user.id,
+      session.sessionId,
+    );
     sendJson(response, 200, { sessions });
     return;
   }
@@ -1457,7 +1492,11 @@ async function handleApi(request, response, url, user, session) {
   // Revoke ALL own sessions except the current one ("sair dos outros
   // dispositivos") in a single atomic call, instead of N DELETEs do front.
   if (url.pathname === "/api/account/sessions" && request.method === "DELETE") {
-    const revoked = await revokeAllForUser(storageDir, user.id, session.sessionId);
+    const revoked = await revokeAllForUser(
+      storageDir,
+      user.id,
+      session.sessionId,
+    );
     if (revoked > 0) {
       void logEvent(storageDir, {
         userId: user.id,
@@ -1472,10 +1511,16 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // Revoke a specific own session by ID.
-  const ownSessionMatch = url.pathname.match(/^\/api\/account\/sessions\/([^/]+)$/);
+  const ownSessionMatch = url.pathname.match(
+    /^\/api\/account\/sessions\/([^/]+)$/,
+  );
   if (ownSessionMatch && request.method === "DELETE") {
     const sid = decodeURIComponent(ownSessionMatch[1]);
-    const userSessions = await listSessionsForUser(storageDir, user.id, session.sessionId);
+    const userSessions = await listSessionsForUser(
+      storageDir,
+      user.id,
+      session.sessionId,
+    );
     if (!userSessions.some((s) => s.sessionId === sid)) {
       notFound(response);
       return;
@@ -1537,11 +1582,18 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // Disable, verifying a TOTP or recovery code. Reauth required.
-  if (url.pathname === "/api/account/2fa/disable" && request.method === "POST") {
+  if (
+    url.pathname === "/api/account/2fa/disable" &&
+    request.method === "POST"
+  ) {
     if (!requireRecentReauth(session, response)) return;
     const body = await readBody(request);
     try {
-      const ok = await disableTwoFactor(storageDir, user.id, asString(body.code));
+      const ok = await disableTwoFactor(
+        storageDir,
+        user.id,
+        asString(body.code),
+      );
       if (!ok) {
         sendJson(response, 400, { error: "not_enabled" });
         return;
@@ -1844,10 +1896,7 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     const qp = url.searchParams;
-    const limit = Math.min(
-      Math.max(Number(qp.get("limit")) || 50, 1),
-      500,
-    );
+    const limit = Math.min(Math.max(Number(qp.get("limit")) || 50, 1), 500);
     const offset = Math.max(Number(qp.get("offset")) || 0, 0);
     const { events, total } = await listEvents(storageDir, {
       limit,
@@ -1955,7 +2004,10 @@ async function handleApi(request, response, url, user, session) {
     if (user.role !== "admin") {
       const db = await readVault(user.id);
       const index = db.groups.findIndex((g) => g.id === groupId);
-      if (index === -1) { notFound(response); return null; }
+      if (index === -1) {
+        notFound(response);
+        return null;
+      }
       return { db, index, vaultUserId: user.id };
     }
     // Admin: find the group across all vaults
@@ -2004,7 +2056,10 @@ async function handleApi(request, response, url, user, session) {
     if (request.method === "PUT") {
       const body = await readBody(request);
       const name = asString(body.name).trim();
-      if (!name) { badRequest(response, "name_required"); return; }
+      if (!name) {
+        badRequest(response, "name_required");
+        return;
+      }
       db.groups[index] = { ...db.groups[index], name };
       await writeVault(vaultUserId, db);
       sendJson(response, 200, groupSummary(db.groups[index]));
@@ -2102,7 +2157,10 @@ async function handleApi(request, response, url, user, session) {
 
     const accountId = decodeURIComponent(secretMatch[2]);
     const account = group.accounts.find((item) => item.id === accountId);
-    if (!account) { notFound(response); return; }
+    if (!account) {
+      notFound(response);
+      return;
+    }
     void logEvent(storageDir, {
       userId: user.id,
       username: user.username,
@@ -2128,7 +2186,10 @@ async function handleApi(request, response, url, user, session) {
       (account) => account.id === accountId,
     );
 
-    if (accountIndex === -1) { notFound(response); return; }
+    if (accountIndex === -1) {
+      notFound(response);
+      return;
+    }
 
     if (request.method === "PUT") {
       const body = await readBody(request);

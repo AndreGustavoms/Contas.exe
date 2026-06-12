@@ -20,14 +20,14 @@
 
 ## Onde esses dados devem ficar
 
-| Tipo de dado | Onde guardar | No git? |
-| ------------ | ------------ | ------- |
-| Login local do app | `.env` → `APP_AUTH_USER` / `APP_AUTH_PASSWORD` | ❌ ignorado |
-| Credenciais do YouTube/OAuth | `.env` → `YOUTUBE_*` | ❌ ignorado |
-| Chave de criptografia | `.env` → `CONTAS_FLOW_ENC_KEY` | ❌ ignorado |
-| Contas, senhas, grupos | `storage/*.json` (criados em runtime) | ❌ ignorado |
-| Backups exportados | `*.backup.json`, `contas_exe-backup-*.json` | ❌ ignorado |
-| Estrutura/exemplo (sem valores) | `.env.example` | ✅ versionado (em branco) |
+| Tipo de dado                    | Onde guardar                                   | No git?                   |
+| ------------------------------- | ---------------------------------------------- | ------------------------- |
+| Login local do app              | `.env` → `APP_AUTH_USER` / `APP_AUTH_PASSWORD` | ❌ ignorado               |
+| Credenciais do YouTube/OAuth    | `.env` → `YOUTUBE_*`                           | ❌ ignorado               |
+| Chave de criptografia           | `.env` → `CONTAS_FLOW_ENC_KEY`                 | ❌ ignorado               |
+| Contas, senhas, grupos          | `storage/*.json` (criados em runtime)          | ❌ ignorado               |
+| Backups exportados              | `*.backup.json`, `contas_exe-backup-*.json`    | ❌ ignorado               |
+| Estrutura/exemplo (sem valores) | `.env.example`                                 | ✅ versionado (em branco) |
 
 Todas as regras acima estão refletidas no [`.gitignore`](.gitignore).
 

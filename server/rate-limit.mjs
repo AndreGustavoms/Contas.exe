@@ -38,7 +38,9 @@ export function ipKey(ip) {
 }
 
 export function userKey(name) {
-  return `user:${String(name ?? "").trim().toLowerCase()}`;
+  return `user:${String(name ?? "")
+    .trim()
+    .toLowerCase()}`;
 }
 
 function tiersFor(key) {
@@ -64,7 +66,10 @@ export function recordFailure(keys, now = Date.now()) {
   const newlyBlocked = [];
   for (const key of keys) {
     let entry = entries.get(key);
-    if (!entry || (!isBlocked(entry, now) && now - entry.lastFailAt > FAIL_WINDOW_MS)) {
+    if (
+      !entry ||
+      (!isBlocked(entry, now) && now - entry.lastFailAt > FAIL_WINDOW_MS)
+    ) {
       entry = { fails: 0, lastFailAt: 0, blockedUntil: 0 };
       entries.set(key, entry);
     }
@@ -75,7 +80,8 @@ export function recordFailure(keys, now = Date.now()) {
     if (tier) {
       const until = now + tier.blockMs;
       if (until > entry.blockedUntil) {
-        const wasBlocked = isBlocked(entry, now - 1) && entry.blockedUntil !== 0;
+        const wasBlocked =
+          isBlocked(entry, now - 1) && entry.blockedUntil !== 0;
         entry.blockedUntil = until;
         if (!wasBlocked) newlyBlocked.push(key);
       }

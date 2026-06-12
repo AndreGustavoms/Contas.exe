@@ -9,14 +9,14 @@ encarregado/canal de atendimento e políticas internas.
 
 ## Escopo de dados pessoais
 
-| Categoria | Onde aparece | Observação LGPD |
-| --------- | ------------ | --------------- |
-| Usuários do app | `storage/users.json` | `username`, papel, data de criação e hash scrypt da senha. |
-| Contas armazenadas | `storage/groups.json` | email, usuário, telefone, email de recuperação, notas e outros metadados podem identificar pessoas. |
-| Credenciais | `storage/groups.json`, backups | senhas, 2FA e tokens são dados de alto risco; tratar como sigilo máximo. |
-| Sessão | cookie HttpOnly | usado apenas para autenticação; `ipHash` e `userAgent` cifrados em repouso. |
-| Backups/exportações | arquivos baixados pelo admin/usuário | podem conter dados pessoais e senhas em texto plano. |
-| Logs | console/plataforma de deploy | não devem conter senhas, tokens, dumps de request ou backups. |
+| Categoria           | Onde aparece                         | Observação LGPD                                                                                     |
+| ------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Usuários do app     | `storage/users.json`                 | `username`, papel, data de criação e hash scrypt da senha.                                          |
+| Contas armazenadas  | `storage/groups.json`                | email, usuário, telefone, email de recuperação, notas e outros metadados podem identificar pessoas. |
+| Credenciais         | `storage/groups.json`, backups       | senhas, 2FA e tokens são dados de alto risco; tratar como sigilo máximo.                            |
+| Sessão              | cookie HttpOnly                      | usado apenas para autenticação; `ipHash` e `userAgent` cifrados em repouso.                         |
+| Backups/exportações | arquivos baixados pelo admin/usuário | podem conter dados pessoais e senhas em texto plano.                                                |
+| Logs                | console/plataforma de deploy         | não devem conter senhas, tokens, dumps de request ou backups.                                       |
 
 O sistema não deve coletar CPF, documentos, dados bancários, dados de saúde,
 biometria ou dados de crianças/adolescentes. Se isso virar necessário, faça nova

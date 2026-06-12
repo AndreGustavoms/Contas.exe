@@ -32,8 +32,13 @@ build estático de `dist/`. `scripts/local-dev.mjs` sobe API + Vite juntos em de
 ```json
 {
   "users": [
-    { "id": "uuid", "username": "andre", "role": "admin",
-      "passwordHash": "scrypt:N:r:p:saltHex:hashHex", "createdAt": "ISO" }
+    {
+      "id": "uuid",
+      "username": "andre",
+      "role": "admin",
+      "passwordHash": "scrypt:N:r:p:saltHex:hashHex",
+      "createdAt": "ISO"
+    }
   ]
 }
 ```
@@ -49,8 +54,14 @@ build estático de `dist/`. `scripts/local-dev.mjs` sobe API + Vite juntos em de
 ```json
 {
   "groups": [
-    { "id": "uuid", "name": "Vitissouls", "ownerId": "uuid",
-      "accounts": [ /* AccountRecord[] */ ] }
+    {
+      "id": "uuid",
+      "name": "Vitissouls",
+      "ownerId": "uuid",
+      "accounts": [
+        /* AccountRecord[] */
+      ]
+    }
   ]
 }
 ```
@@ -85,78 +96,78 @@ Sem framework: um `createServer` com despacho por `URL` + regex. Helpers:
 
 ### Auth
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| POST | `/api/auth/login` | Valida credenciais (scrypt), emite cookie de sessão. Rate-limited. |
-| POST | `/api/auth/login/totp` | Finaliza login com código TOTP (2FA). |
-| POST | `/api/auth/logout` | Encerra a sessão. |
-| POST | `/api/auth/reauth` | Reautenticação para ações críticas (rate-limited). |
-| GET  | `/api/auth/status` | Diz se há sessão e quem é (`{authenticated, user}`). |
-| POST | `/api/auth/register` | Cria conta (pede aprovação de admin, dependendo da config). |
+| Método | Rota                   | Ação                                                               |
+| ------ | ---------------------- | ------------------------------------------------------------------ |
+| POST   | `/api/auth/login`      | Valida credenciais (scrypt), emite cookie de sessão. Rate-limited. |
+| POST   | `/api/auth/login/totp` | Finaliza login com código TOTP (2FA).                              |
+| POST   | `/api/auth/logout`     | Encerra a sessão.                                                  |
+| POST   | `/api/auth/reauth`     | Reautenticação para ações críticas (rate-limited).                 |
+| GET    | `/api/auth/status`     | Diz se há sessão e quem é (`{authenticated, user}`).               |
+| POST   | `/api/auth/register`   | Cria conta (pede aprovação de admin, dependendo da config).        |
 
 ### Usuários (admin)
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET    | `/api/users` | Lista usuários (sem hashes). |
-| POST   | `/api/users` | Cria usuário (`username`, `password`, `role`). |
-| DELETE | `/api/users/:id` | Remove usuário (re-atribui os grupos dele ao admin). |
-| PUT    | `/api/users/:id/password` | Reseta a senha de um usuário. |
-| POST   | `/api/users/:id/sessions/revoke` | Revoga todas as sessões de um usuário. |
-| POST   | `/api/users/:id/2fa/reset` | Admin reseta o 2FA de um usuário trancado. |
+| Método | Rota                             | Ação                                                 |
+| ------ | -------------------------------- | ---------------------------------------------------- |
+| GET    | `/api/users`                     | Lista usuários (sem hashes).                         |
+| POST   | `/api/users`                     | Cria usuário (`username`, `password`, `role`).       |
+| DELETE | `/api/users/:id`                 | Remove usuário (re-atribui os grupos dele ao admin). |
+| PUT    | `/api/users/:id/password`        | Reseta a senha de um usuário.                        |
+| POST   | `/api/users/:id/sessions/revoke` | Revoga todas as sessões de um usuário.               |
+| POST   | `/api/users/:id/2fa/reset`       | Admin reseta o 2FA de um usuário trancado.           |
 
 ### Sessões
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET    | `/api/sessions` | Lista sessões ativas do usuário logado. |
-| DELETE | `/api/sessions/:id` | Revoga uma sessão específica. |
+| Método | Rota                | Ação                                    |
+| ------ | ------------------- | --------------------------------------- |
+| GET    | `/api/sessions`     | Lista sessões ativas do usuário logado. |
+| DELETE | `/api/sessions/:id` | Revoga uma sessão específica.           |
 
 ### Conta do usuário
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET  | `/api/account/2fa` | Status do 2FA do usuário. |
-| POST | `/api/account/2fa/setup` | Inicia setup (retorna secret + QR data). |
-| POST | `/api/account/2fa/enable` | Confirma código e ativa o 2FA. |
-| POST | `/api/account/2fa/disable` | Desativa o 2FA (reauth). |
-| GET  | `/api/account/2fa/recovery-codes` | Lista códigos de recuperação restantes. |
-| POST | `/api/account/2fa/recovery-codes` | Gera novos códigos (reauth). |
+| Método | Rota                              | Ação                                     |
+| ------ | --------------------------------- | ---------------------------------------- |
+| GET    | `/api/account/2fa`                | Status do 2FA do usuário.                |
+| POST   | `/api/account/2fa/setup`          | Inicia setup (retorna secret + QR data). |
+| POST   | `/api/account/2fa/enable`         | Confirma código e ativa o 2FA.           |
+| POST   | `/api/account/2fa/disable`        | Desativa o 2FA (reauth).                 |
+| GET    | `/api/account/2fa/recovery-codes` | Lista códigos de recuperação restantes.  |
+| POST   | `/api/account/2fa/recovery-codes` | Gera novos códigos (reauth).             |
 
 ### Grupos (ownership-scoped)
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET    | `/api/groups` | Lista grupos visíveis (`{id,name,ownerId,count}`). |
-| POST   | `/api/groups` | Cria grupo (dono = criador). |
-| PUT    | `/api/groups/:id` | Renomeia grupo. |
-| DELETE | `/api/groups/:id` | Exclui grupo (reauth). |
+| Método | Rota              | Ação                                               |
+| ------ | ----------------- | -------------------------------------------------- |
+| GET    | `/api/groups`     | Lista grupos visíveis (`{id,name,ownerId,count}`). |
+| POST   | `/api/groups`     | Cria grupo (dono = criador).                       |
+| PUT    | `/api/groups/:id` | Renomeia grupo.                                    |
+| DELETE | `/api/groups/:id` | Exclui grupo (reauth).                             |
 
 ### Contas (dentro de um grupo)
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET    | `/api/groups/:gid/accounts` | Lista contas do grupo (senha mascarada). |
+| Método | Rota                                   | Ação                                       |
+| ------ | -------------------------------------- | ------------------------------------------ |
+| GET    | `/api/groups/:gid/accounts`            | Lista contas do grupo (senha mascarada).   |
 | GET    | `/api/groups/:gid/accounts/:id/secret` | Retorna a senha real (reauth + auditoria). |
-| POST   | `/api/groups/:gid/accounts` | Cria conta. |
-| POST   | `/api/groups/:gid/accounts/import` | Substitui as contas do grupo (importação). |
-| PUT    | `/api/groups/:gid/accounts/:id` | Edita conta. |
-| DELETE | `/api/groups/:gid/accounts/:id` | Remove conta. |
+| POST   | `/api/groups/:gid/accounts`            | Cria conta.                                |
+| POST   | `/api/groups/:gid/accounts/import`     | Substitui as contas do grupo (importação). |
+| PUT    | `/api/groups/:gid/accounts/:id`        | Edita conta.                               |
+| DELETE | `/api/groups/:gid/accounts/:id`        | Remove conta.                              |
 
 Em todas as rotas de grupo/conta, um recurso que o usuário não pode ver responde
 **404** (não revela existência). Ver `canSeeGroup`/`resolveOwnedGroup`.
 
 ### Backup (admin)
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET | `/api/admin/backup` | Baixa todos os grupos/contas (texto plano, sem hashes de senha). |
+| Método | Rota                | Ação                                                             |
+| ------ | ------------------- | ---------------------------------------------------------------- |
+| GET    | `/api/admin/backup` | Baixa todos os grupos/contas (texto plano, sem hashes de senha). |
 
 ### Auditoria (admin)
 
-| Método | Rota | Ação |
-| ------ | ---- | ---- |
-| GET | `/api/audit` | Retorna os últimos eventos da trilha de auditoria. |
+| Método | Rota         | Ação                                               |
+| ------ | ------------ | -------------------------------------------------- |
+| GET    | `/api/audit` | Retorna os últimos eventos da trilha de auditoria. |
 
 ### YouTube
 
@@ -287,13 +298,13 @@ faz o servidor **falhar alto** e preservar o arquivo no disco.
 
 ## .gitignore — o que está protegido e por quê
 
-| Padrão | Cobre | Motivo |
-| ------- | ----- | ------ |
-| `.env`, `.env.*` (exceto `.env.example`) | Client ID/Secret da Google | segredos OAuth |
-| `client_secret*.json`, `credentials*.json`, `*.pem`, `*.key` | credenciais baixadas | nunca devem ir ao repo |
-| `storage/*` (exceto `storage/.gitkeep`) | `groups.json`, `accounts.json`, `youtube.json`, backups | **senhas reais e refresh tokens** |
-| `*.backup.json`, `contas-*.json`, `backups/` | exports do app | contêm senhas |
-| `*.log` | logs locais | podem vazar dados |
+| Padrão                                                       | Cobre                                                   | Motivo                            |
+| ------------------------------------------------------------ | ------------------------------------------------------- | --------------------------------- |
+| `.env`, `.env.*` (exceto `.env.example`)                     | Client ID/Secret da Google                              | segredos OAuth                    |
+| `client_secret*.json`, `credentials*.json`, `*.pem`, `*.key` | credenciais baixadas                                    | nunca devem ir ao repo            |
+| `storage/*` (exceto `storage/.gitkeep`)                      | `groups.json`, `accounts.json`, `youtube.json`, backups | **senhas reais e refresh tokens** |
+| `*.backup.json`, `contas-*.json`, `backups/`                 | exports do app                                          | contêm senhas                     |
+| `*.log`                                                      | logs locais                                             | podem vazar dados                 |
 
 O `storage/.gitkeep` (arquivo vazio) é o **único** de `storage/` rastreado, só
 para a pasta existir no repositório.

@@ -22,7 +22,10 @@ describe("validatePassword", () => {
     assert.equal(validatePassword("MAIUSCULA@123"), "password_no_lowercase");
     assert.equal(validatePassword("SemNumero@abc"), "password_no_number");
     assert.equal(validatePassword("SemEspecial123"), "password_no_special");
-    assert.equal(validatePassword("A@1" + "a".repeat(130)), "password_too_long");
+    assert.equal(
+      validatePassword("A@1" + "a".repeat(130)),
+      "password_too_long",
+    );
   });
 
   it("rejeita senha igual ao username (case-insensitive)", () => {

@@ -1,8 +1,8 @@
 # 🚀 Deploy (Railway) — app multiusuário
 
-Guia para subir o Contas_exe em produção no **Railway**, já no modelo de
+Guia para subir o Contas*exe em produção no **Railway**, já no modelo de
 **equipe** (logins individuais + criptografia em repouso). O repositório é
-**público**, então **nenhum segredo vai no código** — tudo via *Variables* do Railway.
+**público**, então **nenhum segredo vai no código** — tudo via \_Variables* do Railway.
 
 > **Resumo da arquitetura em prod:** 1 serviço Node. O `server/index.mjs` serve
 > a API `/api/*` **e** o front buildado (`dist/`). O front usa fetch relativo,
@@ -13,18 +13,18 @@ Guia para subir o Contas_exe em produção no **Railway**, já no modelo de
 
 ## 1. Variables (Railway → Settings → Variables)
 
-| Variável | Valor | Obrigatória? |
-| -------- | ----- | ------------ |
-| `APP_AUTH_USER` | usuário do **admin inicial** | sim (no 1º deploy) |
-| `APP_AUTH_PASSWORD` | senha forte do admin inicial | sim (no 1º deploy) |
-| `CONTAS_FLOW_ENC_KEY` | chave de 32 bytes (64 hex) — ver passo 2 | **sim em prod** |
-| `CONTAS_FLOW_STORAGE_DIR` | `/data` | sim (senão os dados somem) |
-| `CONTAS_FLOW_TRUSTED_PROXIES` | `1` | **sim no Railway** (1 proxy na frente) |
-| `CONTAS_FLOW_ALLOWED_ORIGIN` | em branco | não (só se a API for consumida de outra origem) |
-| `GOOGLE_AUTH_CLIENT_ID` | Client ID OAuth do Google | se usar login Google |
-| `GOOGLE_AUTH_CLIENT_SECRET` | Client Secret OAuth do Google | se usar login Google |
-| `GOOGLE_AUTH_REDIRECT_URI` | `https://SEU-DOMINIO/api/auth/google/callback` | recomendado em prod |
-| `GOOGLE_AUTH_ALLOWED_DOMAIN` | domínio permitido, ex. `vitissouls.com` | opcional |
+| Variável                      | Valor                                          | Obrigatória?                                    |
+| ----------------------------- | ---------------------------------------------- | ----------------------------------------------- |
+| `APP_AUTH_USER`               | usuário do **admin inicial**                   | sim (no 1º deploy)                              |
+| `APP_AUTH_PASSWORD`           | senha forte do admin inicial                   | sim (no 1º deploy)                              |
+| `CONTAS_FLOW_ENC_KEY`         | chave de 32 bytes (64 hex) — ver passo 2       | **sim em prod**                                 |
+| `CONTAS_FLOW_STORAGE_DIR`     | `/data`                                        | sim (senão os dados somem)                      |
+| `CONTAS_FLOW_TRUSTED_PROXIES` | `1`                                            | **sim no Railway** (1 proxy na frente)          |
+| `CONTAS_FLOW_ALLOWED_ORIGIN`  | em branco                                      | não (só se a API for consumida de outra origem) |
+| `GOOGLE_AUTH_CLIENT_ID`       | Client ID OAuth do Google                      | se usar login Google                            |
+| `GOOGLE_AUTH_CLIENT_SECRET`   | Client Secret OAuth do Google                  | se usar login Google                            |
+| `GOOGLE_AUTH_REDIRECT_URI`    | `https://SEU-DOMINIO/api/auth/google/callback` | recomendado em prod                             |
+| `GOOGLE_AUTH_ALLOWED_DOMAIN`  | domínio permitido, ex. `vitissouls.com`        | opcional                                        |
 
 **Notas importantes:**
 
@@ -78,7 +78,7 @@ Railway → **Settings → Volumes → Mount path `/data`** (deve bater com
 
 Railway → **Settings → Networking → Generate Domain** (`*.up.railway.app`).
 Confira que a porta do domínio aponta para a porta que o app escuta (o Railway
-injeta `PORT`; ajuste em *Networking* se der 502).
+injeta `PORT`; ajuste em _Networking_ se der 502).
 
 ---
 

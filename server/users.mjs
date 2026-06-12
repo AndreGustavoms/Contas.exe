@@ -57,9 +57,21 @@ export const TOTP_CODE_MIN = 6;
 export const TOTP_CODE_MAX = 8;
 
 const COMMON_PASSWORDS = new Set([
-  "12345678", "123456789", "1234567890", "password", "password1",
-  "qwerty123", "iloveyou", "admin123", "letmein1", "welcome1",
-  "monkey123", "dragon123", "master123", "abcdefgh", "passw0rd",
+  "12345678",
+  "123456789",
+  "1234567890",
+  "password",
+  "password1",
+  "qwerty123",
+  "iloveyou",
+  "admin123",
+  "letmein1",
+  "welcome1",
+  "monkey123",
+  "dragon123",
+  "master123",
+  "abcdefgh",
+  "passw0rd",
 ]);
 
 // Returns null if valid, or a string error code if invalid.
@@ -79,8 +91,10 @@ export function validatePassword(password, username = "") {
   if (!/[a-z]/.test(password)) return "password_no_lowercase";
   if (!/[0-9]/.test(password)) return "password_no_number";
   if (!/[^A-Za-z0-9]/.test(password)) return "password_no_special";
-  if (COMMON_PASSWORDS.has(password.toLowerCase())) return "password_too_common";
-  if (username && password.toLowerCase() === username.trim().toLowerCase()) return "password_same_as_username";
+  if (COMMON_PASSWORDS.has(password.toLowerCase()))
+    return "password_too_common";
+  if (username && password.toLowerCase() === username.trim().toLowerCase())
+    return "password_same_as_username";
   return null;
 }
 
@@ -170,7 +184,9 @@ async function readUsersFile(storageDir) {
 
 async function writeUsersFile(storageDir, users) {
   await mkdir(storageDir, { recursive: true });
-  const encrypted = users.map((user) => transformUserSecrets(user, encryptField));
+  const encrypted = users.map((user) =>
+    transformUserSecrets(user, encryptField),
+  );
   await writeFile(
     userStoreFile(storageDir),
     `${JSON.stringify({ users: encrypted }, null, 2)}\n`,
@@ -364,7 +380,8 @@ export function findOrCreateGithubUser(storageDir, profile) {
     }
 
     const emailTaken = users.some(
-      (item) => item.id !== linkedUser.id && item.email?.toLowerCase() === email,
+      (item) =>
+        item.id !== linkedUser.id && item.email?.toLowerCase() === email,
     );
     if (!emailTaken) linkedUser.email = email;
     if (!linkedUser.fullName && profile.fullName) {
@@ -430,7 +447,10 @@ export async function findByEmail(storageDir, email) {
 }
 
 // Creates a user. Throws Error("username_taken") / Error("invalid") / Error(validation code) on bad input.
-export function createUser(storageDir, { username, password, role, email, fullName }) {
+export function createUser(
+  storageDir,
+  { username, password, role, email, fullName },
+) {
   return withLock(async () => {
     const name = normalizeUsername(username);
     if (!name || !password || !ROLES.has(role)) {
@@ -445,7 +465,10 @@ export function createUser(storageDir, { username, password, role, email, fullNa
       throw new Error("username_taken");
     }
     const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
-    if (normalizedEmail && users.some((u) => u.email?.toLowerCase() === normalizedEmail)) {
+    if (
+      normalizedEmail &&
+      users.some((u) => u.email?.toLowerCase() === normalizedEmail)
+    ) {
       throw new Error("email_taken");
     }
     const user = {
@@ -489,7 +512,8 @@ export function setEmail(storageDir, id, email) {
     const users = await readUsersFile(storageDir);
     const user = users.find((item) => item.id === id);
     if (!user) return false;
-    const normalized = typeof email === "string" ? email.trim().toLowerCase() : null;
+    const normalized =
+      typeof email === "string" ? email.trim().toLowerCase() : null;
     user.email = normalized || null;
     await writeUsersFile(storageDir, users);
     return true;
@@ -501,7 +525,8 @@ export function setFullName(storageDir, id, fullName) {
     const users = await readUsersFile(storageDir);
     const user = users.find((u) => u.id === id);
     if (!user) return false;
-    user.fullName = typeof fullName === "string" ? fullName.trim() || null : null;
+    user.fullName =
+      typeof fullName === "string" ? fullName.trim() || null : null;
     await writeUsersFile(storageDir, users);
     return true;
   });
@@ -639,7 +664,9 @@ export function regenerateRecoveryCodes(storageDir, userId) {
 // Finds an unused recovery code matching `code`, returning its index or -1. Does
 // NOT consume it (see consumeRecoveryCode). Constant-time-ish via verifyPassword.
 async function matchRecoveryCode(twoFactor, code) {
-  const cleaned = String(code ?? "").trim().toLowerCase();
+  const cleaned = String(code ?? "")
+    .trim()
+    .toLowerCase();
   if (!cleaned) return -1;
   const list = twoFactor.recoveryCodes ?? [];
   for (let i = 0; i < list.length; i += 1) {
@@ -673,5 +700,6 @@ export function verifyUserTotp(user, code) {
 
 // Count of unused recovery codes, for the account UI.
 export function recoveryCodesRemaining(user) {
-  return (user?.twoFactor?.recoveryCodes ?? []).filter((rc) => !rc.usedAt).length;
+  return (user?.twoFactor?.recoveryCodes ?? []).filter((rc) => !rc.usedAt)
+    .length;
 }

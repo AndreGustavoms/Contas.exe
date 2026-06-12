@@ -38,7 +38,9 @@ export function ForgotPassword({ onBack, theme }: ForgotPasswordProps) {
   }
 
   return (
-    <main className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}>
+    <main
+      className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}
+    >
       <div className="login-layout">
         <section className="login-form-panel">
           <LangTerminal />
@@ -90,9 +92,16 @@ export function ForgotPassword({ onBack, theme }: ForgotPasswordProps) {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                     <label htmlFor="forgot-email">
-                      {t("login.email_label").split("").map((char, i) => (
-                        <span key={i} style={{ transitionDelay: `${i * 50}ms` }}>{char}</span>
-                      ))}
+                      {t("login.email_label")
+                        .split("")
+                        .map((char, i) => (
+                          <span
+                            key={i}
+                            style={{ transitionDelay: `${i * 50}ms` }}
+                          >
+                            {char}
+                          </span>
+                        ))}
                     </label>
                   </div>
                 </div>
@@ -104,8 +113,14 @@ export function ForgotPassword({ onBack, theme }: ForgotPasswordProps) {
                   type="submit"
                   disabled={submitting || !email.trim()}
                 >
-                  {submitting ? <Spinner className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-                  {submitting ? t("login.forgot_sending") : t("login.forgot_send")}
+                  {submitting ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  {submitting
+                    ? t("login.forgot_sending")
+                    : t("login.forgot_send")}
                 </button>
 
                 <button

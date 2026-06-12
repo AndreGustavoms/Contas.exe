@@ -25,7 +25,11 @@ async function readTokens(storageDir) {
 
 async function writeTokens(storageDir, tokens) {
   await mkdir(storageDir, { recursive: true });
-  await writeFile(storeFile(storageDir), `${JSON.stringify(tokens, null, 2)}\n`, "utf8");
+  await writeFile(
+    storeFile(storageDir),
+    `${JSON.stringify(tokens, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 // Creates a reset token for `userId`. Invalidates any previous token for that user.
@@ -35,7 +39,9 @@ export async function createResetToken(storageDir, userId) {
   const hash = await hashPassword(raw);
   const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
 
-  const tokens = (await readTokens(storageDir)).filter((t) => t.userId !== userId);
+  const tokens = (await readTokens(storageDir)).filter(
+    (t) => t.userId !== userId,
+  );
   tokens.push({ userId, hash, expiresAt, used: false });
   await writeTokens(storageDir, tokens);
   return raw;

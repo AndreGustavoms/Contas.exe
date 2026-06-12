@@ -153,18 +153,17 @@ function relativeTime(ms: number, t: TFn): string {
 // Best-effort short device label from the user-agent string.
 function deviceLabel(userAgent: string, t: TFn): string {
   if (!userAgent) return t("team.unknown_device");
-  const browser =
-    /Edg/.test(userAgent)
-      ? "Edge"
-      : /OPR|Opera/.test(userAgent)
-        ? "Opera"
-        : /Chrome/.test(userAgent)
-          ? "Chrome"
-          : /Firefox/.test(userAgent)
-            ? "Firefox"
-            : /Safari/.test(userAgent)
-              ? "Safari"
-              : t("team.generic_browser");
+  const browser = /Edg/.test(userAgent)
+    ? "Edge"
+    : /OPR|Opera/.test(userAgent)
+      ? "Opera"
+      : /Chrome/.test(userAgent)
+        ? "Chrome"
+        : /Firefox/.test(userAgent)
+          ? "Firefox"
+          : /Safari/.test(userAgent)
+            ? "Safari"
+            : t("team.generic_browser");
   const os = /Windows/.test(userAgent)
     ? "Windows"
     : /Android/.test(userAgent)
@@ -310,9 +309,12 @@ export function UsersDialog({
   async function endSession(session: ManagedSession) {
     setError("");
     try {
-      await requestJson(`${API_SESSIONS}/${encodeURIComponent(session.sessionId)}`, {
-        method: "DELETE",
-      });
+      await requestJson(
+        `${API_SESSIONS}/${encodeURIComponent(session.sessionId)}`,
+        {
+          method: "DELETE",
+        },
+      );
       await loadSessions();
       await loadEvents();
     } catch {
@@ -360,7 +362,12 @@ export function UsersDialog({
       await loadEvents();
     } catch (err) {
       if (isReauthCancelled(err)) return;
-      setError(t(ERROR_I18N_KEYS[err instanceof Error ? err.message : "invalid"] ?? "team.error_invalid"));
+      setError(
+        t(
+          ERROR_I18N_KEYS[err instanceof Error ? err.message : "invalid"] ??
+            "team.error_invalid",
+        ),
+      );
     } finally {
       setCreating(false);
     }
@@ -379,7 +386,12 @@ export function UsersDialog({
       await loadEvents();
     } catch (err) {
       if (isReauthCancelled(err)) return;
-      setError(t(ERROR_I18N_KEYS[err instanceof Error ? err.message : "invalid"] ?? "team.error_invalid"));
+      setError(
+        t(
+          ERROR_I18N_KEYS[err instanceof Error ? err.message : "invalid"] ??
+            "team.error_invalid",
+        ),
+      );
     }
   }
 
@@ -558,7 +570,7 @@ export function UsersDialog({
               return (
                 <div
                   key={user.id}
-              className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 py-2.5 min-[430px]:flex-row min-[430px]:items-center"
+                  className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 py-2.5 min-[430px]:flex-row min-[430px]:items-center"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[color:var(--text)]">
@@ -576,7 +588,9 @@ export function UsersDialog({
                       ) : null}
                     </p>
                     <p className="text-xs text-[color:var(--muted)]">
-                      {user.role === "admin" ? t("team.role_admin") : t("team.role_member")}
+                      {user.role === "admin"
+                        ? t("team.role_admin")
+                        : t("team.role_member")}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
@@ -590,7 +604,9 @@ export function UsersDialog({
                       </button>
                     ) : null}
                     <Button
-                      aria-label={t("team.remove_user", { username: user.username })}
+                      aria-label={t("team.remove_user", {
+                        username: user.username,
+                      })}
                       className={cn(isSelf && "pointer-events-none opacity-40")}
                       disabled={isSelf}
                       size="icon"
@@ -665,7 +681,9 @@ export function UsersDialog({
                               ) : null}
                             </p>
                             <p className="truncate text-[11px] text-[color:var(--muted)]">
-                              {t("team.active_since", { time: relativeTime(session.lastSeenAt, t) })}
+                              {t("team.active_since", {
+                                time: relativeTime(session.lastSeenAt, t),
+                              })}
                             </p>
                           </div>
                           <button
@@ -792,7 +810,11 @@ export function UsersDialog({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-[color:var(--text)]">
-                      {t(AUDIT_ACTION_I18N_KEYS[event.action] ?? "team.audit_login_ok", { defaultValue: event.action })}
+                      {t(
+                        AUDIT_ACTION_I18N_KEYS[event.action] ??
+                          "team.audit_login_ok",
+                        { defaultValue: event.action },
+                      )}
                       {event.username ? (
                         <span className="ml-2 font-normal text-[color:var(--muted)]">
                           {event.username}

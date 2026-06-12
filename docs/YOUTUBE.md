@@ -11,13 +11,13 @@ para fazer upload e **agendar** a publicação de vídeos nos canais do próprio
 
 ## Decisões de projeto
 
-| Tema | Decisão |
-| ---- | ------- |
+| Tema      | Decisão                                                                                  |
+| --------- | ---------------------------------------------------------------------------------------- |
 | Onde roda | Local agora (`127.0.0.1`); HTTPS/domínio depois. Migrar = trocar `YOUTUBE_REDIRECT_URI`. |
-| Volume | ≤ 5 uploads/dia. Cabe na cota padrão (10.000 unidades/dia; ~1.600 por upload). |
-| Canais | Todos do próprio usuário (caso de uso legítimo). |
-| Segredos | Client ID/Secret no `.env` (git-ignored). Tokens em `storage/youtube.json` (cifrados). |
-| Backend | Estende o `server/index.mjs` existente, usando a lib oficial `googleapis`. |
+| Volume    | ≤ 5 uploads/dia. Cabe na cota padrão (10.000 unidades/dia; ~1.600 por upload).           |
+| Canais    | Todos do próprio usuário (caso de uso legítimo).                                         |
+| Segredos  | Client ID/Secret no `.env` (git-ignored). Tokens em `storage/youtube.json` (cifrados).   |
+| Backend   | Estende o `server/index.mjs` existente, usando a lib oficial `googleapis`.               |
 
 ### Cota — leia antes de escalar
 
@@ -85,12 +85,12 @@ YOUTUBE_REDIRECT_URI=http://127.0.0.1:8787/api/youtube/callback
 Todos sob `/api/youtube/*`, servidos por `server/index.mjs` (lógica em
 `server/youtube.mjs`).
 
-| Método | Rota | O que faz |
-| ------ | ---- | --------- |
-| GET  | `/api/youtube/connect` | Redireciona para a tela de consentimento da Google. |
-| GET  | `/api/youtube/callback` | Recebe o `?code`, troca por tokens, salva o canal, redireciona ao app. |
-| GET  | `/api/youtube/channels` | Lista canais conectados (sem segredos). |
-| POST | `/api/youtube/upload` | Faz upload (com agendamento opcional). |
+| Método | Rota                    | O que faz                                                              |
+| ------ | ----------------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/youtube/connect`  | Redireciona para a tela de consentimento da Google.                    |
+| GET    | `/api/youtube/callback` | Recebe o `?code`, troca por tokens, salva o canal, redireciona ao app. |
+| GET    | `/api/youtube/channels` | Lista canais conectados (sem segredos).                                |
+| POST   | `/api/youtube/upload`   | Faz upload (com agendamento opcional).                                 |
 
 ### Upload — `POST /api/youtube/upload`
 
@@ -112,7 +112,12 @@ Todos sob `/api/youtube/*`, servidos por `server/index.mjs` (lógica em
 **Resposta:**
 
 ```json
-{ "videoId": "...", "title": "...", "publishAt": "...", "privacyStatus": "private" }
+{
+  "videoId": "...",
+  "title": "...",
+  "publishAt": "...",
+  "privacyStatus": "private"
+}
 ```
 
 **Exemplo (PowerShell):**
@@ -141,7 +146,12 @@ Invoke-RestMethod `
 ```json
 {
   "channels": [
-    { "id": "UC...", "title": "Meu Canal", "refreshToken": "enc:v1:...", "connectedAt": "..." }
+    {
+      "id": "UC...",
+      "title": "Meu Canal",
+      "refreshToken": "enc:v1:...",
+      "connectedAt": "..."
+    }
   ]
 }
 ```

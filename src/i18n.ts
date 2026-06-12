@@ -22,7 +22,13 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources: { pt: { translation: pt }, en: { translation: en }, es: { translation: es }, fr: { translation: fr }, zh: { translation: zh } },
+    resources: {
+      pt: { translation: pt },
+      en: { translation: en },
+      es: { translation: es },
+      fr: { translation: fr },
+      zh: { translation: zh },
+    },
     fallbackLng: "pt",
     supportedLngs: ["pt", "en", "es", "fr", "zh"],
     detection: {

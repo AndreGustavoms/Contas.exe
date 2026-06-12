@@ -24,28 +24,72 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<{ title: string; message: string } | null>(null);
+  const [error, setError] = useState<{ title: string; message: string } | null>(
+    null,
+  );
 
   const ERROR_MAP: Record<string, { title: string; message: string }> = {
-    username_taken:        { title: t("register.error_username_taken_title"),        message: t("register.error_username_taken") },
-    email_taken:           { title: t("register.error_email_taken_title"),           message: t("register.error_email_taken") },
-    username_too_short:    { title: t("register.error_username_too_short_title"),    message: t("register.error_username_too_short") },
-    username_too_long:     { title: t("register.error_username_too_long_title"),     message: t("register.error_username_too_long") },
-    password_too_short:    { title: t("register.error_password_too_short_title"),    message: t("register.error_password_too_short") },
-    password_no_uppercase: { title: t("register.error_password_no_uppercase_title"), message: t("register.error_password_no_uppercase") },
-    password_no_lowercase: { title: t("register.error_password_no_lowercase_title"), message: t("register.error_password_no_lowercase") },
-    password_no_number:    { title: t("register.error_password_no_number_title"),    message: t("register.error_password_no_number") },
-    password_no_special:   { title: t("register.error_password_no_special_title"),   message: t("register.error_password_no_special") },
-    password_too_common:   { title: t("register.error_password_too_common_title"),   message: t("register.error_password_too_common") },
-    forbidden:             { title: t("register.error_forbidden_title"),             message: t("register.error_forbidden") },
-    register_failed:       { title: t("register.error_generic_title"),               message: t("register.error_generic") },
-    too_many_attempts:     { title: t("register.error_too_many_attempts_title"),     message: t("register.error_too_many_attempts") },
+    username_taken: {
+      title: t("register.error_username_taken_title"),
+      message: t("register.error_username_taken"),
+    },
+    email_taken: {
+      title: t("register.error_email_taken_title"),
+      message: t("register.error_email_taken"),
+    },
+    username_too_short: {
+      title: t("register.error_username_too_short_title"),
+      message: t("register.error_username_too_short"),
+    },
+    username_too_long: {
+      title: t("register.error_username_too_long_title"),
+      message: t("register.error_username_too_long"),
+    },
+    password_too_short: {
+      title: t("register.error_password_too_short_title"),
+      message: t("register.error_password_too_short"),
+    },
+    password_no_uppercase: {
+      title: t("register.error_password_no_uppercase_title"),
+      message: t("register.error_password_no_uppercase"),
+    },
+    password_no_lowercase: {
+      title: t("register.error_password_no_lowercase_title"),
+      message: t("register.error_password_no_lowercase"),
+    },
+    password_no_number: {
+      title: t("register.error_password_no_number_title"),
+      message: t("register.error_password_no_number"),
+    },
+    password_no_special: {
+      title: t("register.error_password_no_special_title"),
+      message: t("register.error_password_no_special"),
+    },
+    password_too_common: {
+      title: t("register.error_password_too_common_title"),
+      message: t("register.error_password_too_common"),
+    },
+    forbidden: {
+      title: t("register.error_forbidden_title"),
+      message: t("register.error_forbidden"),
+    },
+    register_failed: {
+      title: t("register.error_generic_title"),
+      message: t("register.error_generic"),
+    },
+    too_many_attempts: {
+      title: t("register.error_too_many_attempts_title"),
+      message: t("register.error_too_many_attempts"),
+    },
   };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (password !== confirmPassword) {
-      setError({ title: t("register.error_passwords_mismatch_title"), message: t("register.error_passwords_mismatch") });
+      setError({
+        title: t("register.error_passwords_mismatch_title"),
+        message: t("register.error_passwords_mismatch"),
+      });
       return;
     }
     setSubmitting(true);
@@ -68,17 +112,29 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
         return;
       }
 
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(ERROR_MAP[data.error ?? ""] ?? { title: t("register.error_generic_title"), message: t("register.error_generic") });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      setError(
+        ERROR_MAP[data.error ?? ""] ?? {
+          title: t("register.error_generic_title"),
+          message: t("register.error_generic"),
+        },
+      );
     } catch {
-      setError({ title: t("register.error_no_connection_title"), message: t("register.error_no_connection") });
+      setError({
+        title: t("register.error_no_connection_title"),
+        message: t("register.error_no_connection"),
+      });
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}>
+    <main
+      className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}
+    >
       <div className="login-layout">
         <section className="login-form-panel">
           <LangTerminal />
@@ -86,7 +142,11 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
             <div className="login-heading">
               <div className="login-mobile-brand">
                 <div className="login-mobile-mark">
-                  <img src="/logo-square.png" alt="Contas_exe" className="h-full w-full object-contain p-1" />
+                  <img
+                    src="/logo-square.png"
+                    alt="Contas_exe"
+                    className="h-full w-full object-contain p-1"
+                  />
                 </div>
                 <span>Contas_exe</span>
               </div>
@@ -107,9 +167,16 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     onChange={(e) => setFullName(e.target.value)}
                   />
                   <label htmlFor="reg-fullname">
-                    {t("register.full_name").split("").map((char, i) => (
-                      <span key={i} style={{ transitionDelay: `${i * 40}ms` }}>{char}</span>
-                    ))}
+                    {t("register.full_name")
+                      .split("")
+                      .map((char, i) => (
+                        <span
+                          key={i}
+                          style={{ transitionDelay: `${i * 40}ms` }}
+                        >
+                          {char}
+                        </span>
+                      ))}
                   </label>
                 </div>
 
@@ -124,9 +191,16 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                   <label htmlFor="reg-email">
-                    {t("register.email").split("").map((char, i) => (
-                      <span key={i} style={{ transitionDelay: `${i * 50}ms` }}>{char}</span>
-                    ))}
+                    {t("register.email")
+                      .split("")
+                      .map((char, i) => (
+                        <span
+                          key={i}
+                          style={{ transitionDelay: `${i * 50}ms` }}
+                        >
+                          {char}
+                        </span>
+                      ))}
                   </label>
                 </div>
 
@@ -141,9 +215,16 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     onChange={(e) => setUsername(e.target.value)}
                   />
                   <label htmlFor="reg-username">
-                    {t("register.username").split("").map((char, i) => (
-                      <span key={i} style={{ transitionDelay: `${i * 50}ms` }}>{char}</span>
-                    ))}
+                    {t("register.username")
+                      .split("")
+                      .map((char, i) => (
+                        <span
+                          key={i}
+                          style={{ transitionDelay: `${i * 50}ms` }}
+                        >
+                          {char}
+                        </span>
+                      ))}
                   </label>
                 </div>
 
@@ -159,17 +240,32 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                   <label htmlFor="reg-password">
-                    {t("register.password").split("").map((char, i) => (
-                      <span key={i} style={{ transitionDelay: `${i * 50}ms` }}>{char}</span>
-                    ))}
+                    {t("register.password")
+                      .split("")
+                      .map((char, i) => (
+                        <span
+                          key={i}
+                          style={{ transitionDelay: `${i * 50}ms` }}
+                        >
+                          {char}
+                        </span>
+                      ))}
                   </label>
                   <button
-                    aria-label={showPassword ? t("register.hide_password") : t("register.show_password")}
+                    aria-label={
+                      showPassword
+                        ? t("register.hide_password")
+                        : t("register.show_password")
+                    }
                     className="animated-field-toggle"
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
 
@@ -187,25 +283,54 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                   <label htmlFor="reg-confirm">
-                    {t("register.confirm_password").split("").map((char, i) => (
-                      <span key={i} style={{ transitionDelay: `${i * 30}ms` }}>{char}</span>
-                    ))}
+                    {t("register.confirm_password")
+                      .split("")
+                      .map((char, i) => (
+                        <span
+                          key={i}
+                          style={{ transitionDelay: `${i * 30}ms` }}
+                        >
+                          {char}
+                        </span>
+                      ))}
                   </label>
                   <button
-                    aria-label={showConfirm ? t("register.hide_password") : t("register.show_password")}
+                    aria-label={
+                      showConfirm
+                        ? t("register.hide_password")
+                        : t("register.show_password")
+                    }
                     className="animated-field-toggle"
                     type="button"
                     onClick={() => setShowConfirm((v) => !v)}
                   >
-                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirm ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
-              {error && <FormAlert variant="error" title={error.title} message={error.message} />}
+              {error && (
+                <FormAlert
+                  variant="error"
+                  title={error.title}
+                  message={error.message}
+                />
+              )}
 
-              <button className="login-btn-animated mt-8" type="submit" disabled={submitting}>
-                {submitting ? <Spinner className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+              <button
+                className="login-btn-animated mt-8"
+                type="submit"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <UserPlus className="h-4 w-4" />
+                )}
                 {submitting ? t("register.submitting") : t("register.submit")}
               </button>
 

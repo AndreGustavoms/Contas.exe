@@ -8,7 +8,8 @@ export function LangTerminal() {
   const { i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const currentLang = i18n.language as LangCode;
-  const activeLang = LANGUAGES.find((l) => l.code === currentLang) ?? LANGUAGES[0];
+  const activeLang =
+    LANGUAGES.find((l) => l.code === currentLang) ?? LANGUAGES[0];
 
   return (
     <div className={cn("login-terminal", !open && "login-terminal--collapsed")}>
@@ -17,11 +18,19 @@ export function LangTerminal() {
         role="button"
         tabIndex={0}
         onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpen((v) => !v)}
+        onKeyDown={(e) =>
+          (e.key === "Enter" || e.key === " ") && setOpen((v) => !v)
+        }
       >
         <span className="login-terminal-title">
           <Globe width={13} height={13} />
-          {open ? "lang" : <span className="login-terminal-active-code">{activeLang.flag} {activeLang.code.toUpperCase()}</span>}
+          {open ? (
+            "lang"
+          ) : (
+            <span className="login-terminal-active-code">
+              {activeLang.flag} {activeLang.code.toUpperCase()}
+            </span>
+          )}
         </span>
         <div className="login-terminal-controls">
           <span className="login-terminal-dot login-terminal-dot--close" />
@@ -38,7 +47,10 @@ export function LangTerminal() {
               currentLang === lang.code && "login-terminal-lang--active",
             )}
             type="button"
-            onClick={() => { i18n.changeLanguage(lang.code); setOpen(false); }}
+            onClick={() => {
+              i18n.changeLanguage(lang.code);
+              setOpen(false);
+            }}
           >
             <span>{lang.flag}</span>
             <span>{lang.label}</span>

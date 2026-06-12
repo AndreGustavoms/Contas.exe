@@ -17,7 +17,10 @@ const PASSWORD_RULES = [
   { test: (p: string) => /[A-Z]/.test(p), labelKey: "reset.rule_upper" },
   { test: (p: string) => /[a-z]/.test(p), labelKey: "reset.rule_lower" },
   { test: (p: string) => /[0-9]/.test(p), labelKey: "reset.rule_number" },
-  { test: (p: string) => /[^A-Za-z0-9]/.test(p), labelKey: "reset.rule_special" },
+  {
+    test: (p: string) => /[^A-Za-z0-9]/.test(p),
+    labelKey: "reset.rule_special",
+  },
 ];
 
 // Códigos de erro do servidor -> chaves i18n (as regras de senha reutilizam as
@@ -63,7 +66,9 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
         return;
       }
 
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
       const key = ERROR_I18N_KEYS[data.error ?? ""];
       setError(key ? t(key) : t("reset.error_generic"));
     } catch {
@@ -74,7 +79,9 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
   }
 
   return (
-    <main className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}>
+    <main
+      className={cn(`theme-${theme}`, "app-shell login-shell min-h-[100dvh]")}
+    >
       <div className="login-layout">
         <section className="login-form-panel">
           <div className="login-form-shell animate-pop-in">
@@ -104,7 +111,11 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                     {t("reset.success_sessions")}
                   </p>
                 </div>
-                <button className="login-btn-animated mt-4" type="button" onClick={onDone}>
+                <button
+                  className="login-btn-animated mt-4"
+                  type="button"
+                  onClick={onDone}
+                >
                   <KeyRound className="h-4 w-4" />
                   {t("reset.go_login")}
                 </button>
@@ -123,17 +134,32 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                     <label htmlFor="reset-password">
-                      {t("reset.password_label").split("").map((char, i) => (
-                        <span key={i} style={{ transitionDelay: `${i * 50}ms` }}>{char}</span>
-                      ))}
+                      {t("reset.password_label")
+                        .split("")
+                        .map((char, i) => (
+                          <span
+                            key={i}
+                            style={{ transitionDelay: `${i * 50}ms` }}
+                          >
+                            {char}
+                          </span>
+                        ))}
                     </label>
                     <button
-                      aria-label={showPassword ? t("login.hide_password") : t("login.show_password")}
+                      aria-label={
+                        showPassword
+                          ? t("login.hide_password")
+                          : t("login.show_password")
+                      }
                       className="animated-field-toggle"
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
 
@@ -151,7 +177,9 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                               : "text-[color:var(--login-form-muted)]",
                           )}
                         >
-                          <span className="text-[10px]">{rule.test(password) ? "✓" : "○"}</span>
+                          <span className="text-[10px]">
+                            {rule.test(password) ? "✓" : "○"}
+                          </span>
                           {t(rule.labelKey)}
                         </li>
                       ))}
@@ -166,7 +194,11 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                   type="submit"
                   disabled={submitting || !allRulesPass}
                 >
-                  {submitting ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
+                  {submitting ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <KeyRound className="h-4 w-4" />
+                  )}
                   {submitting ? t("reset.saving") : t("reset.submit")}
                 </button>
               </form>

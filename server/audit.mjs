@@ -79,7 +79,9 @@ export function logEvent(storageDir, { userId, username, action, target, ip }) {
     });
     // Keep only the most recent MAX_EVENTS.
     const trimmed =
-      events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
+      events.length > MAX_EVENTS
+        ? events.slice(events.length - MAX_EVENTS)
+        : events;
     await writeEventsFile(storageDir, trimmed);
   }).catch((error) => {
     console.error("audit_log_failed:", error);

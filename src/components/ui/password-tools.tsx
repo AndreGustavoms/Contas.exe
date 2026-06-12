@@ -101,7 +101,9 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
             key={seg}
             className={cn(
               "h-1 flex-1 rounded-full transition-colors",
-              seg <= level ? STRENGTH_COLORS[level] : "bg-[color:var(--border)]",
+              seg <= level
+                ? STRENGTH_COLORS[level]
+                : "bg-[color:var(--border)]",
             )}
           />
         ))}

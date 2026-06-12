@@ -34,7 +34,9 @@ function base32Encode(buffer) {
 
 function base32Decode(input) {
   // Tolerant: ignore spaces/padding/case, as users may paste a formatted key.
-  const clean = String(input).toUpperCase().replace(/[^A-Z2-7]/g, "");
+  const clean = String(input)
+    .toUpperCase()
+    .replace(/[^A-Z2-7]/g, "");
   let bits = 0;
   let value = 0;
   const bytes = [];
@@ -86,7 +88,11 @@ export function totp(secret, { time = Date.now() } = {}) {
 // Verifies a user-supplied code against the secret, allowing ±`window` steps to
 // tolerate clock drift between the server and the authenticator app. Comparison is
 // constant-time. Returns true on match.
-export function verifyTotp(secret, code, { window = 1, time = Date.now() } = {}) {
+export function verifyTotp(
+  secret,
+  code,
+  { window = 1, time = Date.now() } = {},
+) {
   const cleaned = String(code ?? "").replace(/\D/g, "");
   if (cleaned.length !== DIGITS) return false;
   const secretBuffer = base32Decode(secret);

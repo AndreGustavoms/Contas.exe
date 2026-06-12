@@ -9,7 +9,9 @@ function requireEnv(name) {
 }
 
 export function githubAuthConfigured() {
-  return Boolean(env("GITHUB_AUTH_CLIENT_ID") && env("GITHUB_AUTH_CLIENT_SECRET"));
+  return Boolean(
+    env("GITHUB_AUTH_CLIENT_ID") && env("GITHUB_AUTH_CLIENT_SECRET"),
+  );
 }
 
 export function buildGithubAuthUrl({ redirectUri, state }) {
@@ -58,7 +60,9 @@ export async function exchangeGithubAuthCode({ code, redirectUri }) {
   let email = userData.email?.trim().toLowerCase() ?? "";
 
   if (!email) {
-    const emailsRes = await fetch("https://api.github.com/user/emails", { headers });
+    const emailsRes = await fetch("https://api.github.com/user/emails", {
+      headers,
+    });
     if (emailsRes.ok) {
       const emails = await emailsRes.json();
       const primary = Array.isArray(emails)

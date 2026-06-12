@@ -51,7 +51,9 @@ function withLock(fn) {
 // --- Store ---
 
 function sessionStoreFile(storageDir) {
-  return process.env.CONTAS_FLOW_SESSIONS_DB ?? join(storageDir, "sessions.json");
+  return (
+    process.env.CONTAS_FLOW_SESSIONS_DB ?? join(storageDir, "sessions.json")
+  );
 }
 
 async function readSessionsFile(storageDir) {
@@ -62,9 +64,12 @@ async function readSessionsFile(storageDir) {
     // Decrypt the at-rest metadata so callers work with plaintext in memory.
     return list.map((session) => ({
       ...session,
-      ipHash: session.ipHash != null ? decryptField(session.ipHash) : session.ipHash,
+      ipHash:
+        session.ipHash != null ? decryptField(session.ipHash) : session.ipHash,
       userAgent:
-        session.userAgent != null ? decryptField(session.userAgent) : session.userAgent,
+        session.userAgent != null
+          ? decryptField(session.userAgent)
+          : session.userAgent,
     }));
   } catch {
     return [];
@@ -77,9 +82,12 @@ async function writeSessionsFile(storageDir, sessions) {
   // vault), keeping the in-memory copies plaintext for the caller.
   const encrypted = sessions.map((session) => ({
     ...session,
-    ipHash: session.ipHash != null ? encryptField(session.ipHash) : session.ipHash,
+    ipHash:
+      session.ipHash != null ? encryptField(session.ipHash) : session.ipHash,
     userAgent:
-      session.userAgent != null ? encryptField(session.userAgent) : session.userAgent,
+      session.userAgent != null
+        ? encryptField(session.userAgent)
+        : session.userAgent,
   }));
   await writeFile(
     sessionStoreFile(storageDir),
@@ -114,7 +122,9 @@ function isExpired(session, now = Date.now()) {
 // Whether this session re-authenticated within the last REAUTH_WINDOW_MS. Pure
 // check on a session already resolved by resolveAndTouch (which carries reauthAt).
 export function hasRecentReauth(session, now = Date.now()) {
-  return Boolean(session?.reauthAt) && now - session.reauthAt <= REAUTH_WINDOW_MS;
+  return (
+    Boolean(session?.reauthAt) && now - session.reauthAt <= REAUTH_WINDOW_MS
+  );
 }
 
 // Public view of a session for the admin panel (no ipHash, no raw metadata leak).
@@ -243,7 +253,11 @@ export function revokeAllForUser(storageDir, userId, exceptSessionId = null) {
 
 // Lists the active (non-expired) sessions of one user. currentSessionId flags the
 // requester's own session in the result.
-export async function listSessionsForUser(storageDir, userId, currentSessionId) {
+export async function listSessionsForUser(
+  storageDir,
+  userId,
+  currentSessionId,
+) {
   const sessions = await readSessionsFile(storageDir);
   const now = Date.now();
   return sessions

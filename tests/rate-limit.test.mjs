@@ -32,7 +32,9 @@ describe("rate-limit progressivo", () => {
 
     const blocked = checkRateLimit([key], t0 + 11);
     assert.equal(blocked.blocked, true);
-    assert.ok(blocked.retryAfterMs > 14 * MIN && blocked.retryAfterMs <= 15 * MIN);
+    assert.ok(
+      blocked.retryAfterMs > 14 * MIN && blocked.retryAfterMs <= 15 * MIN,
+    );
 
     // Passados 15min, desbloqueia.
     assert.equal(checkRateLimit([key], t0 + 10 + 15 * MIN + 1).blocked, false);
@@ -43,11 +45,17 @@ describe("rate-limit progressivo", () => {
     const t0 = 0;
     for (let i = 0; i < 10; i++) recordFailure([key], t0 + i);
     let check = checkRateLimit([key], t0 + 20);
-    assert.ok(check.retryAfterMs > 59 * MIN, `esperava ~1h, veio ${check.retryAfterMs}`);
+    assert.ok(
+      check.retryAfterMs > 59 * MIN,
+      `esperava ~1h, veio ${check.retryAfterMs}`,
+    );
 
     for (let i = 10; i < 15; i++) recordFailure([key], t0 + i);
     check = checkRateLimit([key], t0 + 20);
-    assert.ok(check.retryAfterMs > 23 * 60 * MIN, `esperava ~24h, veio ${check.retryAfterMs}`);
+    assert.ok(
+      check.retryAfterMs > 23 * 60 * MIN,
+      `esperava ~24h, veio ${check.retryAfterMs}`,
+    );
   });
 
   it("login correto zera o histórico (clearFailures)", () => {

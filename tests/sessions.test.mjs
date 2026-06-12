@@ -37,18 +37,42 @@ describe("sessões", () => {
   });
 
   it("revogação individual mata só aquela sessão", async () => {
-    const a = await createSession(dir, { userId: "u1", ip: "1", userAgent: "a" });
-    const b = await createSession(dir, { userId: "u1", ip: "2", userAgent: "b" });
+    const a = await createSession(dir, {
+      userId: "u1",
+      ip: "1",
+      userAgent: "a",
+    });
+    const b = await createSession(dir, {
+      userId: "u1",
+      ip: "2",
+      userAgent: "b",
+    });
     await revokeSession(dir, a);
     assert.equal(await resolveAndTouch(dir, a), null);
     assert.notEqual(await resolveAndTouch(dir, b), null);
   });
 
   it("revokeAllForUser com exceptSessionId preserva a sessão atual (troca de senha)", async () => {
-    const atual = await createSession(dir, { userId: "u1", ip: "1", userAgent: "atual" });
-    const outra1 = await createSession(dir, { userId: "u1", ip: "2", userAgent: "o1" });
-    const outra2 = await createSession(dir, { userId: "u1", ip: "3", userAgent: "o2" });
-    const deOutro = await createSession(dir, { userId: "u2", ip: "4", userAgent: "x" });
+    const atual = await createSession(dir, {
+      userId: "u1",
+      ip: "1",
+      userAgent: "atual",
+    });
+    const outra1 = await createSession(dir, {
+      userId: "u1",
+      ip: "2",
+      userAgent: "o1",
+    });
+    const outra2 = await createSession(dir, {
+      userId: "u1",
+      ip: "3",
+      userAgent: "o2",
+    });
+    const deOutro = await createSession(dir, {
+      userId: "u2",
+      ip: "4",
+      userAgent: "x",
+    });
 
     const revoked = await revokeAllForUser(dir, "u1", atual);
     assert.equal(revoked, 2);
@@ -60,8 +84,16 @@ describe("sessões", () => {
   });
 
   it("revokeAllForUser sem exceção derruba todas (reset pelo admin)", async () => {
-    const a = await createSession(dir, { userId: "u1", ip: "1", userAgent: "a" });
-    const b = await createSession(dir, { userId: "u1", ip: "2", userAgent: "b" });
+    const a = await createSession(dir, {
+      userId: "u1",
+      ip: "1",
+      userAgent: "a",
+    });
+    const b = await createSession(dir, {
+      userId: "u1",
+      ip: "2",
+      userAgent: "b",
+    });
     const revoked = await revokeAllForUser(dir, "u1");
     assert.equal(revoked, 2);
     assert.equal(await resolveAndTouch(dir, a), null);
@@ -69,7 +101,11 @@ describe("sessões", () => {
   });
 
   it("lista sessões ativas do usuário marcando a atual", async () => {
-    const atual = await createSession(dir, { userId: "u1", ip: "1", userAgent: "a" });
+    const atual = await createSession(dir, {
+      userId: "u1",
+      ip: "1",
+      userAgent: "a",
+    });
     await createSession(dir, { userId: "u1", ip: "2", userAgent: "b" });
     const list = await listSessionsForUser(dir, "u1", atual);
     assert.equal(list.length, 2);

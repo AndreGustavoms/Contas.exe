@@ -122,14 +122,14 @@ criptografia, volume persistente, backup e checklist de go-live — está em
 
 ## Stack
 
-| Camada     | Tecnologia                                                   |
-| ---------- | ------------------------------------------------------------ |
-| Frontend   | React 18 + TypeScript, Vite 6, Tailwind CSS 3, Lucide React  |
-| i18n       | react-i18next (pt · en · es · fr · zh)                       |
-| Backend    | Node HTTP nativo, sem framework                              |
-| Cripto     | AES-256-GCM (`crypto` nativo), scrypt, TOTP RFC 6238         |
-| Deploy     | Railway — Dockerfile multi-stage, volume `/data`             |
-| Integração | googleapis (YouTube OAuth/upload — em pausa)                 |
+| Camada     | Tecnologia                                                  |
+| ---------- | ----------------------------------------------------------- |
+| Frontend   | React 18 + TypeScript, Vite 6, Tailwind CSS 3, Lucide React |
+| i18n       | react-i18next (pt · en · es · fr · zh)                      |
+| Backend    | Node HTTP nativo, sem framework                             |
+| Cripto     | AES-256-GCM (`crypto` nativo), scrypt, TOTP RFC 6238        |
+| Deploy     | Railway — Dockerfile multi-stage, volume `/data`            |
+| Integração | googleapis (YouTube OAuth/upload — em pausa)                |
 
 ---
 
@@ -186,14 +186,14 @@ npm run format   # formata com Prettier
 
 ## Documentação
 
-| Documento | Conteúdo |
-| --------- | -------- |
-| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como o sistema funciona por dentro |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Subir em produção no Railway |
-| [docs/LGPD.md](docs/LGPD.md) | Controles operacionais de privacidade e LGPD |
-| [docs/YOUTUBE.md](docs/YOUTUBE.md) | Integração YouTube OAuth/upload (em pausa) |
-| [SECURITY.md](SECURITY.md) | Boas práticas e checklist de segurança do repositório |
-| [IA.md](IA.md) | Contexto rápido para quem for trabalhar no projeto |
+| Documento                                  | Conteúdo                                              |
+| ------------------------------------------ | ----------------------------------------------------- |
+| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como o sistema funciona por dentro                    |
+| [docs/DEPLOY.md](docs/DEPLOY.md)           | Subir em produção no Railway                          |
+| [docs/LGPD.md](docs/LGPD.md)               | Controles operacionais de privacidade e LGPD          |
+| [docs/YOUTUBE.md](docs/YOUTUBE.md)         | Integração YouTube OAuth/upload (em pausa)            |
+| [SECURITY.md](SECURITY.md)                 | Boas práticas e checklist de segurança do repositório |
+| [IA.md](IA.md)                             | Contexto rápido para quem for trabalhar no projeto    |
 
 > Os dados ficam em `storage/` (git-ignored). Nunca commite `storage/`, `.env`,
 > prints ou backups com credenciais reais.

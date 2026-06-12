@@ -1083,7 +1083,11 @@ export function AccountVault({
         withSecrets.push({ ...account, password });
       }
       const payload = JSON.stringify(
-        { group: groupName, exportedAt: new Date().toISOString(), accounts: withSecrets },
+        {
+          group: groupName,
+          exportedAt: new Date().toISOString(),
+          accounts: withSecrets,
+        },
         null,
         2,
       );
@@ -1119,7 +1123,9 @@ export function AccountVault({
         // mix with the current (e.g. Vitissouls) accounts.
         const importedName =
           (typeof parsed?.group === "string" && parsed.group.trim()) ||
-          t("vault.import_group_name", { date: new Date().toLocaleDateString("pt-BR") });
+          t("vault.import_group_name", {
+            date: new Date().toLocaleDateString("pt-BR"),
+          });
 
         const createdGroup = await requestJson<GroupSummary>(API_GROUPS, {
           method: "POST",
@@ -1305,7 +1311,9 @@ export function AccountVault({
           >
             <div className="vault-toolbar flex flex-col gap-3 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="shrink-0">
-                <p className="text-base font-semibold text-[color:var(--text)]">{t("vault.records")}</p>
+                <p className="text-base font-semibold text-[color:var(--text)]">
+                  {t("vault.records")}
+                </p>
                 <p className="mt-0.5 text-sm text-[color:var(--muted)]">
                   {filteredAccounts.length} / {accounts.length}
                 </p>
@@ -1350,25 +1358,29 @@ export function AccountVault({
             <div className="border-t border-[color:var(--border)]">
               {filteredAccounts.length ? (
                 <div className="vault-list">
-                  {filteredAccounts.slice(0, visibleCount).map((account, index) => (
-                    <AccountRow
-                      key={account.id}
-                      account={account}
-                      index={index}
-                      isActive={
-                        (isAccountModalOpen && account.id === editingId) ||
-                        account.id === quickViewAccount?.id
-                      }
-                      onSelect={() => selectAccount(account)}
-                    />
-                  ))}
+                  {filteredAccounts
+                    .slice(0, visibleCount)
+                    .map((account, index) => (
+                      <AccountRow
+                        key={account.id}
+                        account={account}
+                        index={index}
+                        isActive={
+                          (isAccountModalOpen && account.id === editingId) ||
+                          account.id === quickViewAccount?.id
+                        }
+                        onSelect={() => selectAccount(account)}
+                      />
+                    ))}
                   {visibleCount < filteredAccounts.length ? (
                     <div ref={listSentinelRef} aria-hidden className="h-10" />
                   ) : null}
                 </div>
               ) : (
                 <div className="vault-empty">
-                  <span className="text-[color:var(--muted)]">{t("vault.no_accounts")}</span>
+                  <span className="text-[color:var(--muted)]">
+                    {t("vault.no_accounts")}
+                  </span>
                 </div>
               )}
             </div>
@@ -1447,10 +1459,12 @@ export function AccountVault({
       {deleteAccountId ? (
         <ConfirmDialog
           title={t("vault.delete_account_title")}
-          message={t("vault.delete_account_confirm", { name: titleFor(
-            accounts.find((account) => account.id === deleteAccountId) ??
-              ({ label: "esta conta" } as AccountRecord),
-          ) })}
+          message={t("vault.delete_account_confirm", {
+            name: titleFor(
+              accounts.find((account) => account.id === deleteAccountId) ??
+                ({ label: "esta conta" } as AccountRecord),
+            ),
+          })}
           note={t("vault.delete_irreversible")}
           confirmLabel={t("vault.delete")}
           onCancel={() => setDeleteAccountId(null)}
@@ -1599,7 +1613,11 @@ function GroupDialog({
   return (
     <ModalShell
       onClose={onClose}
-      title={mode === "create" ? t("vault.modal_new_group") : t("vault.modal_rename_group")}
+      title={
+        mode === "create"
+          ? t("vault.modal_new_group")
+          : t("vault.modal_rename_group")
+      }
     >
       <form
         className="mt-5"
@@ -1870,7 +1888,11 @@ function AccountWizardModal({
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {isSaving ? t("vault.wizard_saving") : editing ? t("vault.wizard_save") : t("vault.wizard_add")}
+              {isSaving
+                ? t("vault.wizard_saving")
+                : editing
+                  ? t("vault.wizard_save")
+                  : t("vault.wizard_add")}
             </Button>
           ) : (
             <Button disabled={!canContinue} type="button" onClick={onNext}>
@@ -1988,7 +2010,9 @@ function WizardStepContent({
             onChange={(event) => onUpdate("password", event.target.value)}
           />
           <button
-            aria-label={showPassword ? t("vault.hide_password") : t("vault.show_password")}
+            aria-label={
+              showPassword ? t("vault.hide_password") : t("vault.show_password")
+            }
             className="icon-soft absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition"
             type="button"
             onClick={onTogglePassword}
@@ -2040,9 +2064,22 @@ function WizardStepContent({
       </div>
       <div className="grid gap-2 text-sm">
         <SummaryRow label={t("vault.field_email")} value={draft.email || "-"} />
-        <SummaryRow label={t("vault.field_username")} value={draft.username || "-"} />
-        <SummaryRow label={t("vault.field_password")} value={draft.password ? "********" : "-"} />
-        <SummaryRow label={t("vault.wizard_step_2fa")} value={draft.twoFactor ? t("vault.wizard_2fa_active") : t("vault.wizard_2fa_no")} />
+        <SummaryRow
+          label={t("vault.field_username")}
+          value={draft.username || "-"}
+        />
+        <SummaryRow
+          label={t("vault.field_password")}
+          value={draft.password ? "********" : "-"}
+        />
+        <SummaryRow
+          label={t("vault.wizard_step_2fa")}
+          value={
+            draft.twoFactor
+              ? t("vault.wizard_2fa_active")
+              : t("vault.wizard_2fa_no")
+          }
+        />
       </div>
     </div>
   );
@@ -2307,7 +2344,9 @@ function GroupSwitcher({
           />
           <GroupMenuItem
             icon={Pencil}
-            label={t("vault.rename_group", { name: activeGroup?.name ?? "grupo" })}
+            label={t("vault.rename_group", {
+              name: activeGroup?.name ?? "grupo",
+            })}
             disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
@@ -2317,7 +2356,9 @@ function GroupSwitcher({
           <GroupMenuItem
             danger
             icon={Trash}
-            label={t("vault.delete_group", { name: activeGroup?.name ?? "grupo" })}
+            label={t("vault.delete_group", {
+              name: activeGroup?.name ?? "grupo",
+            })}
             disabled={!activeGroup}
             onClick={() => {
               setOpen(null);
@@ -2372,17 +2413,22 @@ type SidebarSectionProps = {
   itemsClassName?: string;
 };
 
-function SidebarSection({ label, children, itemsClassName }: SidebarSectionProps) {
+function SidebarSection({
+  label,
+  children,
+  itemsClassName,
+}: SidebarSectionProps) {
   return (
     <div className="min-w-0">
       <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
         {label}
       </p>
-      <div className={cn("mt-3", itemsClassName ?? "space-y-1")}>{children}</div>
+      <div className={cn("mt-3", itemsClassName ?? "space-y-1")}>
+        {children}
+      </div>
     </div>
   );
 }
-
 
 type SidebarButtonProps = {
   active?: boolean;
@@ -2909,8 +2955,16 @@ function ReauthModal({
           <Button type="button" variant="outline" onClick={onCancel}>
             {t("vault.reauth_cancel")}
           </Button>
-          <Button type="submit" variant="neon" disabled={!password || submitting}>
-            {submitting ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
+          <Button
+            type="submit"
+            variant="neon"
+            disabled={!password || submitting}
+          >
+            {submitting ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <KeyRound className="h-4 w-4" />
+            )}
             {t("vault.reauth_confirm")}
           </Button>
         </div>
@@ -3098,7 +3152,11 @@ function QuickField({
           <IconButton
             disabled={!value}
             icon={revealed ? EyeOff : Eye}
-            label={revealed ? (hideLabel ?? "Ocultar senha") : (showLabel ?? "Mostrar senha")}
+            label={
+              revealed
+                ? (hideLabel ?? "Ocultar senha")
+                : (showLabel ?? "Mostrar senha")
+            }
             onClick={() => onToggleReveal?.()}
             selected={revealed}
           />

@@ -160,7 +160,12 @@ export function AccountSettings({
             <span className="text-sm font-semibold text-[color:var(--text)]">
               {t("account.title")}
             </span>
-            <Button aria-label={t("account.close")} size="icon" variant="ghost" onClick={onClose}>
+            <Button
+              aria-label={t("account.close")}
+              size="icon"
+              variant="ghost"
+              onClick={onClose}
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -187,12 +192,8 @@ export function AccountSettings({
           {tab === "perfil" && (
             <PerfilTab withReauth={withReauth} user={user} />
           )}
-          {tab === "segurança" && (
-            <SegurancaTab withReauth={withReauth} />
-          )}
-          {tab === "sessões" && (
-            <SessoesTab />
-          )}
+          {tab === "segurança" && <SegurancaTab withReauth={withReauth} />}
+          {tab === "sessões" && <SessoesTab />}
           {tab === "preferências" && (
             <PreferenciasTab theme={theme} onThemeChange={onThemeChange} />
           )}
@@ -309,32 +310,38 @@ function PerfilTab({
           </div>
         </div>
       ) : (
-      <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[color:var(--accent)] text-xl font-bold text-white">
-          {initials}
-        </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-[color:var(--text)]">
-            {profile?.fullName ?? user?.username}
-          </p>
-          <p className="text-sm text-[color:var(--muted)]">@{profile?.username ?? user?.username}</p>
-          <span
-            className={cn(
-              "mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold",
-              (profile?.role ?? user?.role) === "admin"
-                ? "bg-[color:var(--accent)] text-white"
-                : "bg-[color:var(--field)] text-[color:var(--muted)]",
-            )}
-          >
-            {(profile?.role ?? user?.role) === "admin" ? t("account.role_admin") : t("account.role_member")}
-          </span>
-          {profile?.createdAt && (
-            <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-              {t("account.member_since", { date: fmtDate(profile.createdAt) })}
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[color:var(--accent)] text-xl font-bold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-[color:var(--text)]">
+              {profile?.fullName ?? user?.username}
             </p>
-          )}
+            <p className="text-sm text-[color:var(--muted)]">
+              @{profile?.username ?? user?.username}
+            </p>
+            <span
+              className={cn(
+                "mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                (profile?.role ?? user?.role) === "admin"
+                  ? "bg-[color:var(--accent)] text-white"
+                  : "bg-[color:var(--field)] text-[color:var(--muted)]",
+              )}
+            >
+              {(profile?.role ?? user?.role) === "admin"
+                ? t("account.role_admin")
+                : t("account.role_member")}
+            </span>
+            {profile?.createdAt && (
+              <p className="mt-0.5 text-xs text-[color:var(--muted)]">
+                {t("account.member_since", {
+                  date: fmtDate(profile.createdAt),
+                })}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Full name */}
@@ -349,11 +356,18 @@ function PerfilTab({
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
-          <Button type="submit" variant="outline" disabled={savingName} className="h-10 w-full shrink-0 min-[430px]:w-auto">
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={savingName}
+            className="h-10 w-full shrink-0 min-[430px]:w-auto"
+          >
             {savingName ? <Spinner className="h-4 w-4" /> : t("account.save")}
           </Button>
         </div>
-        {nameSaved && <p className="text-xs text-green-400">{t("account.saved")}</p>}
+        {nameSaved && (
+          <p className="text-xs text-green-400">{t("account.saved")}</p>
+        )}
         {nameError && <p className="text-xs text-red-300">{nameError}</p>}
       </form>
 
@@ -363,7 +377,9 @@ function PerfilTab({
           <Mail className="mr-1 inline h-3.5 w-3.5" />
           {t("account.recovery_email")}
         </label>
-        <p className="text-xs text-[color:var(--muted)]">{t("account.recovery_email_desc")}</p>
+        <p className="text-xs text-[color:var(--muted)]">
+          {t("account.recovery_email_desc")}
+        </p>
         {emailLoaded && (
           <div className="flex flex-col gap-2 min-[430px]:flex-row">
             <Input
@@ -373,12 +389,23 @@ function PerfilTab({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <Button type="submit" variant="outline" disabled={savingEmail} className="h-10 w-full shrink-0 min-[430px]:w-auto">
-              {savingEmail ? <Spinner className="h-4 w-4" /> : t("account.save")}
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={savingEmail}
+              className="h-10 w-full shrink-0 min-[430px]:w-auto"
+            >
+              {savingEmail ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                t("account.save")
+              )}
             </Button>
           </div>
         )}
-        {emailSaved && <p className="text-xs text-green-400">{t("account.saved")}</p>}
+        {emailSaved && (
+          <p className="text-xs text-green-400">{t("account.saved")}</p>
+        )}
         {emailError && <p className="text-xs text-red-300">{emailError}</p>}
       </form>
 
@@ -394,10 +421,22 @@ function PerfilTab({
               label="Google"
               icon={
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  <path
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    fill="#4285F4"
+                  />
+                  <path
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    fill="#34A853"
+                  />
+                  <path
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    fill="#FBBC05"
+                  />
+                  <path
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    fill="#EA4335"
+                  />
                 </svg>
               }
             />
@@ -406,7 +445,10 @@ function PerfilTab({
               label="GitHub"
               icon={
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
-                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/>
+                  <path
+                    d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+                    fill="currentColor"
+                  />
                 </svg>
               }
             />
@@ -465,7 +507,10 @@ function SegurancaTab({
   const [tfaStatus, setTfaStatus] = useState<TfaStatus | null>(null);
   const [tfaError, setTfaError] = useState("");
   const [tfaBusy, setTfaBusy] = useState(false);
-  const [setup, setSetup] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [setup, setSetup] = useState<{
+    secret: string;
+    otpauthUri: string;
+  } | null>(null);
   const [enableCode, setEnableCode] = useState("");
   const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
   const [disabling, setDisabling] = useState(false);
@@ -501,7 +546,8 @@ function SegurancaTab({
         err instanceof Error
           ? err.message === "invalid_current_password"
             ? t("account.error_invalid_current_password")
-            : t(`team.error_${err.message}`) || t("account.error_change_password")
+            : t(`team.error_${err.message}`) ||
+              t("account.error_change_password")
           : t("account.error_change_password"),
       );
     } finally {
@@ -514,7 +560,9 @@ function SegurancaTab({
     setTfaBusy(true);
     try {
       const result = await withReauth(() =>
-        api<{ secret: string; otpauthUri: string }>("/api/account/2fa/setup", { method: "POST" }),
+        api<{ secret: string; otpauthUri: string }>("/api/account/2fa/setup", {
+          method: "POST",
+        }),
       );
       setSetup(result);
       setFreshCodes(null);
@@ -587,7 +635,9 @@ function SegurancaTab({
     setTfaBusy(true);
     try {
       const result = await withReauth(() =>
-        api<{ recoveryCodes: string[] }>("/api/account/2fa/recovery-codes", { method: "POST" }),
+        api<{ recoveryCodes: string[] }>("/api/account/2fa/recovery-codes", {
+          method: "POST",
+        }),
       );
       setFreshCodes(result.recoveryCodes);
       const s = await api<TfaStatus>("/api/account/2fa");
@@ -602,7 +652,10 @@ function SegurancaTab({
   function copySecret() {
     if (!setup) return;
     void navigator.clipboard.writeText(setup.secret).then(
-      () => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); },
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      },
       () => {},
     );
   }
@@ -630,7 +683,10 @@ function SegurancaTab({
   function copyCodes() {
     if (!freshCodes) return;
     void navigator.clipboard.writeText(freshCodes.join("\n")).then(
-      () => { setCodesCopied(true); window.setTimeout(() => setCodesCopied(false), 1500); },
+      () => {
+        setCodesCopied(true);
+        window.setTimeout(() => setCodesCopied(false), 1500);
+      },
       () => {},
     );
   }
@@ -648,7 +704,9 @@ function SegurancaTab({
         </p>
         <form onSubmit={changePassword} className="grid gap-3">
           <label className="grid gap-1.5">
-            <span className="text-xs text-[color:var(--muted)]">{t("account.current_password_label")}</span>
+            <span className="text-xs text-[color:var(--muted)]">
+              {t("account.current_password_label")}
+            </span>
             <Input
               type="password"
               className="h-10 rounded-xl px-3"
@@ -658,7 +716,9 @@ function SegurancaTab({
             />
           </label>
           <label className="grid gap-1.5">
-            <span className="text-xs text-[color:var(--muted)]">{t("account.new_password_label")}</span>
+            <span className="text-xs text-[color:var(--muted)]">
+              {t("account.new_password_label")}
+            </span>
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <Input
@@ -669,12 +729,20 @@ function SegurancaTab({
                   onChange={(e) => setNewPw(e.target.value)}
                 />
                 <button
-                  aria-label={showNewPw ? t("login.hide_password") : t("login.show_password")}
+                  aria-label={
+                    showNewPw
+                      ? t("login.hide_password")
+                      : t("login.show_password")
+                  }
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
                   type="button"
                   onClick={() => setShowNewPw((v) => !v)}
                 >
-                  {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showNewPw ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               <GeneratePasswordButton
@@ -686,7 +754,11 @@ function SegurancaTab({
             </div>
             <PasswordStrengthMeter password={newPw} />
           </label>
-          {pwSuccess && <p className="text-xs text-green-400">{t("account.password_changed_ok")}</p>}
+          {pwSuccess && (
+            <p className="text-xs text-green-400">
+              {t("account.password_changed_ok")}
+            </p>
+          )}
           {pwError && <p className="text-xs text-red-300">{pwError}</p>}
           <Button
             type="submit"
@@ -694,7 +766,11 @@ function SegurancaTab({
             disabled={savingPw || !current || !newPw}
             className="h-10 w-fit"
           >
-            {savingPw ? <Spinner className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+            {savingPw ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
             {t("account.change_password_btn")}
           </Button>
         </form>
@@ -717,7 +793,10 @@ function SegurancaTab({
             </p>
             <div className="mt-3 grid grid-cols-1 gap-2 font-mono text-sm text-[color:var(--text)] md:grid-cols-2">
               {freshCodes.map((c) => (
-                <span key={c} className="rounded-lg bg-[color:var(--surface-soft)] px-2.5 py-1.5 text-center">
+                <span
+                  key={c}
+                  className="rounded-lg bg-[color:var(--surface-soft)] px-2.5 py-1.5 text-center"
+                >
                   {c}
                 </span>
               ))}
@@ -740,7 +819,9 @@ function SegurancaTab({
           </div>
         ) : setup ? (
           <form className="grid gap-3" onSubmit={confirmEnable}>
-            <p className="text-sm text-[color:var(--muted)]">{t("account.two_factor_manual_key")}</p>
+            <p className="text-sm text-[color:var(--muted)]">
+              {t("account.two_factor_manual_key")}
+            </p>
             <div className="flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-sm text-[color:var(--text)]">
                 {setup.secret}
@@ -754,7 +835,11 @@ function SegurancaTab({
                 <Copy className="h-4 w-4" />
               </button>
             </div>
-            {copied && <p className="text-xs text-[color:var(--accent)]">{t("account.two_factor_key_copied")}</p>}
+            {copied && (
+              <p className="text-xs text-[color:var(--accent)]">
+                {t("account.two_factor_key_copied")}
+              </p>
+            )}
             <label className="grid gap-1.5">
               <span className="text-xs font-medium text-[color:var(--muted)]">
                 {t("account.two_factor_confirm_label")}
@@ -769,11 +854,23 @@ function SegurancaTab({
               />
             </label>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Button type="button" variant="outline" onClick={() => setSetup(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSetup(null)}
+              >
                 {t("account.two_factor_cancel")}
               </Button>
-              <Button type="submit" variant="neon" disabled={tfaBusy || !enableCode.trim()}>
-                {tfaBusy ? <Spinner className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              <Button
+                type="submit"
+                variant="neon"
+                disabled={tfaBusy || !enableCode.trim()}
+              >
+                {tfaBusy ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
                 {t("account.two_factor_activate")}
               </Button>
             </div>
@@ -782,7 +879,9 @@ function SegurancaTab({
           <div className="skeleton h-20 w-full" />
         ) : disabling ? (
           <form className="grid gap-3" onSubmit={confirmDisable}>
-            <p className="text-sm text-[color:var(--muted)]">{t("account.two_factor_disable_instruction")}</p>
+            <p className="text-sm text-[color:var(--muted)]">
+              {t("account.two_factor_disable_instruction")}
+            </p>
             <Input
               autoFocus
               className="h-11 rounded-2xl px-4 tracking-widest"
@@ -791,7 +890,11 @@ function SegurancaTab({
               onChange={(e) => setDisableCode(e.target.value)}
             />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Button type="button" variant="outline" onClick={() => setDisabling(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDisabling(false)}
+              >
                 {t("account.two_factor_cancel")}
               </Button>
               <button
@@ -808,28 +911,49 @@ function SegurancaTab({
           <div className="flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--field)] p-4 min-[430px]:flex-row min-[430px]:items-center">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-[color:var(--text)]">
-                {tfaStatus?.enabled ? t("account.two_factor_enabled") : t("account.two_factor_disabled")}
+                {tfaStatus?.enabled
+                  ? t("account.two_factor_enabled")
+                  : t("account.two_factor_disabled")}
               </p>
               <p className="text-xs text-[color:var(--muted)]">
                 {tfaStatus?.enabled
-                  ? t("account.two_factor_description", { count: tfaStatus.recoveryCodesRemaining })
+                  ? t("account.two_factor_description", {
+                      count: tfaStatus.recoveryCodesRemaining,
+                    })
                   : t("account.two_factor_cta")}
               </p>
             </div>
             {tfaStatus?.enabled ? (
               <div className="flex shrink-0 flex-col gap-2">
-                <Button variant="outline" disabled={tfaBusy} onClick={regenerate}>
+                <Button
+                  variant="outline"
+                  disabled={tfaBusy}
+                  onClick={regenerate}
+                >
                   <KeyRound className="h-4 w-4" />
                   {t("account.two_factor_new_codes")}
                 </Button>
-                <Button variant="outline" disabled={tfaBusy} onClick={() => setDisabling(true)}>
+                <Button
+                  variant="outline"
+                  disabled={tfaBusy}
+                  onClick={() => setDisabling(true)}
+                >
                   <ShieldOff className="h-4 w-4" />
                   {t("account.two_factor_disable")}
                 </Button>
               </div>
             ) : (
-              <Button className="w-full shrink-0 min-[430px]:w-auto" variant="neon" disabled={tfaBusy} onClick={beginSetup}>
-                {tfaBusy ? <Spinner className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+              <Button
+                className="w-full shrink-0 min-[430px]:w-auto"
+                variant="neon"
+                disabled={tfaBusy}
+                onClick={beginSetup}
+              >
+                {tfaBusy ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
                 {t("account.two_factor_enable")}
               </Button>
             )}
@@ -854,7 +978,9 @@ function SessoesTab() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api<{ sessions: SessionInfo[] }>("/api/account/sessions");
+      const data = await api<{ sessions: SessionInfo[] }>(
+        "/api/account/sessions",
+      );
       setSessions(data.sessions);
     } catch {
       setError(t("account.error_load_sessions"));
@@ -863,13 +989,17 @@ function SessoesTab() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   async function revoke(sid: string) {
     setRevoking(sid);
     setError("");
     try {
-      await api(`/api/account/sessions/${encodeURIComponent(sid)}`, { method: "DELETE" });
+      await api(`/api/account/sessions/${encodeURIComponent(sid)}`, {
+        method: "DELETE",
+      });
       setSessions((s) => s.filter((x) => x.sessionId !== sid));
     } catch {
       setError(t("account.error_revoke_session"));
@@ -903,7 +1033,11 @@ function SessoesTab() {
           {t("account.nav_sessions")}
         </h2>
         {others.length > 0 && !confirmingAll && (
-          <Button variant="outline" className="h-8 text-xs" onClick={() => setConfirmingAll(true)}>
+          <Button
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => setConfirmingAll(true)}
+          >
             <LogOut className="h-3.5 w-3.5" />
             {t("account.revoke_all_sessions")}
           </Button>
@@ -916,11 +1050,24 @@ function SessoesTab() {
             {t("account.revoke_all_confirm", { count: others.length })}
           </p>
           <div className="flex shrink-0 gap-2">
-            <Button variant="outline" className="h-8 text-xs" onClick={() => setConfirmingAll(false)}>
+            <Button
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => setConfirmingAll(false)}
+            >
               {t("account.two_factor_cancel")}
             </Button>
-            <Button variant="outline" className="h-8 text-xs" disabled={revokingAll} onClick={revokeAll}>
-              {revokingAll ? <Spinner className="h-3.5 w-3.5" /> : <LogOut className="h-3.5 w-3.5" />}
+            <Button
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={revokingAll}
+              onClick={revokeAll}
+            >
+              {revokingAll ? (
+                <Spinner className="h-3.5 w-3.5" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
               {t("account.revoke_all_confirm_btn")}
             </Button>
           </div>
@@ -935,7 +1082,9 @@ function SessoesTab() {
           <div className="skeleton h-16 w-full" />
         </div>
       ) : sessions.length === 0 ? (
-        <p className="text-sm text-[color:var(--muted)]">{t("account.no_sessions")}</p>
+        <p className="text-sm text-[color:var(--muted)]">
+          {t("account.no_sessions")}
+        </p>
       ) : (
         <div className="space-y-2">
           {sessions.map((s) => (
@@ -956,9 +1105,13 @@ function SessoesTab() {
                   )}
                 </div>
                 <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-                  {t("account.session_last_active", { time: timeAgo(s.lastSeenAt, t) })}
+                  {t("account.session_last_active", {
+                    time: timeAgo(s.lastSeenAt, t),
+                  })}
                   {" · "}
-                  {t("account.session_created", { time: timeAgo(s.createdAt, t) })}
+                  {t("account.session_created", {
+                    time: timeAgo(s.createdAt, t),
+                  })}
                 </p>
               </div>
               {!s.current && (
@@ -1029,7 +1182,9 @@ function PreferenciasTab({
                     : "border-gray-700 bg-gray-900",
                 )}
               />
-              {th === "white" ? t("account.theme_light") : t("account.theme_dark")}
+              {th === "white"
+                ? t("account.theme_light")
+                : t("account.theme_dark")}
             </button>
           ))}
         </div>
@@ -1160,8 +1315,12 @@ function ContaTab({
             value={newUsername}
             onChange={(e) => setNewUsername(e.target.value)}
           />
-          {usernameSuccess && <p className="text-xs text-green-400">{usernameSuccess}</p>}
-          {usernameError && <p className="text-xs text-red-300">{usernameError}</p>}
+          {usernameSuccess && (
+            <p className="text-xs text-green-400">{usernameSuccess}</p>
+          )}
+          {usernameError && (
+            <p className="text-xs text-red-300">{usernameError}</p>
+          )}
           <Button
             type="submit"
             variant="outline"
@@ -1189,7 +1348,9 @@ function ContaTab({
           <form onSubmit={deleteAccount} className="mt-4 grid gap-3">
             <label className="grid gap-1.5">
               <span className="text-xs text-[color:var(--muted)]">
-                {t("account.delete_confirm_label", { username: user?.username })}
+                {t("account.delete_confirm_label", {
+                  username: user?.username,
+                })}
               </span>
               <Input
                 className="h-10 rounded-xl border-red-600/30 px-3"
@@ -1198,13 +1359,19 @@ function ContaTab({
                 onChange={(e) => setConfirmInput(e.target.value)}
               />
             </label>
-            {deleteError && <p className="text-xs text-red-300">{deleteError}</p>}
+            {deleteError && (
+              <p className="text-xs text-red-300">{deleteError}</p>
+            )}
             <button
               type="submit"
               disabled={deleting || confirmInput !== user?.username}
               className="flex h-10 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {deleting ? <Spinner className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+              {deleting ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
               {t("account.delete_confirm_btn")}
             </button>
           </form>

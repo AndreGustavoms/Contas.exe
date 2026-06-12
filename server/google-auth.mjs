@@ -22,7 +22,9 @@ function allowedDomains() {
 }
 
 export function googleAuthConfigured() {
-  return Boolean(env("GOOGLE_AUTH_CLIENT_ID") && env("GOOGLE_AUTH_CLIENT_SECRET"));
+  return Boolean(
+    env("GOOGLE_AUTH_CLIENT_ID") && env("GOOGLE_AUTH_CLIENT_SECRET"),
+  );
 }
 
 function createOAuthClient(redirectUri) {
