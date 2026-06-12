@@ -743,6 +743,33 @@ export function AccountVault({
     );
   }, [accounts, platformFilter, query, roleFilter, statusFilter]);
 
+  // Renderização incremental: com centenas de contas, montar a lista inteira
+  // de uma vez trava a primeira pintura. Renderiza em blocos de 80 e expande
+  // quando o sentinela se aproxima da viewport (margem de 400px = sem "pulo"
+  // visível ao rolar). Mudança de filtro/busca reseta o corte.
+  const LIST_CHUNK = 80;
+  const [visibleCount, setVisibleCount] = useState(LIST_CHUNK);
+  const listSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setVisibleCount(LIST_CHUNK);
+  }, [accounts, platformFilter, query, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    const sentinel = listSentinelRef.current;
+    if (!sentinel || visibleCount >= filteredAccounts.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((count) => count + LIST_CHUNK);
+        }
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, filteredAccounts.length]);
+
   const activeCount = accounts.filter(
     (account) => account.status === "active",
   ).length;
@@ -1323,7 +1350,7 @@ export function AccountVault({
             <div className="border-t border-[color:var(--border)]">
               {filteredAccounts.length ? (
                 <div className="vault-list">
-                  {filteredAccounts.map((account, index) => (
+                  {filteredAccounts.slice(0, visibleCount).map((account, index) => (
                     <AccountRow
                       key={account.id}
                       account={account}
@@ -1335,6 +1362,9 @@ export function AccountVault({
                       onSelect={() => selectAccount(account)}
                     />
                   ))}
+                  {visibleCount < filteredAccounts.length ? (
+                    <div ref={listSentinelRef} aria-hidden className="h-10" />
+                  ) : null}
                 </div>
               ) : (
                 <div className="vault-empty">
