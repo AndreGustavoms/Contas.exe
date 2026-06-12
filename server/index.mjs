@@ -1837,13 +1837,28 @@ async function handleApi(request, response, url, user, session) {
 
   // ----- Audit trail (admin only) -----
   // The recent security-relevant events (who did what, when). No secrets.
+  // Query params: limit (<=500), offset, action, username, from, to, q.
   if (url.pathname === "/api/audit" && request.method === "GET") {
     if (user.role !== "admin") {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
-    const events = await listEvents(storageDir, { limit: 200 });
-    sendJson(response, 200, { events });
+    const qp = url.searchParams;
+    const limit = Math.min(
+      Math.max(Number(qp.get("limit")) || 50, 1),
+      500,
+    );
+    const offset = Math.max(Number(qp.get("offset")) || 0, 0);
+    const { events, total } = await listEvents(storageDir, {
+      limit,
+      offset,
+      action: qp.get("action") || undefined,
+      username: qp.get("username") || undefined,
+      from: qp.get("from") || undefined,
+      to: qp.get("to") || undefined,
+      q: qp.get("q") || undefined,
+    });
+    sendJson(response, 200, { events, total, limit, offset });
     return;
   }
 

@@ -1,6 +1,9 @@
 import { type FormEvent, useEffect, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
+  FileDown,
   LogOut,
   Monitor,
   ScrollText,
@@ -71,7 +74,13 @@ const AUDIT_ACTION_I18N_KEYS: Record<string, string> = {
   "2fa_disabled": "team.audit_2fa_disabled",
   "2fa_reset_by_admin": "team.audit_2fa_reset",
   recovery_codes_regenerated: "team.audit_recovery_codes_regenerated",
+  account_created: "team.audit_account_created",
+  rate_limited: "team.audit_rate_limited",
+  password_reset_requested: "team.audit_password_reset_requested",
+  password_reset_completed: "team.audit_password_reset_completed",
 };
+
+const AUDIT_PAGE_SIZE = 25;
 
 type UsersDialogProps = {
   // The current admin's username, so we can prevent self-deletion in the UI.
@@ -180,6 +189,12 @@ export function UsersDialog({
 
   const [sessions, setSessions] = useState<ManagedSession[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditAction, setAuditAction] = useState("");
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -211,10 +226,27 @@ export function UsersDialog({
     }
   }
 
-  async function loadEvents() {
+  // Monta a query string dos filtros atuais. `limit`/`offset` variam entre a
+  // listagem paginada e o export (que puxa até 500 de uma vez).
+  function auditParams(limit: number, offset: number) {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    if (auditAction) params.set("action", auditAction);
+    if (auditQuery.trim()) params.set("q", auditQuery.trim());
+    if (auditFrom) params.set("from", auditFrom);
+    if (auditTo) params.set("to", auditTo);
+    return params;
+  }
+
+  async function loadEvents(page = auditPage) {
     try {
-      const data = await requestJson<{ events: AuditEvent[] }>(API_AUDIT);
+      const params = auditParams(AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE);
+      const data = await requestJson<{ events: AuditEvent[]; total: number }>(
+        `${API_AUDIT}?${params.toString()}`,
+      );
       setEvents(data.events);
+      setAuditTotal(data.total);
     } catch {
       // Non-fatal: the activity panel just stays empty.
     }
@@ -223,10 +255,49 @@ export function UsersDialog({
   useEffect(() => {
     void loadUsers();
     void loadSessions();
-    void loadEvents();
     // Loaders are stable enough for a one-shot mount load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Recarrega a auditoria quando filtros ou página mudam. A busca textual é
+  // debounced (300ms) para não disparar uma request por tecla.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void loadEvents(auditPage);
+    }, 300);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auditPage, auditAction, auditQuery, auditFrom, auditTo]);
+
+  // Exporta os eventos do filtro atual como CSV (separador ; — Excel pt-BR).
+  async function exportAudit() {
+    try {
+      const params = auditParams(500, 0);
+      const data = await requestJson<{ events: AuditEvent[] }>(
+        `${API_AUDIT}?${params.toString()}`,
+      );
+      const escape = (v: string) => `"${v.replaceAll('"', '""')}"`;
+      const lines = [
+        ["timestamp", "usuario", "acao", "alvo"].join(";"),
+        ...data.events.map((e) =>
+          [e.ts, e.username ?? "", e.action, e.target ?? ""]
+            .map((v) => escape(String(v)))
+            .join(";"),
+        ),
+      ].join("\r\n");
+      const blob = new Blob([`﻿${lines}`], {
+        type: "text/csv;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `contas-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(t("team.error_audit_export"));
+    }
+  }
 
   async function endSession(session: ManagedSession) {
     setError("");
@@ -619,17 +690,81 @@ export function UsersDialog({
         </div>
 
         {/* Activity log: recent security-relevant events (who did what, when).
-            Contains no secrets — just actions, targets and timestamps. */}
+            Contains no secrets — just actions, targets and timestamps.
+            Filters + pagination are server-side; export takes the current filter. */}
         <div className="mt-6">
-          <div className="mb-2 flex items-center gap-2.5">
-            <ScrollText className="h-4 w-4 text-[color:var(--accent)]" />
-            <h3 className="text-sm font-semibold text-[color:var(--text)]">
-              Registro de atividade
-            </h3>
+          <div className="mb-2 flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <ScrollText className="h-4 w-4 text-[color:var(--accent)]" />
+              <h3 className="text-sm font-semibold text-[color:var(--text)]">
+                {t("team.audit_title")}
+              </h3>
+            </div>
+            <button
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
+              type="button"
+              onClick={exportAudit}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {t("team.audit_export")}
+            </button>
           </div>
+
+          {/* Filtros */}
+          <div className="mb-2 grid gap-2 md:grid-cols-2">
+            <Input
+              className="h-9 rounded-xl px-3 text-xs"
+              placeholder={t("team.audit_filter_search")}
+              value={auditQuery}
+              onChange={(e) => {
+                setAuditQuery(e.target.value);
+                setAuditPage(0);
+              }}
+            />
+            <select
+              className="h-9 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3 text-xs text-[color:var(--text)]"
+              value={auditAction}
+              onChange={(e) => {
+                setAuditAction(e.target.value);
+                setAuditPage(0);
+              }}
+            >
+              <option value="">{t("team.audit_filter_all_actions")}</option>
+              {Object.entries(AUDIT_ACTION_I18N_KEYS).map(([code, key]) => (
+                <option key={code} value={code}>
+                  {t(key, { defaultValue: code })}
+                </option>
+              ))}
+            </select>
+            <label className="flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+              {t("team.audit_filter_from")}
+              <Input
+                type="date"
+                className="h-9 flex-1 rounded-xl px-3 text-xs"
+                value={auditFrom}
+                onChange={(e) => {
+                  setAuditFrom(e.target.value);
+                  setAuditPage(0);
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+              {t("team.audit_filter_to")}
+              <Input
+                type="date"
+                className="h-9 flex-1 rounded-xl px-3 text-xs"
+                value={auditTo}
+                onChange={(e) => {
+                  setAuditTo(e.target.value);
+                  setAuditPage(0);
+                }}
+              />
+            </label>
+          </div>
+
           {events.length === 0 ? (
             <p className="rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3.5 py-3 text-xs text-[color:var(--muted)]">
-              Nenhuma atividade registrada.
+              {t("team.no_audit")}
             </p>
           ) : (
             <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-2">
@@ -654,12 +789,42 @@ export function UsersDialog({
                     ) : null}
                   </div>
                   <time className="shrink-0 text-[11px] text-[color:var(--muted)]">
-                    {new Date(event.ts).toLocaleString("pt-BR")}
+                    {new Date(event.ts).toLocaleString()}
                   </time>
                 </li>
               ))}
             </ul>
           )}
+
+          {/* Paginação */}
+          {auditTotal > AUDIT_PAGE_SIZE ? (
+            <div className="mt-2 flex items-center justify-between text-xs text-[color:var(--muted)]">
+              <button
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition enabled:hover:bg-[color:var(--field-hover)] enabled:hover:text-[color:var(--text)] disabled:opacity-40"
+                type="button"
+                disabled={auditPage === 0}
+                onClick={() => setAuditPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                {t("team.audit_prev")}
+              </button>
+              <span>
+                {t("team.audit_page_of", {
+                  page: auditPage + 1,
+                  pages: Math.max(1, Math.ceil(auditTotal / AUDIT_PAGE_SIZE)),
+                })}
+              </span>
+              <button
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium transition enabled:hover:bg-[color:var(--field-hover)] enabled:hover:text-[color:var(--text)] disabled:opacity-40"
+                type="button"
+                disabled={(auditPage + 1) * AUDIT_PAGE_SIZE >= auditTotal}
+                onClick={() => setAuditPage((p) => p + 1)}
+              >
+                {t("team.audit_next")}
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

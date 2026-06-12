@@ -86,8 +86,54 @@ export function logEvent(storageDir, { userId, username, action, target, ip }) {
   });
 }
 
-// Returns the most recent events (newest first) for the admin panel, capped.
-export async function listEvents(storageDir, { limit = 200 } = {}) {
+// Returns events (newest first) for the admin panel, with optional filters and
+// pagination. `total` reflects the filtered count so the UI can paginate.
+//   - action:   exact match on the action code (e.g. "login_fail")
+//   - username: case-insensitive substring on the username
+//   - from/to:  ISO date bounds (inclusive) on the event timestamp
+//   - q:        case-insensitive substring on username, action or target
+export async function listEvents(
+  storageDir,
+  { limit = 50, offset = 0, action, username, from, to, q } = {},
+) {
   const events = await readEventsFile(storageDir);
-  return events.slice(-limit).reverse();
+  let filtered = events;
+
+  if (action) {
+    filtered = filtered.filter((e) => e.action === action);
+  }
+  if (username) {
+    const needle = username.toLowerCase();
+    filtered = filtered.filter((e) =>
+      (e.username ?? "").toLowerCase().includes(needle),
+    );
+  }
+  if (from) {
+    const fromTs = new Date(from).getTime();
+    if (Number.isFinite(fromTs)) {
+      filtered = filtered.filter((e) => new Date(e.ts).getTime() >= fromTs);
+    }
+  }
+  if (to) {
+    // "to" é uma data de calendário: inclui o dia inteiro (até 23:59:59.999).
+    const toTs = new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1;
+    if (Number.isFinite(toTs)) {
+      filtered = filtered.filter((e) => new Date(e.ts).getTime() <= toTs);
+    }
+  }
+  if (q) {
+    const needle = q.toLowerCase();
+    filtered = filtered.filter(
+      (e) =>
+        (e.username ?? "").toLowerCase().includes(needle) ||
+        (e.action ?? "").toLowerCase().includes(needle) ||
+        (e.target ?? "").toLowerCase().includes(needle),
+    );
+  }
+
+  const newestFirst = filtered.slice().reverse();
+  return {
+    events: newestFirst.slice(offset, offset + limit),
+    total: newestFirst.length,
+  };
 }
