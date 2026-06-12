@@ -107,12 +107,13 @@ async function saveChannel(channel) {
 
 // Step 1: URL the user visits to grant access. access_type=offline + prompt
 // =consent ensures we receive a refresh_token (needed for unattended uploads).
-export function buildAuthUrl() {
+export function buildAuthUrl(state) {
   const client = createOAuthClient();
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: SCOPES,
+    ...(state ? { state } : {}),
   });
 }
 

@@ -287,6 +287,27 @@ function githubRedirectUri(request) {
   );
 }
 
+const YOUTUBE_OAUTH_STATE_COOKIE = "contas_youtube_oauth_state";
+
+function youtubeOAuthStateCookie(value, maxAge) {
+  const flags = [
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/api/youtube/callback",
+    `Max-Age=${maxAge}`,
+  ];
+  if (cookieSecure) flags.splice(1, 0, "Secure");
+  return `${YOUTUBE_OAUTH_STATE_COOKIE}=${encodeURIComponent(value)}; ${flags.join("; ")}`;
+}
+
+function setYoutubeOAuthStateCookie(response, state) {
+  appendSetCookie(response, youtubeOAuthStateCookie(state, 10 * 60));
+}
+
+function clearYoutubeOAuthStateCookie(response) {
+  appendSetCookie(response, youtubeOAuthStateCookie("", 0));
+}
+
 function redirect(response, location) {
   response.writeHead(302, { Location: location });
   response.end();
@@ -1143,6 +1164,11 @@ async function handleApi(request, response, url, user, session) {
   // Rate-limited (same window as login) to prevent account-spam and brute-force
   // enumeration of existing usernames/emails via repeated register attempts.
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
+    if (process.env.CONTAS_FLOW_REGISTRATIONS_OPEN === "false") {
+      await drainBody(request);
+      sendJson(response, 403, { error: "registrations_closed" });
+      return;
+    }
     pruneLoginAttempts();
     const ip = clientIp(request);
     if (loginRateLimited(ip)) {
@@ -1205,6 +1231,13 @@ async function handleApi(request, response, url, user, session) {
 
   // Consume a reset token and set a new password.
   if (url.pathname === "/api/auth/reset-password" && request.method === "POST") {
+    pruneLoginAttempts();
+    const ip = clientIp(request);
+    if (loginRateLimited(ip)) {
+      await drainBody(request);
+      sendJson(response, 429, { error: "too_many_attempts" });
+      return;
+    }
     const body = await readBody(request);
     const token = asString(body.token).trim();
     const password = asString(body.password);
@@ -1315,6 +1348,10 @@ async function handleApi(request, response, url, user, session) {
   if (url.pathname === "/api/account/profile" && request.method === "PUT") {
     const body = await readBody(request);
     const fullName = asString(body.fullName).trim() || null;
+    if (fullName && fullName.length > 120) {
+      badRequest(response, "fullname_too_long");
+      return;
+    }
     await setFullName(storageDir, user.id, fullName);
     sendJson(response, 200, { ok: true, fullName });
     return;
@@ -1749,11 +1786,15 @@ async function handleApi(request, response, url, user, session) {
   // ----- YouTube (OAuth + upload) -----
 
   // Begin OAuth: redirect the browser to Google's consent screen.
+  // Generates a CSRF state cookie (same pattern as Google/GitHub OAuth).
   if (url.pathname === "/api/youtube/connect" && request.method === "GET") {
+    const state = randomBytes(32).toString("base64url");
+    setYoutubeOAuthStateCookie(response, state);
     try {
-      response.writeHead(302, { Location: buildAuthUrl() });
+      response.writeHead(302, { Location: buildAuthUrl(state) });
       response.end();
     } catch (error) {
+      clearYoutubeOAuthStateCookie(response);
       sendJson(response, 500, {
         error: "youtube_config",
         message: error instanceof Error ? error.message : "unknown",
@@ -1762,21 +1803,34 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // OAuth callback: exchange code, save the channel, bounce back to the app.
+  // OAuth callback: validates CSRF state, exchanges code, saves the channel.
   if (url.pathname === "/api/youtube/callback" && request.method === "GET") {
-    const code = url.searchParams.get("code");
+    const expectedState = parseCookies(request)[YOUTUBE_OAUTH_STATE_COOKIE];
+    const actualState = url.searchParams.get("state");
+    clearYoutubeOAuthStateCookie(response);
 
+    if (url.searchParams.get("error")) {
+      redirect(response, "/?youtube=error");
+      return;
+    }
+
+    if (!stateMatches(actualState, expectedState)) {
+      redirect(response, "/?youtube=error");
+      return;
+    }
+
+    const code = url.searchParams.get("code");
     if (!code) {
-      sendJson(response, 400, { error: "missing_code" });
+      redirect(response, "/?youtube=error");
       return;
     }
 
     try {
       const channel = await handleOAuthCallback(code);
-      response.writeHead(302, {
-        Location: `/?youtube=connected&channel=${encodeURIComponent(channel?.title ?? "")}`,
-      });
-      response.end();
+      redirect(
+        response,
+        `/?youtube=connected&channel=${encodeURIComponent(channel?.title ?? "")}`,
+      );
     } catch (error) {
       sendJson(response, 500, {
         error: "youtube_oauth",
