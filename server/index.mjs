@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -70,6 +70,7 @@ const storageDir =
 const dbFile = process.env.CONTAS_FLOW_DB ?? join(storageDir, "groups.json");
 const legacyDbFile =
   process.env.CONTAS_FLOW_LEGACY_DB ?? join(storageDir, "accounts.json");
+const vaultsDir = join(storageDir, "vaults");
 const port = Number(process.env.PORT ?? 8787);
 // Bind to 0.0.0.0 in hosted environments (Railway, etc.); stay on loopback
 // locally unless HOST is set explicitly.
@@ -399,15 +400,9 @@ function normalizeGroup(input = {}) {
   return {
     id: asString(input.id) || randomUUID(),
     name: asString(input.name).trim() || "Grupo",
-    // Owner of the group. May be "" on legacy data; backfillOwners() assigns
-    // those to the bootstrap admin at startup.
     ownerId: asString(input.ownerId),
     accounts,
   };
-}
-
-function emptyDb() {
-  return { groups: [] };
 }
 
 // Strips the password out of an account before sending it to the browser. The
@@ -447,44 +442,6 @@ function transformDbSecrets(db, transform) {
   return db;
 }
 
-// Reads the database, decrypting sensitive fields so the rest of the server works
-// with plaintext in memory. On first run, migrates a legacy accounts.json array
-// into a single "Vitissouls" group so existing accounts are preserved.
-//
-// IMPORTANT: only a *missing* file (ENOENT) triggers the migrate-and-write path.
-// Any other failure — corrupt JSON, or (critically) a decrypt error because
-// CONTAS_FLOW_ENC_KEY was changed/lost — must NOT fall through to writing an
-// empty store, which would silently destroy the real data. We rethrow instead so
-// the operator notices and can fix the key/file before anything is overwritten.
-async function readDb() {
-  await ensureStorage();
-
-  let raw;
-  try {
-    raw = await readFile(dbFile, "utf8");
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      // No groups file yet: migrate the legacy accounts.json (or start empty).
-      const migrated = await migrateLegacy();
-      await writeDb(migrated);
-      return migrated;
-    }
-    throw error; // permission error, etc. — don't clobber the file
-  }
-
-  // The file exists: a parse/decrypt failure here means corruption or a wrong
-  // encryption key. Surface it loudly; never overwrite the existing data.
-  try {
-    return transformDbSecrets(normalizeDb(JSON.parse(raw)), decryptField);
-  } catch (error) {
-    throw new Error(
-      `Falha ao ler ${dbFile}: dados ilegiveis (JSON corrompido ou ` +
-        `CONTAS_FLOW_ENC_KEY incorreta/ausente). O arquivo NAO foi alterado. ` +
-        `Causa: ${error instanceof Error ? error.message : "desconhecida"}`,
-    );
-  }
-}
-
 // The active group is now per-user client state (each browser remembers its own
 // selection), so the server only stores the groups themselves.
 function normalizeDb(parsed) {
@@ -495,58 +452,116 @@ function normalizeDb(parsed) {
   return { groups };
 }
 
-async function migrateLegacy() {
+// On first boot after introducing per-user vaults: if no vault files exist yet
+// but the old groups.json does, distribute its groups into individual vault files
+// keyed by ownerId. Ownerless groups fall to adminId. Safe to call on every
+// startup — it's a no-op once any vault file exists.
+async function migrateGroupsToVaults(adminId) {
+  await ensureVaultsDir();
+  let existingFiles;
   try {
-    const raw = await readFile(legacyDbFile, "utf8");
-    const parsed = JSON.parse(raw);
-    const accounts = Array.isArray(parsed) ? parsed : [];
-
-    // Owner is backfilled to the admin at startup (backfillOwners).
-    const group = normalizeGroup({ name: DEFAULT_GROUP_NAME, accounts });
-    return { groups: [group] };
+    existingFiles = await readdir(vaultsDir);
   } catch {
-    return emptyDb();
+    existingFiles = [];
+  }
+  if (existingFiles.some((f) => f.endsWith(".json"))) return; // already migrated
+
+  // Try to read the old single-file store.
+  let raw;
+  try {
+    raw = await readFile(dbFile, "utf8");
+  } catch {
+    return; // no legacy data — fresh install, nothing to migrate
+  }
+  let oldDb;
+  try {
+    oldDb = transformDbSecrets(normalizeDb(JSON.parse(raw)), decryptField);
+  } catch {
+    return; // corrupt file — skip rather than destroy anything
+  }
+
+  const byOwner = new Map();
+  for (const group of oldDb.groups) {
+    const uid = group.ownerId || adminId;
+    if (!uid) continue;
+    if (!byOwner.has(uid)) byOwner.set(uid, []);
+    byOwner.get(uid).push({ ...group, ownerId: uid });
+  }
+  for (const [uid, groups] of byOwner) {
+    await writeVault(uid, { groups });
   }
 }
 
-// Assigns any ownerless group (legacy data, or migrated accounts.json) to the
-// given admin id, so pre-multiuser data stays visible to the admin. Writes only
-// when something changed. Safe to call on every startup.
-async function backfillOwners(adminId) {
-  if (!adminId) return;
-  const db = await readDb();
-  let changed = false;
-  for (const group of db.groups) {
-    if (!group.ownerId) {
-      group.ownerId = adminId;
-      changed = true;
-    }
-  }
-  if (changed) await writeDb(db);
-}
-
-// Re-homes every group owned by `fromUserId` to `toUserId`. Called when a user is
-// deleted so their groups don't become orphaned (a dangling ownerId would hide
-// them from all members, leaving them reachable only via the admin bypass and
-// never reassignable). Writes only when something changed.
+// Moves every group in `fromUserId`'s vault into `toUserId`'s vault. Called
+// when a user is deleted so their groups don't become invisible/orphaned.
 async function reassignGroups(fromUserId, toUserId) {
-  const db = await readDb();
-  let changed = false;
-  for (const group of db.groups) {
-    if (group.ownerId === fromUserId) {
-      group.ownerId = toUserId;
-      changed = true;
-    }
+  const fromDb = await readVault(fromUserId);
+  if (fromDb.groups.length === 0) return;
+  const toDb = await readVault(toUserId);
+  for (const group of fromDb.groups) {
+    toDb.groups.push({ ...group, ownerId: toUserId });
   }
-  if (changed) await writeDb(db);
+  await writeVault(toUserId, toDb);
+  await writeVault(fromUserId, { groups: [] });
 }
 
-async function writeDb(db) {
-  await ensureStorage();
-  // Encrypt sensitive fields on a deep copy so the in-memory db (used by the
-  // calling handler) keeps its plaintext values.
+// ---- Per-user vault storage ----
+// Each user's credentials live in vaults/{userId}.json, fully isolated from
+// other users at the filesystem level. Admins can still read all vaults for
+// backup and cross-vault group operations.
+
+async function ensureVaultsDir() {
+  await mkdir(vaultsDir, { recursive: true });
+}
+
+// Sanitizes a user ID to a safe filename segment. User IDs are UUIDs from our
+// own crypto.randomUUID() but we scrub anything unexpected to prevent path traversal.
+function vaultPath(userId) {
+  const safe = String(userId).replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safe) throw new Error("invalid_user_id");
+  return join(vaultsDir, `${safe}.json`);
+}
+
+async function readVault(userId) {
+  await ensureVaultsDir();
+  let raw;
+  try {
+    raw = await readFile(vaultPath(userId), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return { groups: [] };
+    throw error;
+  }
+  try {
+    return transformDbSecrets(normalizeDb(JSON.parse(raw)), decryptField);
+  } catch (error) {
+    throw new Error(
+      `Falha ao ler cofre de ${userId}: dados ilegiveis (JSON corrompido ou ` +
+        `CONTAS_FLOW_ENC_KEY incorreta/ausente). O arquivo NAO foi alterado. ` +
+        `Causa: ${error instanceof Error ? error.message : "desconhecida"}`,
+    );
+  }
+}
+
+async function writeVault(userId, db) {
+  await ensureVaultsDir();
   const encrypted = transformDbSecrets(structuredClone(db), encryptField);
-  await writeFile(dbFile, `${JSON.stringify(encrypted, null, 2)}\n`, "utf8");
+  await writeFile(
+    vaultPath(userId),
+    `${JSON.stringify(encrypted, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+// Returns array of { userId, db } for every user that has a vault file.
+async function readAllVaults() {
+  await ensureVaultsDir();
+  const users = await listUsers(storageDir);
+  const result = [];
+  for (const u of users) {
+    const db = await readVault(u.id);
+    result.push({ userId: u.id, db });
+  }
+  return result;
 }
 
 function groupSummary(group) {
@@ -556,15 +571,6 @@ function groupSummary(group) {
     ownerId: group.ownerId,
     count: group.accounts.length,
   };
-}
-
-// Ownership: admins see and manage every group; members only their own.
-function canSeeGroup(user, group) {
-  return user.role === "admin" || group.ownerId === user.id;
-}
-
-function visibleGroups(user, groups) {
-  return groups.filter((group) => canSeeGroup(user, group));
 }
 
 // Max accepted request body. Account records are tiny; 1 MB is generous and
@@ -1260,12 +1266,13 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     if (!requireRecentReauth(session, response)) return;
-    const db = await readDb();
+    const allVaults = await readAllVaults();
+    const allGroups = allVaults.flatMap(({ db }) => db.groups);
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
       users: await listUsers(storageDir), // id, username, role, createdAt (no hash)
-      groups: db.groups,
+      groups: allGroups,
     };
     void logEvent(storageDir, {
       userId: user.id,
@@ -1563,74 +1570,96 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // ----- Groups -----
-  // Every group route below is ownership-scoped: a member only ever sees or
-  // touches groups they own; an admin sees all. A group the caller can't see is
-  // reported as 404 (not 403) so its existence isn't revealed.
+  // Every group route is vault-scoped: each user's groups live in their own
+  // vaults/{userId}.json. Members touch only their vault; admins can access any
+  // group across all vaults. A group the caller can't reach is reported as 404
+  // (not 403) to avoid leaking whether a group exists.
+
+  // Resolves the vault and group entry for a given group ID, enforcing access.
+  // Members only look in their own vault; admins scan all vaults.
+  // Returns { db, index, vaultUserId } or writes 404 and returns null.
+  async function resolveGroupEntry(rawGroupId) {
+    const groupId = decodeURIComponent(rawGroupId);
+    if (user.role !== "admin") {
+      const db = await readVault(user.id);
+      const index = db.groups.findIndex((g) => g.id === groupId);
+      if (index === -1) { notFound(response); return null; }
+      return { db, index, vaultUserId: user.id };
+    }
+    // Admin: find the group across all vaults
+    const allVaults = await readAllVaults();
+    for (const { userId, db } of allVaults) {
+      const index = db.groups.findIndex((g) => g.id === groupId);
+      if (index !== -1) return { db, index, vaultUserId: userId };
+    }
+    notFound(response);
+    return null;
+  }
+
   if (url.pathname === "/api/groups" && request.method === "GET") {
-    const db = await readDb();
-    sendJson(response, 200, {
-      groups: visibleGroups(user, db.groups).map(groupSummary),
-    });
+    let groups;
+    if (user.role === "admin") {
+      const allVaults = await readAllVaults();
+      groups = allVaults.flatMap(({ db }) => db.groups);
+    } else {
+      const db = await readVault(user.id);
+      groups = db.groups;
+    }
+    sendJson(response, 200, { groups: groups.map(groupSummary) });
     return;
   }
 
   if (url.pathname === "/api/groups" && request.method === "POST") {
     const body = await readBody(request);
-    const db = await readDb();
+    const db = await readVault(user.id);
     const group = normalizeGroup({
       name: asString(body.name).trim() || "Novo grupo",
-      // New groups belong to their creator. (Admins create their own groups too;
-      // they can still see everyone's.)
       ownerId: user.id,
       accounts: Array.isArray(body.accounts) ? body.accounts : [],
     });
-
     db.groups.push(group);
-    await writeDb(db);
+    await writeVault(user.id, db);
     sendJson(response, 201, groupSummary(group));
     return;
   }
 
   const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)$/);
   if (groupMatch) {
-    const db = await readDb();
-    const id = decodeURIComponent(groupMatch[1]);
-    const index = db.groups.findIndex((group) => group.id === id);
-
-    if (index === -1 || !canSeeGroup(user, db.groups[index])) {
-      notFound(response);
-      return;
-    }
+    const entry = await resolveGroupEntry(groupMatch[1]);
+    if (!entry) return;
+    const { db, index, vaultUserId } = entry;
 
     if (request.method === "PUT") {
       const body = await readBody(request);
       const name = asString(body.name).trim();
-
-      if (!name) {
-        badRequest(response, "name_required");
-        return;
-      }
-
+      if (!name) { badRequest(response, "name_required"); return; }
       db.groups[index] = { ...db.groups[index], name };
-      await writeDb(db);
+      await writeVault(vaultUserId, db);
       sendJson(response, 200, groupSummary(db.groups[index]));
       return;
     }
 
     if (request.method === "DELETE") {
       if (!requireRecentReauth(session, response)) return;
+      const deletedId = db.groups[index].id;
       db.groups.splice(index, 1);
-      await writeDb(db);
+      await writeVault(vaultUserId, db);
       void logEvent(storageDir, {
         userId: user.id,
         username: user.username,
         action: "group_deleted",
-        target: `group:${id}`,
+        target: `group:${deletedId}`,
         ip: clientIp(request),
       });
-      sendJson(response, 200, {
-        groups: visibleGroups(user, db.groups).map(groupSummary),
-      });
+      // Return the caller's visible groups after the deletion.
+      let groups;
+      if (user.role === "admin") {
+        const allVaults = await readAllVaults();
+        groups = allVaults.flatMap(({ db: v }) => v.groups);
+      } else {
+        groups = db.groups; // same vault, already spliced in memory
+      }
+      sendJson(response, 200, { groups: groups.map(groupSummary) });
       return;
     }
 
@@ -1639,25 +1668,15 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // ----- Accounts within a group -----
-  // Resolves a group the caller is allowed to touch, or writes 404 and returns
-  // null. Centralizes the ownership check for all account routes.
-  async function resolveOwnedGroup(db, rawId) {
-    const groupId = decodeURIComponent(rawId);
-    const group = db.groups.find((item) => item.id === groupId);
-    if (!group || !canSeeGroup(user, group)) {
-      notFound(response);
-      return null;
-    }
-    return group;
-  }
 
   const accountsMatch = url.pathname.match(
     /^\/api\/groups\/([^/]+)\/accounts$/,
   );
   if (accountsMatch) {
-    const db = await readDb();
-    const group = await resolveOwnedGroup(db, accountsMatch[1]);
-    if (!group) return;
+    const entry = await resolveGroupEntry(accountsMatch[1]);
+    if (!entry) return;
+    const { db, index, vaultUserId } = entry;
+    const group = db.groups[index];
 
     if (request.method === "GET") {
       sendJson(response, 200, group.accounts.map(maskAccount));
@@ -1667,9 +1686,8 @@ async function handleApi(request, response, url, user, session) {
     if (request.method === "POST") {
       const body = await readBody(request);
       const account = normalizeRecord(body);
-
       group.accounts.unshift(account);
-      await writeDb(db);
+      await writeVault(vaultUserId, db);
       sendJson(response, 201, maskAccount(account));
       return;
     }
@@ -1683,37 +1701,36 @@ async function handleApi(request, response, url, user, session) {
   );
   if (importMatch && request.method === "POST") {
     const body = await readBody(request);
-    const db = await readDb();
-    const group = await resolveOwnedGroup(db, importMatch[1]);
-    if (!group) return;
+    const entry = await resolveGroupEntry(importMatch[1]);
+    if (!entry) return;
+    const { db, index, vaultUserId } = entry;
+    const group = db.groups[index];
 
     const imported = Array.isArray(body) ? body : body.accounts;
     group.accounts = Array.isArray(imported)
       ? imported.map((record) => normalizeRecord(record))
       : [];
 
-    await writeDb(db);
+    await writeVault(vaultUserId, db);
     sendJson(response, 200, group.accounts.map(maskAccount));
     return;
   }
 
-  // Fetch ONE account's password in clear text, on demand. Ownership-scoped and
+  // Fetch ONE account's password in clear text, on demand. Vault-scoped and
   // gated by a recent re-auth; the reveal/copy is recorded in the audit trail.
   const secretMatch = url.pathname.match(
     /^\/api\/groups\/([^/]+)\/accounts\/([^/]+)\/secret$/,
   );
   if (secretMatch && request.method === "GET") {
-    const db = await readDb();
-    const group = await resolveOwnedGroup(db, secretMatch[1]);
-    if (!group) return;
+    const entry = await resolveGroupEntry(secretMatch[1]);
+    if (!entry) return;
     if (!requireRecentReauth(session, response)) return;
+    const { db, index } = entry;
+    const group = db.groups[index];
 
     const accountId = decodeURIComponent(secretMatch[2]);
     const account = group.accounts.find((item) => item.id === accountId);
-    if (!account) {
-      notFound(response);
-      return;
-    }
+    if (!account) { notFound(response); return; }
     void logEvent(storageDir, {
       userId: user.id,
       username: user.username,
@@ -1729,43 +1746,39 @@ async function handleApi(request, response, url, user, session) {
     /^\/api\/groups\/([^/]+)\/accounts\/([^/]+)$/,
   );
   if (accountMatch) {
-    const db = await readDb();
-    const group = await resolveOwnedGroup(db, accountMatch[1]);
-    if (!group) return;
+    const entry = await resolveGroupEntry(accountMatch[1]);
+    if (!entry) return;
+    const { db, index, vaultUserId } = entry;
+    const group = db.groups[index];
 
     const accountId = decodeURIComponent(accountMatch[2]);
-    const index = group.accounts.findIndex(
+    const accountIndex = group.accounts.findIndex(
       (account) => account.id === accountId,
     );
 
-    if (index === -1) {
-      notFound(response);
-      return;
-    }
+    if (accountIndex === -1) { notFound(response); return; }
 
     if (request.method === "PUT") {
       const body = await readBody(request);
-      const existing = group.accounts[index];
+      const existing = group.accounts[accountIndex];
       // The listing sends the password masked (""), so an edit that didn't touch
       // it would otherwise wipe the stored password. Treat an empty incoming
-      // password as "unchanged" and keep the existing one. (Clearing a password
-      // isn't a flow the UI offers; deleting the account is.)
+      // password as "unchanged" and keep the existing one.
       const incomingPassword = asString(body.password);
       const merged =
         incomingPassword === ""
           ? { ...body, password: existing.password }
           : body;
       const updated = normalizeRecord(merged, existing);
-
-      group.accounts[index] = updated;
-      await writeDb(db);
+      group.accounts[accountIndex] = updated;
+      await writeVault(vaultUserId, db);
       sendJson(response, 200, maskAccount(updated));
       return;
     }
 
     if (request.method === "DELETE") {
-      group.accounts.splice(index, 1);
-      await writeDb(db);
+      group.accounts.splice(accountIndex, 1);
+      await writeVault(vaultUserId, db);
       sendJson(response, 200, { ok: true });
       return;
     }
@@ -1860,20 +1873,22 @@ const server = createServer(async (request, response) => {
   }
 });
 
-// Startup: ensure storage exists and migrate legacy data, seed the bootstrap
-// admin from APP_AUTH_* if the user store is empty, then assign any ownerless
-// (pre-multiuser) groups to that admin so existing data stays visible.
-await readDb();
+// Startup: seed the bootstrap admin from APP_AUTH_* if the user store is empty,
+// then migrate any legacy groups.json into per-user vault files. On subsequent
+// boots the migration is a fast no-op (vault files already exist).
 const seededUsers = await ensureSeedAdmin(storageDir);
 const seedAdmin = seededUsers.find((item) => item.role === "admin");
-await backfillOwners(seedAdmin?.id);
+await migrateGroupsToVaults(seedAdmin?.id);
 
-// If encryption is on, proactively re-write the store so any pre-existing
+// If encryption is on, proactively re-encrypt all vault files so any pre-existing
 // plaintext secrets get encrypted now rather than waiting for the next edit.
-// readDb()->writeDb() round-trips through decrypt/encrypt; already-encrypted
+// readVault→writeVault round-trips through decrypt/encrypt; already-encrypted
 // values are left untouched (idempotent).
 if (encryptionEnabled) {
-  await writeDb(await readDb());
+  const allUsers = await listUsers(storageDir);
+  for (const u of allUsers) {
+    await writeVault(u.id, await readVault(u.id));
+  }
 }
 
 // Drop revoked/expired sessions at startup, then periodically, so sessions.json
