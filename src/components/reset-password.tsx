@@ -3,6 +3,7 @@ import { CheckCircle, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
+import { PasswordStrengthMeter } from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
 
 type ResetPasswordProps = {
@@ -135,6 +136,8 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+
+                  {password && <PasswordStrengthMeter password={password} />}
 
                   {password && (
                     <ul className="space-y-1">

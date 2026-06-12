@@ -17,6 +17,10 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import {
+  GeneratePasswordButton,
+  PasswordStrengthMeter,
+} from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
 import { Switch } from "./ui/switch";
 
@@ -187,6 +191,7 @@ export function UsersDialog({
 
   const [newName, setNewName] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [newRole, setNewRole] = useState<"admin" | "member">("member");
   const [creating, setCreating] = useState(false);
 
@@ -483,14 +488,24 @@ export function UsersDialog({
               <span className="text-xs font-medium text-[color:var(--muted)]">
                 {t("team.password_label")}
               </span>
-              <Input
-                autoComplete="new-password"
-                type="password"
-                minLength={8}
-                maxLength={128}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  autoComplete="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  minLength={8}
+                  maxLength={128}
+                  className="min-w-0 flex-1"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+                <GeneratePasswordButton
+                  onGenerate={(pw) => {
+                    setNewPassword(pw);
+                    setShowNewPassword(true);
+                  }}
+                />
+              </div>
+              <PasswordStrengthMeter password={newPassword} />
             </label>
           </div>
 

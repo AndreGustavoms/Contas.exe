@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { type AppTheme } from "../theme";
 import { cn } from "../lib/utils";
 import { FormAlert } from "./ui/form-alert";
+import { PasswordStrengthMeter } from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
 import { LangTerminal } from "./lang-terminal";
 
@@ -171,6 +172,8 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+
+                {password && <PasswordStrengthMeter password={password} />}
 
                 <div className="animated-field">
                   <input

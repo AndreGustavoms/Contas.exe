@@ -128,7 +128,12 @@
     "time_hours_one": "{{count}} hour ago",
     "time_hours_other": "{{count}} hours ago",
     "time_days_one": "{{count}} day ago",
-    "time_days_other": "{{count}} days ago"
+    "time_days_other": "{{count}} days ago",
+    "pw_generate": "Generate",
+    "pw_weak": "Weak",
+    "pw_medium": "Medium",
+    "pw_strong": "Strong",
+    "pw_excellent": "Excellent"
   },
   "team": {
     "title": "Team",

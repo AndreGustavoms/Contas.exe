@@ -126,7 +126,12 @@
     "time_hours_one": "il y a {{count}} heure",
     "time_hours_other": "il y a {{count}} heures",
     "time_days_one": "il y a {{count}} jour",
-    "time_days_other": "il y a {{count}} jours"
+    "time_days_other": "il y a {{count}} jours",
+    "pw_generate": "Générer",
+    "pw_weak": "Faible",
+    "pw_medium": "Moyen",
+    "pw_strong": "Fort",
+    "pw_excellent": "Excellent"
   },
   "team": {
     "title": "Équipe",

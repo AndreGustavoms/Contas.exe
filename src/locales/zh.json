@@ -123,7 +123,12 @@
     "time_now": "刚刚",
     "time_minutes_other": "{{count}}分钟前",
     "time_hours_other": "{{count}}小时前",
-    "time_days_other": "{{count}}天前"
+    "time_days_other": "{{count}}天前",
+    "pw_generate": "生成",
+    "pw_weak": "弱",
+    "pw_medium": "中等",
+    "pw_strong": "强",
+    "pw_excellent": "极强"
   },
   "team": {
     "title": "团队",

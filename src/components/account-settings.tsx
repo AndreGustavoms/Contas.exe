@@ -2,6 +2,8 @@ import { type FormEvent, useEffect, useState } from "react";
 import {
   Copy,
   Download,
+  Eye,
+  EyeOff,
   Globe,
   KeyRound,
   Lock,
@@ -18,6 +20,10 @@ import {
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import {
+  GeneratePasswordButton,
+  PasswordStrengthMeter,
+} from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
 import { cn } from "../lib/utils";
 import { type AppTheme } from "../theme";
@@ -439,6 +445,7 @@ function SegurancaTab({
   const { t } = useTranslation();
   const [current, setCurrent] = useState("");
   const [newPw, setNewPw] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError] = useState("");
@@ -641,13 +648,32 @@ function SegurancaTab({
           </label>
           <label className="grid gap-1.5">
             <span className="text-xs text-[color:var(--muted)]">{t("account.new_password_label")}</span>
-            <Input
-              type="password"
-              className="h-10 rounded-xl px-3"
-              autoComplete="new-password"
-              value={newPw}
-              onChange={(e) => setNewPw(e.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Input
+                  type={showNewPw ? "text" : "password"}
+                  className="h-10 rounded-xl px-3 pr-10"
+                  autoComplete="new-password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                />
+                <button
+                  aria-label={showNewPw ? t("login.hide_password") : t("login.show_password")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                  type="button"
+                  onClick={() => setShowNewPw((v) => !v)}
+                >
+                  {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <GeneratePasswordButton
+                onGenerate={(pw) => {
+                  setNewPw(pw);
+                  setShowNewPw(true);
+                }}
+              />
+            </div>
+            <PasswordStrengthMeter password={newPw} />
           </label>
           {pwSuccess && <p className="text-xs text-green-400">{t("account.password_changed_ok")}</p>}
           {pwError && <p className="text-xs text-red-300">{pwError}</p>}
