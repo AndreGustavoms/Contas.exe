@@ -60,6 +60,42 @@ export default function App() {
     };
   }, []);
 
+  // O servidor é a fonte da verdade: ao voltar para a aba (ou focar a janela),
+  // reconsulta o status. Se a sessão caiu nesse meio-tempo — expirou por
+  // inatividade, senha trocada em outro lugar, admin revogou — volta ao login
+  // em vez de deixar uma UI "logada" que só falharia na próxima ação.
+  useEffect(() => {
+    if (!unlocked) return;
+
+    let lastCheck = 0;
+    function revalidate() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastCheck < 30_000) return; // no máximo 1 consulta a cada 30s
+      lastCheck = now;
+      fetch("/api/auth/status")
+        .then((response) =>
+          response.ok ? response.json() : { authenticated: false },
+        )
+        .then((data: { authenticated?: boolean }) => {
+          if (!data.authenticated) {
+            setUnlocked(false);
+            setUser(null);
+          }
+        })
+        .catch(() => {
+          // Rede fora do ar não desloga: a próxima ação real vai falhar e tratar.
+        });
+    }
+
+    document.addEventListener("visibilitychange", revalidate);
+    window.addEventListener("focus", revalidate);
+    return () => {
+      document.removeEventListener("visibilitychange", revalidate);
+      window.removeEventListener("focus", revalidate);
+    };
+  }, [unlocked]);
+
   function changeTheme(nextTheme: AppTheme) {
     window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     setTheme(nextTheme);
