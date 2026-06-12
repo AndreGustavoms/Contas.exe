@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import {
   Copy,
+  Download,
   Globe,
   KeyRound,
   Lock,
@@ -129,7 +130,7 @@ export function AccountSettings({
   }, [onClose]);
 
   return (
-    <div className="modal-viewport fixed inset-0 z-50 flex overflow-y-auto overscroll-contain px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         aria-label="Fechar"
         className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
@@ -139,7 +140,7 @@ export function AccountSettings({
       <section
         aria-modal="true"
         role="dialog"
-        className="modal-panel modal-panel-3xl account-settings-panel app-panel animate-pop-in relative m-auto flex w-full max-w-3xl overflow-hidden rounded-[28px] border backdrop-blur-2xl"
+        className="account-settings-panel app-panel animate-pop-in relative flex w-full overflow-hidden rounded-[28px] border backdrop-blur-2xl"
       >
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
 
@@ -300,12 +301,12 @@ function PerfilTab({
           <span
             className={cn(
               "mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold",
-              profile?.role === "admin"
+              (profile?.role ?? user?.role) === "admin"
                 ? "bg-[color:var(--accent)] text-white"
                 : "bg-[color:var(--field)] text-[color:var(--muted)]",
             )}
           >
-            {profile?.role === "admin" ? t("account.role_admin") : t("account.role_member")}
+            {(profile?.role ?? user?.role) === "admin" ? t("account.role_admin") : t("account.role_member")}
           </span>
           {profile?.createdAt && (
             <p className="mt-0.5 text-xs text-[color:var(--muted)]">
@@ -448,6 +449,7 @@ function SegurancaTab({
   const [disabling, setDisabling] = useState(false);
   const [disableCode, setDisableCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [codesCopied, setCodesCopied] = useState(false);
 
   useEffect(() => {
     api<TfaStatus>("/api/account/2fa")
@@ -583,6 +585,34 @@ function SegurancaTab({
     );
   }
 
+  // Backup offline dos códigos: baixa um .txt simples (cabeçalho + um código por
+  // linha) que também serve para imprimir.
+  function downloadCodes() {
+    if (!freshCodes) return;
+    const lines = [
+      t("account.two_factor_file_header"),
+      new Date().toLocaleString(),
+      "",
+      ...freshCodes,
+      "",
+    ].join("\n");
+    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "contas-exe-recovery-codes.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function copyCodes() {
+    if (!freshCodes) return;
+    void navigator.clipboard.writeText(freshCodes.join("\n")).then(
+      () => { setCodesCopied(true); window.setTimeout(() => setCodesCopied(false), 1500); },
+      () => {},
+    );
+  }
+
   return (
     <div className="space-y-8">
       <h2 className="text-lg font-semibold text-[color:var(--text)]">
@@ -651,9 +681,21 @@ function SegurancaTab({
                 </span>
               ))}
             </div>
-            <Button className="mt-3" variant="outline" onClick={() => setFreshCodes(null)}>
-              {t("account.two_factor_saved")}
-            </Button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="outline" onClick={downloadCodes}>
+                <Download className="h-4 w-4" />
+                {t("account.two_factor_download_codes")}
+              </Button>
+              <Button variant="outline" onClick={copyCodes}>
+                <Copy className="h-4 w-4" />
+                {codesCopied
+                  ? t("account.two_factor_codes_copied")
+                  : t("account.two_factor_copy_codes")}
+              </Button>
+              <Button variant="outline" onClick={() => setFreshCodes(null)}>
+                {t("account.two_factor_saved")}
+              </Button>
+            </div>
           </div>
         ) : setup ? (
           <form className="grid gap-3" onSubmit={confirmEnable}>
