@@ -192,6 +192,7 @@
     "wizard_save": "保存",
     "wizard_add": "添加",
     "wizard_back": "返回",
+    "wizard_next": "下一步",
     "field_email": "邮箱",
     "field_username": "用户名",
     "field_password": "密码",

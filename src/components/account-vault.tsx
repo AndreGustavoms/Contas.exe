@@ -1837,7 +1837,7 @@ function AccountWizardModal({
             </Button>
           ) : (
             <Button disabled={!canContinue} type="button" onClick={onNext}>
-              Seguir
+              {t("vault.wizard_next")}
             </Button>
           )}
         </div>

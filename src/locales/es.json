@@ -192,6 +192,7 @@
     "wizard_save": "Guardar",
     "wizard_add": "Agregar",
     "wizard_back": "Volver",
+    "wizard_next": "Siguiente",
     "field_email": "Email",
     "field_username": "Usuario",
     "field_password": "Contraseña",

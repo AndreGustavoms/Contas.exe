@@ -194,6 +194,7 @@
     "wizard_save": "Save",
     "wizard_add": "Add",
     "wizard_back": "Back",
+    "wizard_next": "Next",
     "field_email": "Email",
     "field_username": "Username",
     "field_password": "Password",
