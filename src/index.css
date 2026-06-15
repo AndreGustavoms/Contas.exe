@@ -2869,3 +2869,127 @@ td {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   Painel superadmin (/admin) — visual quadrado, minimalista e
+   moderno. Herda as variáveis de tema (branco/dark) do app.
+   ============================================================ */
+.admin-root {
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+.admin-card {
+  border: 1px solid var(--border);
+  background: var(--field);
+  border-radius: 6px;
+}
+
+.admin-input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: var(--field);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.admin-input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.admin-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 14px;
+  transition: background 0.2s;
+}
+
+.admin-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.admin-btn-primary:disabled {
+  opacity: 0.5;
+}
+
+.admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid transparent;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.admin-tab:hover {
+  background: var(--field-hover);
+  color: var(--text);
+}
+
+.admin-tab-active {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 6px;
+  color: var(--muted);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.admin-icon-btn:hover:not(:disabled) {
+  background: var(--field-hover);
+  color: var(--text);
+}
+
+.admin-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--field);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.admin-chip-btn:hover:not(:disabled) {
+  background: var(--field-hover);
+  color: var(--text);
+}

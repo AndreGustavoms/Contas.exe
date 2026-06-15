@@ -8,7 +8,11 @@ import { ThemeToggle } from "./components/theme-toggle";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "./theme";
 
 // The logged-in user, as reported by /api/auth. role drives admin-only UI.
-export type SessionUser = { username: string; role: "admin" | "member" };
+// "superadmin" é o dono (acesso ao painel /admin); herda tudo de admin no app.
+export type SessionUser = {
+  username: string;
+  role: "superadmin" | "admin" | "member";
+};
 
 type View = "login" | "forgot" | "reset" | "register";
 

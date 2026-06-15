@@ -29,6 +29,7 @@ import {
   disableTwoFactor,
   enableTwoFactor,
   ensureSeedAdmin,
+  ensureSuperadmin,
   findOrCreateGoogleUser,
   findOrCreateGithubUser,
   findByEmail,
@@ -70,6 +71,7 @@ import {
   SESSION_IDLE_MS,
 } from "./sessions.mjs";
 import { listEvents, logEvent } from "./audit.mjs";
+import { recentLogs, recordLog } from "./server-logs.mjs";
 import {
   checkRateLimit,
   clearFailures,
@@ -409,6 +411,25 @@ async function requireContext(request, response) {
 function requireRecentReauth(session, response) {
   if (hasRecentReauth(session)) return true;
   sendJson(response, 403, { error: "reauth_required" });
+  return false;
+}
+
+// Role helpers. "superadmin" (o dono) é tratado como ">= admin" em toda checagem
+// de permissão, então herda tudo que um admin pode fazer e mais o painel /admin.
+function isAdmin(user) {
+  return user?.role === "admin" || user?.role === "superadmin";
+}
+
+function isSuperadmin(user) {
+  return user?.role === "superadmin";
+}
+
+// Gate do painel superadmin. Para manter o painel SELADO (sem oráculo de
+// existência), quem não é superadmin recebe 404 — a mesma resposta de uma rota
+// inexistente — em vez de 403. Retorna false e já respondeu quando barra.
+function requireSuperadmin(user, response) {
+  if (isSuperadmin(user)) return true;
+  notFound(response);
   return false;
 }
 
@@ -1453,7 +1474,13 @@ async function handleApi(request, response, url, user, session) {
   // Delete own account (reauth required; last admin is blocked).
   if (url.pathname === "/api/account" && request.method === "DELETE") {
     if (!requireRecentReauth(session, response)) return;
-    if (user.role === "admin") {
+    // O dono (superadmin) não pode apagar a própria conta — sumiria o único
+    // acesso ao painel e não há como recriar o papel pela UI.
+    if (isSuperadmin(user)) {
+      badRequest(response, "cannot_delete_superadmin");
+      return;
+    }
+    if (isAdmin(user)) {
       const allUsers = await listUsers(storageDir);
       if (allUsers.filter((u) => u.role === "admin").length <= 1) {
         badRequest(response, "last_admin");
@@ -1641,7 +1668,7 @@ async function handleApi(request, response, url, user, session) {
   // people means re-setting their passwords; we don't ship hashes in a download).
   // Downloaded as a dated JSON attachment for the admin to store off-platform.
   if (url.pathname === "/api/admin/backup" && request.method === "GET") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1674,7 +1701,7 @@ async function handleApi(request, response, url, user, session) {
   // ----- Users (admin only) -----
 
   if (url.pathname === "/api/users") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1715,7 +1742,7 @@ async function handleApi(request, response, url, user, session) {
 
   const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
   if (userMatch) {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1725,6 +1752,12 @@ async function handleApi(request, response, url, user, session) {
       // Removing an admin is privileged: require a recent re-auth. (Check the
       // target's role before deleting.)
       const target = await findById(storageDir, targetId);
+      // O dono (superadmin) é intocável por qualquer admin. 404 mantém o painel
+      // selado (não confirma que a conta-alvo é o superadmin).
+      if (target?.role === "superadmin") {
+        notFound(response);
+        return;
+      }
       if (target?.role === "admin" && !requireRecentReauth(session, response)) {
         return;
       }
@@ -1757,7 +1790,7 @@ async function handleApi(request, response, url, user, session) {
 
   const userPwMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/password$/);
   if (userPwMatch && request.method === "PUT") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1774,6 +1807,13 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     const targetId = decodeURIComponent(userPwMatch[1]);
+    const pwTarget = await findById(storageDir, targetId);
+    // O dono é intocável por rotas de admin; ele gerencia a própria senha pelo
+    // autosserviço. 404 mantém o painel selado.
+    if (pwTarget?.role === "superadmin") {
+      notFound(response);
+      return;
+    }
     const ok = await setPassword(storageDir, targetId, password);
     if (!ok) {
       notFound(response);
@@ -1808,12 +1848,17 @@ async function handleApi(request, response, url, user, session) {
     /^\/api\/users\/([^/]+)\/2fa\/reset$/,
   );
   if (user2faResetMatch && request.method === "POST") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
     if (!requireRecentReauth(session, response)) return;
     const targetId = decodeURIComponent(user2faResetMatch[1]);
+    const twoFaTarget = await findById(storageDir, targetId);
+    if (twoFaTarget?.role === "superadmin") {
+      notFound(response);
+      return;
+    }
     const ok = await resetTwoFactor(storageDir, targetId);
     if (ok) {
       void logEvent(storageDir, {
@@ -1835,12 +1880,17 @@ async function handleApi(request, response, url, user, session) {
     /^\/api\/users\/([^/]+)\/sessions\/revoke$/,
   );
   if (userSessionsMatch && request.method === "POST") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
     if (!requireRecentReauth(session, response)) return;
     const targetId = decodeURIComponent(userSessionsMatch[1]);
+    const sessTarget = await findById(storageDir, targetId);
+    if (sessTarget?.role === "superadmin") {
+      notFound(response);
+      return;
+    }
     const revoked = await revokeAllForUser(storageDir, targetId);
     void logEvent(storageDir, {
       userId: user.id,
@@ -1857,7 +1907,7 @@ async function handleApi(request, response, url, user, session) {
   // Lets an admin see who is logged in and end specific sessions. The requester's
   // own session is flagged `current` so the UI can label "this device".
   if (url.pathname === "/api/sessions" && request.method === "GET") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1868,7 +1918,7 @@ async function handleApi(request, response, url, user, session) {
 
   const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
   if (sessionMatch && request.method === "DELETE") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1891,7 +1941,7 @@ async function handleApi(request, response, url, user, session) {
   // The recent security-relevant events (who did what, when). No secrets.
   // Query params: limit (<=500), offset, action, username, from, to, q.
   if (url.pathname === "/api/audit" && request.method === "GET") {
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1908,6 +1958,100 @@ async function handleApi(request, response, url, user, session) {
       q: qp.get("q") || undefined,
     });
     sendJson(response, 200, { events, total, limit, offset });
+    return;
+  }
+
+  // ----- Painel superadmin (/admin) -----
+  // SELADO. Toda rota deste namespace exige, em ordem: sessão válida (já
+  // resolvida pelo dispatcher) + papel superadmin (senão 404, sem revelar que o
+  // painel existe) + reauth recente. Aqui é SÓ LEITURA: as mutações (criar/editar
+  // /apagar usuários, grupos, contas) reusam as rotas admin existentes, que o
+  // superadmin herda; revelar uma senha passa pelo /secret auditado. Concentrar o
+  // gate num único ponto evita que uma rota nova escape da proteção.
+  if (url.pathname.startsWith("/api/admin-panel/")) {
+    if (!requireSuperadmin(user, response)) return;
+    if (!requireRecentReauth(session, response)) return;
+
+    // Métricas e status do site para a aba "Visão geral".
+    if (
+      url.pathname === "/api/admin-panel/overview" &&
+      request.method === "GET"
+    ) {
+      const allUsers = await listUsers(storageDir);
+      const allVaults = await readAllVaults();
+      const groups = allVaults.flatMap(({ db }) => db.groups);
+      const accountCount = groups.reduce((n, g) => n + g.accounts.length, 0);
+      const sessions = await listAllSessions(storageDir, sessionToken(request));
+      const audit = await listEvents(storageDir, { limit: 500 });
+      const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const recent24h = audit.events.filter(
+        (e) => new Date(e.ts).getTime() >= dayAgo,
+      ).length;
+
+      sendJson(response, 200, {
+        users: {
+          total: allUsers.length,
+          superadmins: allUsers.filter((u) => u.role === "superadmin").length,
+          admins: allUsers.filter((u) => u.role === "admin").length,
+          members: allUsers.filter((u) => u.role === "member").length,
+          withTwoFactor: allUsers.filter((u) => u.twoFactorEnabled).length,
+        },
+        vaults: { groups: groups.length, accounts: accountCount },
+        sessions: { active: sessions.length },
+        audit: { total: audit.total, recent24h },
+        system: {
+          encryptionEnabled,
+          registrationsOpen:
+            process.env.CONTAS_FLOW_REGISTRATIONS_OPEN !== "false",
+          providers: {
+            google: googleAuthConfigured(),
+            github: githubAuthConfigured(),
+          },
+          serverLogs: recentLogs({ limit: 1 }).total,
+          uptimeSeconds: Math.floor(process.uptime()),
+          nodeVersion: process.version,
+        },
+      });
+      return;
+    }
+
+    // Navegador de dados armazenados para a aba "Dados". Usuários (sem hash/2FA
+    // secret) + todos os cofres com as contas MASCARADAS (senha nunca sai daqui;
+    // revelar é via /secret, sob reauth e auditado).
+    if (url.pathname === "/api/admin-panel/data" && request.method === "GET") {
+      const usersList = await listUsers(storageDir);
+      const byId = new Map(usersList.map((u) => [u.id, u]));
+      const allVaults = await readAllVaults();
+      const vaults = allVaults.map(({ userId, db }) => ({
+        userId,
+        username: byId.get(userId)?.username ?? userId,
+        role: byId.get(userId)?.role ?? "member",
+        groups: db.groups.map((g) => ({
+          id: g.id,
+          name: g.name,
+          ownerId: g.ownerId,
+          accounts: g.accounts.map(maskAccount),
+        })),
+      }));
+      sendJson(response, 200, { users: usersList, vaults });
+      return;
+    }
+
+    // Logs operacionais do servidor (in-memory, voláteis) para a aba "Logs".
+    if (url.pathname === "/api/admin-panel/logs" && request.method === "GET") {
+      const qp = url.searchParams;
+      sendJson(
+        response,
+        200,
+        recentLogs({
+          limit: Number(qp.get("limit")) || 200,
+          level: qp.get("level") || undefined,
+        }),
+      );
+      return;
+    }
+
+    notFound(response);
     return;
   }
 
@@ -2001,7 +2145,7 @@ async function handleApi(request, response, url, user, session) {
   // Returns { db, index, vaultUserId } or writes 404 and returns null.
   async function resolveGroupEntry(rawGroupId) {
     const groupId = decodeURIComponent(rawGroupId);
-    if (user.role !== "admin") {
+    if (!isAdmin(user)) {
       const db = await readVault(user.id);
       const index = db.groups.findIndex((g) => g.id === groupId);
       if (index === -1) {
@@ -2022,7 +2166,7 @@ async function handleApi(request, response, url, user, session) {
 
   if (url.pathname === "/api/groups" && request.method === "GET") {
     let groups;
-    if (user.role === "admin") {
+    if (isAdmin(user)) {
       const allVaults = await readAllVaults();
       groups = allVaults.flatMap(({ db }) => db.groups);
     } else {
@@ -2080,7 +2224,7 @@ async function handleApi(request, response, url, user, session) {
       });
       // Return the caller's visible groups after the deletion.
       let groups;
-      if (user.role === "admin") {
+      if (isAdmin(user)) {
         const allVaults = await readAllVaults();
         groups = allVaults.flatMap(({ db: v }) => v.groups);
       } else {
@@ -2130,6 +2274,10 @@ async function handleApi(request, response, url, user, session) {
     const body = await readBody(request);
     const entry = await resolveGroupEntry(importMatch[1]);
     if (!entry) return;
+    // Importar substitui TODAS as contas do grupo (destrutivo), então exige
+    // reauth recente como as outras ações que apagam dados (deletar grupo, ver
+    // segredo).
+    if (!requireRecentReauth(session, response)) return;
     const { db, index, vaultUserId } = entry;
     const group = db.groups[index];
 
@@ -2302,6 +2450,12 @@ const server = createServer(async (request, response) => {
       return;
     }
     console.error("server_error:", error);
+    // Sem segredos: só a classe do erro, para a aba de logs do painel. Detalhes
+    // completos ficam no stdout do host (console.error acima).
+    recordLog(
+      "error",
+      `500 ${request.method} ${request.url} — ${error instanceof Error ? error.name : "erro"}`,
+    );
     sendJson(response, 500, { error: "server_error" });
   }
 });
@@ -2312,6 +2466,11 @@ const server = createServer(async (request, response) => {
 const seededUsers = await ensureSeedAdmin(storageDir);
 const seedAdmin = seededUsers.find((item) => item.role === "admin");
 await migrateGroupsToVaults(seedAdmin?.id);
+
+// Promote the owner account to "superadmin" (the only door to the /admin panel).
+// Identified by CONTAS_FLOW_SUPERADMIN_EMAIL / _USER. No-op when unset or when
+// the account doesn't exist yet.
+const superadmin = await ensureSuperadmin(storageDir);
 
 // If encryption is on, proactively re-encrypt all vault files so any pre-existing
 // plaintext secrets get encrypted now rather than waiting for the next edit.
@@ -2335,10 +2494,29 @@ setInterval(() => {
 
 server.listen(port, host, () => {
   console.log(`Contas_exe API: listening on ${host}:${port}`);
+  recordLog("info", `servidor no ar em ${host}:${port}`);
   if (seededUsers.length === 0) {
     console.log(
       "AVISO: nenhum usuario cadastrado. Defina APP_AUTH_USER e APP_AUTH_PASSWORD " +
         "para criar o admin inicial; depois gerencie a equipe pela UI.",
+    );
+  }
+  if (superadmin) {
+    console.log(`Superadmin (painel /admin): ${superadmin.username}`);
+    recordLog("info", `superadmin ativo: ${superadmin.username}`);
+  } else if (
+    process.env.CONTAS_FLOW_SUPERADMIN_EMAIL ||
+    process.env.CONTAS_FLOW_SUPERADMIN_USER
+  ) {
+    console.log(
+      "AVISO: CONTAS_FLOW_SUPERADMIN_* setado, mas a conta dona ainda nao existe. " +
+        "Crie/loge a conta uma vez e reinicie para promove-la a superadmin.",
+    );
+    recordLog("warn", "superadmin configurado mas conta dona ainda nao existe");
+  } else {
+    console.log(
+      "AVISO: painel /admin desativado — defina CONTAS_FLOW_SUPERADMIN_EMAIL " +
+        "(ou _USER) para habilitar o superadmin.",
     );
   }
   if (!encryptionEnabled) {
@@ -2346,5 +2524,6 @@ server.listen(port, host, () => {
       "AVISO: criptografia em repouso DESATIVADA (senhas ficam em texto plano). " +
         "Defina CONTAS_FLOW_ENC_KEY (32 bytes em hex/base64) em producao.",
     );
+    recordLog("warn", "criptografia em repouso DESATIVADA");
   }
 });

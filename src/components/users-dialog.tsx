@@ -31,7 +31,7 @@ import { Switch } from "./ui/switch";
 type ManagedUser = {
   id: string;
   username: string;
-  role: "admin" | "member";
+  role: "superadmin" | "admin" | "member";
   createdAt: string;
   twoFactorEnabled?: boolean;
 };
@@ -567,6 +567,9 @@ export function UsersDialog({
           ) : (
             users.map((user) => {
               const isSelf = user.username === currentUsername;
+              // O dono (superadmin) é protegido: o servidor recusa apagá-lo, então
+              // a UI também trava a ação para não oferecer um botão que falharia.
+              const isOwner = user.role === "superadmin";
               return (
                 <div
                   key={user.id}
@@ -588,9 +591,11 @@ export function UsersDialog({
                       ) : null}
                     </p>
                     <p className="text-xs text-[color:var(--muted)]">
-                      {user.role === "admin"
-                        ? t("team.role_admin")
-                        : t("team.role_member")}
+                      {isOwner
+                        ? "Superadmin"
+                        : user.role === "admin"
+                          ? t("team.role_admin")
+                          : t("team.role_member")}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
@@ -607,8 +612,10 @@ export function UsersDialog({
                       aria-label={t("team.remove_user", {
                         username: user.username,
                       })}
-                      className={cn(isSelf && "pointer-events-none opacity-40")}
-                      disabled={isSelf}
+                      className={cn(
+                        (isSelf || isOwner) && "pointer-events-none opacity-40",
+                      )}
+                      disabled={isSelf || isOwner}
                       size="icon"
                       variant="ghost"
                       onClick={() => handleDelete(user)}

@@ -35,6 +35,7 @@ import {
   Plus,
   Save,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Trash2,
   Upload,
@@ -382,7 +383,9 @@ export function AccountVault({
   user,
 }: AccountVaultProps) {
   const { t } = useTranslation();
-  const isAdmin = user?.role === "admin";
+  // O superadmin (dono) herda todos os recursos de admin no app, além do painel.
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperadmin = user?.role === "superadmin";
   // Per-user key for the (non-secret) selected group. Stable for this mount; a
   // different user means a different AccountVault mount with a different key.
   const activeGroupStorageKey = activeGroupKey(user?.username);
@@ -1262,6 +1265,18 @@ export function AccountVault({
                 </span>
                 <span className="truncate">{t("vault.team")}</span>
               </button>
+            ) : null}
+
+            {isSuperadmin ? (
+              <a
+                className="group/admin flex h-11 w-full min-w-0 items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-all duration-300 hover:translate-x-0.5 hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
+                href="/admin"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] text-[color:var(--accent)] transition duration-300 group-hover/admin:bg-[color:var(--field-hover)]">
+                  <ShieldAlert className="h-5 w-5" />
+                </span>
+                <span className="truncate">Painel</span>
+              </a>
             ) : null}
 
             <button

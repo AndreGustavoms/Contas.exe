@@ -46,7 +46,11 @@ const SCRYPT_KEYLEN = 64;
 const SCRYPT_MAXMEM = 64 * 1024 * 1024;
 const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: SCRYPT_MAXMEM };
 
-export const ROLES = new Set(["admin", "member"]);
+// "superadmin" é o tier de dono (acesso ao painel /admin). NUNCA é criado pela
+// API pública de usuários (o handler mapeia só admin|member); a única forma de
+// virar superadmin é a promoção no boot via CONTAS_FLOW_SUPERADMIN_EMAIL (ver
+// ensureSuperadmin). Tratado como ">= admin" em todas as checagens de permissão.
+export const ROLES = new Set(["superadmin", "admin", "member"]);
 
 // --- Input validation constants ---
 export const USERNAME_MIN = 2;
@@ -422,6 +426,41 @@ export async function ensureSeedAdmin(storageDir) {
   return [admin];
 }
 
+// Promove a conta dona ao papel "superadmin" no boot. Identifica a conta por
+// CONTAS_FLOW_SUPERADMIN_EMAIL (preferido) ou CONTAS_FLOW_SUPERADMIN_USER. Para
+// manter um único dono, qualquer OUTRO superadmin é rebaixado para admin. É a
+// ÚNICA porta de entrada para o papel — não há API que o conceda. No-op (e
+// retorna null) se a env não estiver setada ou a conta não existir ainda.
+export function ensureSuperadmin(storageDir) {
+  return withLock(async () => {
+    const email = normalizeEmail(process.env.CONTAS_FLOW_SUPERADMIN_EMAIL);
+    const username = normalizeUsername(process.env.CONTAS_FLOW_SUPERADMIN_USER);
+    if (!email && !username) return null;
+
+    const users = await readUsersFile(storageDir);
+    const owner = users.find(
+      (u) =>
+        (email && u.email?.toLowerCase() === email) ||
+        (username && u.username === username),
+    );
+    if (!owner) return null;
+
+    let changed = false;
+    for (const u of users) {
+      if (u.id !== owner.id && u.role === "superadmin") {
+        u.role = "admin"; // garante dono único
+        changed = true;
+      }
+    }
+    if (owner.role !== "superadmin") {
+      owner.role = "superadmin";
+      changed = true;
+    }
+    if (changed) await writeUsersFile(storageDir, users);
+    return publicUser(owner);
+  });
+}
+
 export async function listUsers(storageDir) {
   const users = await readUsersFile(storageDir);
   return users.map(publicUser);
@@ -495,6 +534,10 @@ export function deleteUser(storageDir, id) {
     if (index === -1) return null;
 
     const target = users[index];
+    // O superadmin (dono) nunca é removível por nenhuma rota. Backstop além das
+    // checagens no handler — garante que nem um bug de roteamento o apague.
+    if (target.role === "superadmin")
+      throw new Error("cannot_delete_superadmin");
     if (target.role === "admin") {
       const admins = users.filter((user) => user.role === "admin");
       if (admins.length <= 1) throw new Error("last_admin");
