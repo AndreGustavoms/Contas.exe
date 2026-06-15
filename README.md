@@ -129,7 +129,7 @@ criptografia, volume persistente, backup e checklist de go-live — está em
 | Backend    | Node HTTP nativo, sem framework                             |
 | Cripto     | AES-256-GCM (`crypto` nativo), scrypt, TOTP RFC 6238        |
 | Deploy     | Railway — Dockerfile multi-stage, volume `/data`            |
-| Integração | googleapis (YouTube OAuth/upload — em pausa)                |
+| Integração | googleapis (YouTube OAuth/upload — backend funcional)       |
 
 ---
 
@@ -157,7 +157,7 @@ server/
   sessions.mjs              # sessões server-side revogáveis
   audit.mjs                 # trilha de auditoria
   totp.mjs                  # 2FA TOTP (RFC 6238)
-  youtube.mjs               # OAuth + upload YouTube (em pausa)
+  youtube.mjs               # OAuth + upload YouTube (funcional)
 scripts/
   local-dev.mjs             # sobe API + Vite juntos
 storage/                    # JSON gerados em runtime — ignorados pelo git
@@ -191,7 +191,7 @@ npm run format   # formata com Prettier
 | [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como o sistema funciona por dentro                    |
 | [docs/DEPLOY.md](docs/DEPLOY.md)           | Subir em produção no Railway                          |
 | [docs/LGPD.md](docs/LGPD.md)               | Controles operacionais de privacidade e LGPD          |
-| [docs/YOUTUBE.md](docs/YOUTUBE.md)         | Integração YouTube OAuth/upload (em pausa)            |
+| [docs/YOUTUBE.md](docs/YOUTUBE.md)         | Integração YouTube OAuth/upload (backend funcional)   |
 | [SECURITY.md](SECURITY.md)                 | Boas práticas e checklist de segurança do repositório |
 | [IA.md](IA.md)                             | Contexto rápido para quem for trabalhar no projeto    |
 

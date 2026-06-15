@@ -12,8 +12,8 @@
 //     https callback and re-run the consent flow. No code changes needed.
 
 import { createReadStream } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { google } from "googleapis";
 import { decryptField, encryptField } from "./crypto.mjs";
@@ -22,6 +22,15 @@ const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const storageDir = join(rootDir, "storage");
 const tokensFile =
   process.env.YOUTUBE_TOKENS_DB ?? join(storageDir, "youtube.json");
+
+// Videos to upload must already live inside this directory on the server. The
+// upload endpoint accepts only a bare file NAME (never a path), which we resolve
+// here — this confinement is what makes the feature safe to expose: a caller can
+// never point it at an arbitrary absolute path to read files off the server.
+// A request body is capped at 1 MB, so streaming the bytes through the API is a
+// non-starter anyway; staging the file on disk first is the practical design.
+const uploadsDir =
+  process.env.YOUTUBE_UPLOAD_DIR ?? join(storageDir, "youtube-uploads");
 
 // Scopes: upload + read own channel info. youtube.upload is enough to insert
 // videos; youtube.readonly lets us read the channel name for display.
@@ -165,19 +174,78 @@ async function clientForChannel(channelId) {
   return client;
 }
 
+// ----- Upload staging directory -----
+
+// Absolute path of the uploads directory (for display so the user knows where
+// to drop files). Make sure it exists.
+export async function ensureUploadsDir() {
+  await mkdir(uploadsDir, { recursive: true });
+  return resolve(uploadsDir);
+}
+
+export function uploadsDirectory() {
+  return resolve(uploadsDir);
+}
+
+// Resolve a caller-supplied file name to an absolute path confined to
+// uploadsDir. Accepts ONLY a bare file name: anything carrying a path separator,
+// an absolute path, a drive letter, or a "." / ".." segment is rejected. A bare
+// name survives basename() unchanged, so that single comparison rejects every
+// traversal/absolute form on both POSIX and Windows. Throws "invalid_file".
+export function resolveUploadPath(name) {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new Error("invalid_file");
+  }
+  if (basename(name) !== name || name === "." || name === "..") {
+    throw new Error("invalid_file");
+  }
+  const dir = resolve(uploadsDir);
+  const resolved = resolve(dir, name);
+  // Defense in depth: confirm the result really sits inside uploadsDir.
+  if (resolved !== join(dir, name) || !resolved.startsWith(dir + sep)) {
+    throw new Error("invalid_file");
+  }
+  return resolved;
+}
+
+// List the video files currently staged for upload (name + size in bytes).
+// Returns [] when the directory doesn't exist yet.
+export async function listUploadableFiles() {
+  try {
+    const entries = await readdir(uploadsDir, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const { size } = await stat(join(uploadsDir, entry.name));
+      files.push({ name: entry.name, size });
+    }
+    return files.sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
 // ----- Upload (with optional scheduling via publishAt) -----
 //
-// options: { channelId, filePath, title, description, tags, publishAt }
+// options: { channelId, file, title, description, tags, publishAt }
+// `file` is a bare file name staged inside the uploads directory (see above).
 // If publishAt (ISO 8601, future) is given, the video is uploaded as private
 // and YouTube flips it to public automatically at that time.
 export async function uploadVideo({
   channelId,
-  filePath,
+  file,
   title,
   description = "",
   tags = [],
   publishAt,
 }) {
+  const filePath = resolveUploadPath(file);
+  try {
+    await stat(filePath);
+  } catch {
+    throw new Error("file_not_found");
+  }
+
   const auth = await clientForChannel(channelId);
   const youtube = google.youtube({ version: "v3", auth });
 

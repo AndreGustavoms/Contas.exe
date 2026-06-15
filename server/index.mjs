@@ -17,10 +17,12 @@ import {
 } from "./github-auth.mjs";
 import {
   buildAuthUrl,
+  ensureUploadsDir,
   handleOAuthCallback,
   listConnectedChannels,
-  // uploadVideo: intentionally not imported — the upload endpoint is disabled
-  // (see /api/youtube/upload). The function stays in youtube.mjs for later.
+  listUploadableFiles,
+  uploadVideo,
+  uploadsDirectory,
 } from "./youtube.mjs";
 import {
   consumeRecoveryCode,
@@ -2120,19 +2122,80 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // Upload is DISABLED while the YouTube integration is paused (Phase 0). The
-  // old handler took an arbitrary `filePath` from the body and streamed it to
-  // YouTube — that's arbitrary file read on the server. Until the feature is
-  // resumed with a safe design (uploads confined to a dedicated directory, no
-  // caller-controlled absolute paths), the endpoint returns 503. uploadVideo()
-  // in youtube.mjs is kept intact for when it's re-enabled.
-  if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
-    await drainBody(request);
-    sendJson(response, 503, {
-      error: "youtube_upload_disabled",
-      message:
-        "Upload temporariamente desativado enquanto a integração YouTube está em pausa.",
+  // List the video files staged for upload. Videos are far larger than the 1 MB
+  // body cap, so the flow is: drop the file into this directory on the server,
+  // then reference it by name in POST /api/youtube/upload.
+  if (url.pathname === "/api/youtube/uploads" && request.method === "GET") {
+    sendJson(response, 200, {
+      directory: uploadsDirectory(),
+      files: await listUploadableFiles(),
     });
+    return;
+  }
+
+  // Upload (optionally scheduled via publishAt). The body carries only a bare
+  // file NAME, which youtube.mjs resolves inside the uploads directory — never a
+  // caller-supplied absolute path, so this can't be used to read arbitrary
+  // files off the server (the reason the endpoint was previously disabled).
+  if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
+    const body = await readBody(request);
+    const file = typeof body.file === "string" ? body.file.trim() : "";
+    const channelId =
+      typeof body.channelId === "string" ? body.channelId.trim() : "";
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+
+    if (!channelId || !file || !title) {
+      sendJson(response, 400, {
+        error: "invalid_request",
+        message: "channelId, file e title são obrigatórios.",
+      });
+      return;
+    }
+
+    try {
+      const result = await uploadVideo({
+        channelId,
+        file,
+        title,
+        description:
+          typeof body.description === "string" ? body.description : "",
+        tags: Array.isArray(body.tags)
+          ? body.tags.filter((tag) => typeof tag === "string")
+          : [],
+        publishAt:
+          typeof body.publishAt === "string" && body.publishAt.trim()
+            ? body.publishAt.trim()
+            : undefined,
+      });
+      recordLog(
+        "info",
+        `youtube: upload de "${result.title}" (${result.videoId})`,
+      );
+      sendJson(response, 200, result);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "unknown";
+      if (code === "invalid_file") {
+        sendJson(response, 400, {
+          error: "invalid_file",
+          message: "Nome de arquivo inválido (use só o nome, sem caminho).",
+        });
+      } else if (code === "file_not_found") {
+        sendJson(response, 404, {
+          error: "file_not_found",
+          message: "Arquivo não encontrado na pasta de uploads do YouTube.",
+        });
+      } else if (code === "channel_not_connected") {
+        sendJson(response, 404, {
+          error: "channel_not_connected",
+          message: "Canal não conectado. Use /api/youtube/connect primeiro.",
+        });
+      } else if (code.startsWith("missing_env:")) {
+        sendJson(response, 500, { error: "youtube_config", message: code });
+      } else {
+        recordLog("error", `youtube: falha no upload (${code})`);
+        sendJson(response, 500, { error: "youtube_upload", message: code });
+      }
+    }
     return;
   }
 
@@ -2471,11 +2534,16 @@ const seededUsers = await ensureSeedAdmin(storageDir);
 const seedAdmin = seededUsers.find((item) => item.role === "admin");
 await migrateGroupsToVaults(seedAdmin?.id);
 
+// Make sure the YouTube uploads staging directory exists so the user has a
+// place to drop videos before calling POST /api/youtube/upload.
+await ensureUploadsDir();
+
 // Promote the owner account to "superadmin" (the only door to the /admin panel).
 // Identified by CONTAS_FLOW_SUPERADMIN_EMAIL / _USER. No-op when unset or when
 // the account doesn't exist yet.
 const superadmin = await ensureSuperadmin(storageDir);
-const superadminPasswordReset = await resetSuperadminPasswordFromEnv(storageDir);
+const superadminPasswordReset =
+  await resetSuperadminPasswordFromEnv(storageDir);
 if (superadminPasswordReset?.owner && !superadminPasswordReset.error) {
   await revokeAllForUser(storageDir, superadminPasswordReset.owner.id);
   recordLog(
