@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, FileDown, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { adminRequest, type AuditEvent, type ServerLog } from "../api";
 
 // Aba "Auditoria & logs": o registro de segurança persistente (/api/audit, com
@@ -9,12 +10,13 @@ import { adminRequest, type AuditEvent, type ServerLog } from "../api";
 const PAGE_SIZE = 30;
 
 export function AuditTab() {
+  const { t } = useTranslation();
   const [view, setView] = useState<"audit" | "logs">("audit");
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-[color:var(--text)]">
-          Auditoria & logs
+          {t("admin.audit.title")}
         </h1>
         <div className="flex gap-1">
           <button
@@ -22,14 +24,14 @@ export function AuditTab() {
             onClick={() => setView("audit")}
             className={`admin-tab ${view === "audit" ? "admin-tab-active" : ""}`}
           >
-            Auditoria
+            {t("admin.audit.audit")}
           </button>
           <button
             type="button"
             onClick={() => setView("logs")}
             className={`admin-tab ${view === "logs" ? "admin-tab-active" : ""}`}
           >
-            Logs do servidor
+            {t("admin.audit.server_logs")}
           </button>
         </div>
       </header>
@@ -39,6 +41,7 @@ export function AuditTab() {
 }
 
 function AuditPanel() {
+  const { t } = useTranslation();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -81,7 +84,12 @@ function AuditPanel() {
     );
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const lines = [
-      ["timestamp", "usuario", "acao", "alvo"].join(";"),
+      [
+        "timestamp",
+        t("admin.audit.csv_user"),
+        t("admin.audit.csv_action"),
+        t("admin.audit.csv_target"),
+      ].join(";"),
       ...data.events.map((e) =>
         [e.ts, e.username ?? "", e.action, e.target ?? ""]
           .map((v) => esc(String(v)))
@@ -106,7 +114,7 @@ function AuditPanel() {
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
         <input
           className="admin-input"
-          placeholder="Buscar usuário, ação, alvo…"
+          placeholder={t("admin.audit.search_placeholder")}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -144,7 +152,7 @@ function AuditPanel() {
       <div className="admin-card divide-y divide-[color:var(--border)]">
         {events.length === 0 ? (
           <p className="px-3 py-4 text-xs text-[color:var(--muted)]">
-            Nenhum evento.
+            {t("admin.audit.no_events")}
           </p>
         ) : (
           events.map((e, i) => (
@@ -184,7 +192,7 @@ function AuditPanel() {
             className="admin-chip-btn disabled:opacity-30"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-            Anterior
+            {t("admin.previous")}
           </button>
           <span className="tabular-nums">
             {page + 1} / {pages}
@@ -195,7 +203,7 @@ function AuditPanel() {
             onClick={() => setPage((p) => p + 1)}
             className="admin-chip-btn disabled:opacity-30"
           >
-            Próxima
+            {t("admin.next")}
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -205,6 +213,7 @@ function AuditPanel() {
 }
 
 function LogsPanel() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<ServerLog[]>([]);
   const [level, setLevel] = useState("");
 
@@ -239,23 +248,25 @@ function LogsPanel() {
           value={level}
           onChange={(e) => setLevel(e.target.value)}
         >
-          <option value="">Todos os níveis</option>
+          <option value="">{t("admin.audit.all_levels")}</option>
           <option value="info">info</option>
           <option value="warn">warn</option>
           <option value="error">error</option>
         </select>
         <button type="button" onClick={load} className="admin-chip-btn">
           <RefreshCw className="h-3.5 w-3.5" />
-          Atualizar
+          {t("admin.refresh")}
         </button>
         <span className="text-[11px] text-[color:var(--muted)]">
-          em memória · zera a cada deploy
+          {t("admin.audit.logs_note")}
         </span>
       </div>
 
       <div className="admin-card max-h-[60vh] overflow-y-auto p-2 font-mono text-xs">
         {logs.length === 0 ? (
-          <p className="px-2 py-3 text-[color:var(--muted)]">Sem logs.</p>
+          <p className="px-2 py-3 text-[color:var(--muted)]">
+            {t("admin.audit.no_logs")}
+          </p>
         ) : (
           logs.map((l, i) => (
             <div

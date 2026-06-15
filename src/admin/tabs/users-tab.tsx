@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { KeyRound, LogOut, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { adminRequest, type AdminUser, type ManagedSession } from "../api";
 import type { WithReauth } from "../AdminApp";
 
@@ -14,6 +15,7 @@ export function UsersTab({
   withReauth: WithReauth;
   currentUsername: string;
 }) {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [sessions, setSessions] = useState<ManagedSession[]>([]);
   const [error, setError] = useState("");
@@ -32,7 +34,7 @@ export function UsersTab({
       setUsers(u.users);
       setSessions(s.sessions);
     } catch {
-      setError("Falha ao carregar usuários/sessões.");
+      setError(t("admin.users.load_error"));
     }
   }
 
@@ -56,14 +58,19 @@ export function UsersTab({
       setRole("member");
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar.");
+      setError(
+        err instanceof Error ? err.message : t("admin.users.create_error"),
+      );
     } finally {
       setCreating(false);
     }
   }
 
   async function removeUser(u: AdminUser) {
-    if (!window.confirm(`Remover o usuário "${u.username}"?`)) return;
+    if (
+      !window.confirm(t("admin.users.confirm_remove", { username: u.username }))
+    )
+      return;
     setError("");
     try {
       await withReauth(() =>
@@ -73,12 +80,16 @@ export function UsersTab({
       );
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao remover.");
+      setError(
+        err instanceof Error ? err.message : t("admin.users.remove_error"),
+      );
     }
   }
 
   async function resetPassword(u: AdminUser) {
-    const pw = window.prompt(`Nova senha para "${u.username}":`);
+    const pw = window.prompt(
+      t("admin.users.new_password_prompt", { username: u.username }),
+    );
     if (!pw) return;
     setError("");
     try {
@@ -90,12 +101,21 @@ export function UsersTab({
       );
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao redefinir.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("admin.users.reset_password_error"),
+      );
     }
   }
 
   async function reset2fa(u: AdminUser) {
-    if (!window.confirm(`Resetar o 2FA de "${u.username}"?`)) return;
+    if (
+      !window.confirm(
+        t("admin.users.confirm_reset_2fa", { username: u.username }),
+      )
+    )
+      return;
     setError("");
     try {
       await withReauth(() =>
@@ -105,7 +125,7 @@ export function UsersTab({
       );
       await reload();
     } catch {
-      setError("Erro ao resetar 2FA.");
+      setError(t("admin.users.reset_2fa_error"));
     }
   }
 
@@ -116,7 +136,7 @@ export function UsersTab({
       });
       await reload();
     } catch {
-      setError("Erro ao encerrar sessão.");
+      setError(t("admin.users.revoke_session_error"));
     }
   }
 
@@ -137,10 +157,13 @@ export function UsersTab({
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold text-[color:var(--text)]">
-          Usuários & sessões
+          {t("admin.users.title")}
         </h1>
         <p className="text-sm text-[color:var(--muted)]">
-          {users.length} usuário(s) · {sessions.length} sessão(ões) ativa(s).
+          {t("admin.users.subtitle", {
+            users: users.length,
+            sessions: sessions.length,
+          })}
         </p>
       </header>
 
@@ -157,7 +180,7 @@ export function UsersTab({
       >
         <label className="grid gap-1">
           <span className="text-[11px] font-medium text-[color:var(--muted)]">
-            Usuário
+            {t("admin.users.username")}
           </span>
           <input
             className="admin-input w-full"
@@ -169,7 +192,7 @@ export function UsersTab({
         </label>
         <label className="grid gap-1">
           <span className="text-[11px] font-medium text-[color:var(--muted)]">
-            Senha
+            {t("admin.users.password")}
           </span>
           <input
             className="admin-input w-full"
@@ -181,7 +204,7 @@ export function UsersTab({
         </label>
         <label className="grid gap-1">
           <span className="text-[11px] font-medium text-[color:var(--muted)]">
-            Papel
+            {t("admin.users.role")}
           </span>
           <select
             className="admin-input"
@@ -198,7 +221,7 @@ export function UsersTab({
           className="admin-btn-primary h-[42px] gap-2"
         >
           <UserPlus className="h-4 w-4" />
-          Criar
+          {t("admin.users.create")}
         </button>
       </form>
 
@@ -225,18 +248,20 @@ export function UsersTab({
                     ) : null}
                     {isSelf ? (
                       <span className="ml-2 text-[10px] text-[color:var(--muted)]">
-                        (você)
+                        {t("admin.users.you")}
                       </span>
                     ) : null}
                   </p>
                   <p className="truncate text-xs text-[color:var(--muted)]">
-                    {u.email ?? "sem e-mail"} · {userSessions.length}{" "}
-                    sessão(ões)
+                    {u.email ?? t("admin.users.no_email")} ·{" "}
+                    {t("admin.users.sessions_count", {
+                      count: userSessions.length,
+                    })}
                   </p>
                 </div>
                 {isOwner ? (
                   <span className="text-[11px] text-[color:var(--muted)]">
-                    conta protegida
+                    {t("admin.users.protected_account")}
                   </span>
                 ) : (
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
@@ -245,10 +270,10 @@ export function UsersTab({
                         type="button"
                         onClick={() => revokeAll(u)}
                         className="admin-chip-btn"
-                        title="Encerrar todas as sessões"
+                        title={t("admin.users.end_all_sessions")}
                       >
                         <LogOut className="h-3.5 w-3.5" />
-                        Sessões
+                        {t("admin.users.sessions")}
                       </button>
                     ) : null}
                     <button
@@ -257,7 +282,7 @@ export function UsersTab({
                       className="admin-chip-btn"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
-                      Senha
+                      {t("admin.users.password_short")}
                     </button>
                     {u.twoFactorEnabled ? (
                       <button
@@ -273,7 +298,7 @@ export function UsersTab({
                       disabled={isSelf}
                       onClick={() => removeUser(u)}
                       className="admin-icon-btn hover:text-red-400 disabled:opacity-30"
-                      title="Remover"
+                      title={t("admin.delete")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -289,10 +314,14 @@ export function UsersTab({
                       className="flex items-center justify-between gap-2 text-xs"
                     >
                       <span className="truncate text-[color:var(--muted)]">
-                        {shortUa(s.userAgent)}
+                        {shortUa(
+                          s.userAgent,
+                          t("admin.users.generic_browser"),
+                          t("admin.users.unknown_device"),
+                        )}
                         {s.current ? (
                           <span className="ml-2 text-[color:var(--accent)]">
-                            este dispositivo
+                            {t("admin.users.this_device")}
                           </span>
                         ) : null}
                       </span>
@@ -301,7 +330,7 @@ export function UsersTab({
                         onClick={() => revokeSession(s.sessionId)}
                         className="shrink-0 rounded-[4px] px-2 py-0.5 text-[color:var(--muted)] transition hover:text-red-400"
                       >
-                        encerrar
+                        {t("admin.users.end")}
                       </button>
                     </li>
                   ))}
@@ -315,8 +344,12 @@ export function UsersTab({
   );
 }
 
-function shortUa(ua: string): string {
-  if (!ua) return "dispositivo desconhecido";
+function shortUa(
+  ua: string,
+  fallbackBrowser: string,
+  unknownDevice: string,
+): string {
+  if (!ua) return unknownDevice;
   const browser = /Edg/.test(ua)
     ? "Edge"
     : /Chrome/.test(ua)
@@ -325,7 +358,7 @@ function shortUa(ua: string): string {
         ? "Firefox"
         : /Safari/.test(ua)
           ? "Safari"
-          : "navegador";
+          : fallbackBrowser;
   const os = /Windows/.test(ua)
     ? "Windows"
     : /Android/.test(ua)

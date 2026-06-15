@@ -6,7 +6,6 @@ import {
   useState,
 } from "react";
 import {
-  Activity,
   Database,
   LayoutDashboard,
   Lock,
@@ -15,6 +14,7 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { LocalLogin } from "../components/local-login";
 import { ThemeToggle } from "../components/theme-toggle";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "../theme";
@@ -33,16 +33,18 @@ import { AuditTab } from "./tabs/audit-tab";
 type Phase = "checking" | "login" | "denied" | "reauth" | "ready";
 type TabKey = "overview" | "data" | "users" | "audit";
 
-const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
-  { key: "overview", label: "Visão geral", icon: LayoutDashboard },
-  { key: "data", label: "Dados armazenados", icon: Database },
-  { key: "users", label: "Usuários & sessões", icon: Users },
-  { key: "audit", label: "Auditoria & logs", icon: ScrollText },
-];
+const TABS: { key: TabKey; labelKey: string; icon: typeof LayoutDashboard }[] =
+  [
+    { key: "overview", labelKey: "admin.tabs.overview", icon: LayoutDashboard },
+    { key: "data", labelKey: "admin.tabs.data", icon: Database },
+    { key: "users", labelKey: "admin.tabs.users", icon: Users },
+    { key: "audit", labelKey: "admin.tabs.audit", icon: ScrollText },
+  ];
 
 export type WithReauth = <T>(action: () => Promise<T>) => Promise<T>;
 
 export default function AdminApp() {
+  const { t } = useTranslation();
   const [theme, setTheme] = useState<AppTheme>(() => {
     if (typeof window === "undefined") return "white";
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -119,7 +121,7 @@ export default function AdminApp() {
       });
       settleReauth(true);
     } catch {
-      setReauthError("Senha incorreta.");
+      setReauthError(t("admin.reauth.incorrect_password"));
     }
   }
 
@@ -183,13 +185,13 @@ export default function AdminApp() {
       >
         <p className="text-6xl font-bold text-[color:var(--muted)]">404</p>
         <p className="text-sm text-[color:var(--muted)]">
-          Página não encontrada.
+          {t("admin.not_found")}
         </p>
         <a
           href="/"
           className="mt-2 text-sm font-medium text-[color:var(--accent)] hover:underline"
         >
-          Voltar
+          {t("admin.back")}
         </a>
       </div>
     );
@@ -215,7 +217,7 @@ export default function AdminApp() {
               setPhase("ready");
               return "";
             } catch {
-              return "Senha incorreta.";
+              return t("admin.reauth.incorrect_password");
             }
           }}
           onCancel={leave}
@@ -235,16 +237,16 @@ export default function AdminApp() {
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[color:var(--text)]">
-              Painel
+              {t("admin.panel")}
             </p>
             <p className="truncate text-[11px] text-[color:var(--muted)]">
-              superadmin · {username}
+              {t("admin.superadmin_user", { username })}
             </p>
           </div>
         </div>
 
         <nav className="flex gap-1 lg:flex-col">
-          {TABS.map(({ key, label, icon: Icon }) => (
+          {TABS.map(({ key, labelKey, icon: Icon }) => (
             <button
               key={key}
               type="button"
@@ -252,7 +254,7 @@ export default function AdminApp() {
               className={`admin-tab ${tab === key ? "admin-tab-active" : ""}`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{label}</span>
+              <span className="truncate">{t(labelKey)}</span>
             </button>
           ))}
         </nav>
@@ -265,7 +267,7 @@ export default function AdminApp() {
             className="flex h-10 items-center justify-center gap-2 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--field)] px-3 text-sm font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
           >
             <LogOut className="h-4 w-4" />
-            Sair do painel
+            {t("admin.leave_panel")}
           </button>
         </div>
       </aside>
@@ -303,6 +305,7 @@ function ReauthGate({
   onConfirm: (password: string) => Promise<string>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -321,13 +324,13 @@ function ReauthGate({
       <div className="mb-4 flex items-center gap-2 text-[color:var(--accent)]">
         <Lock className="h-5 w-5" />
         <h1 className="text-lg font-semibold text-[color:var(--text)]">
-          Confirme sua identidade
+          {t("admin.reauth.confirm_identity")}
         </h1>
       </div>
       <p className="mb-4 text-sm text-[color:var(--muted)]">
-        Painel restrito ao dono. Reconfirme a senha de{" "}
+        {t("admin.reauth.owner_only_prefix")}{" "}
         <span className="font-medium text-[color:var(--text)]">{username}</span>{" "}
-        para abrir.
+        {t("admin.reauth.owner_only_suffix")}
       </p>
       <input
         type="password"
@@ -335,7 +338,7 @@ function ReauthGate({
         autoComplete="current-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Senha"
+        placeholder={t("admin.reauth.password")}
         className="admin-input mb-3 w-full"
       />
       {error ? (
@@ -349,14 +352,14 @@ function ReauthGate({
           onClick={onCancel}
           className="h-10 flex-1 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--field)] text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
         >
-          Sair
+          {t("admin.reauth.exit")}
         </button>
         <button
           type="submit"
           disabled={busy || !password}
           className="admin-btn-primary h-10 flex-1"
         >
-          {busy ? "Verificando…" : "Abrir painel"}
+          {busy ? t("admin.reauth.verifying") : t("admin.reauth.open_panel")}
         </button>
       </div>
     </form>
@@ -373,6 +376,7 @@ function ReauthOverlay({
   onCancel: () => void;
   onSubmit: (password: string) => void;
 }) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[color:var(--overlay)] p-4 backdrop-blur-sm">
@@ -386,11 +390,11 @@ function ReauthOverlay({
         <div className="mb-3 flex items-center gap-2 text-[color:var(--accent)]">
           <Lock className="h-5 w-5" />
           <h2 className="text-base font-semibold text-[color:var(--text)]">
-            Reconfirme a senha
+            {t("admin.reauth.reconfirm_password")}
           </h2>
         </div>
         <p className="mb-3 text-sm text-[color:var(--muted)]">
-          Esta ação exige uma confirmação recente.
+          {t("admin.reauth.recent_required")}
         </p>
         <input
           type="password"
@@ -398,7 +402,7 @@ function ReauthOverlay({
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Senha"
+          placeholder={t("admin.reauth.password")}
           className="admin-input mb-3 w-full"
         />
         {error ? (
@@ -412,14 +416,14 @@ function ReauthOverlay({
             onClick={onCancel}
             className="h-10 flex-1 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--field)] text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
           >
-            Cancelar
+            {t("admin.cancel")}
           </button>
           <button
             type="submit"
             disabled={!password}
             className="admin-btn-primary h-10 flex-1"
           >
-            Confirmar
+            {t("admin.confirm")}
           </button>
         </div>
       </form>

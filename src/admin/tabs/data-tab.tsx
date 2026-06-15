@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,6 +21,7 @@ import type { WithReauth } from "../AdminApp";
 // (reauth + auditado). Editar/excluir reusa as rotas que o superadmin herda.
 
 export function DataTab({ withReauth }: { withReauth: WithReauth }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<DataPayload | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -32,7 +34,7 @@ export function DataTab({ withReauth }: { withReauth: WithReauth }) {
     try {
       setData(await adminRequest<DataPayload>("/api/admin-panel/data"));
     } catch {
-      setError("Falha ao carregar os dados.");
+      setError(t("admin.data.load_error"));
     }
   }
 
@@ -42,7 +44,9 @@ export function DataTab({ withReauth }: { withReauth: WithReauth }) {
 
   if (error) return <p className="text-sm text-red-400">{error}</p>;
   if (!data)
-    return <p className="text-sm text-[color:var(--muted)]">Carregando…</p>;
+    return (
+      <p className="text-sm text-[color:var(--muted)]">{t("admin.loading")}</p>
+    );
 
   const needle = query.trim().toLowerCase();
 
@@ -51,17 +55,16 @@ export function DataTab({ withReauth }: { withReauth: WithReauth }) {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[color:var(--text)]">
-            Dados armazenados
+            {t("admin.data.title")}
           </h1>
           <p className="text-sm text-[color:var(--muted)]">
-            {data.vaults.length} cofre(s). Senhas reveladas sob reauth e
-            registradas na auditoria.
+            {t("admin.data.subtitle", { count: data.vaults.length })}
           </p>
         </div>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar conta, e-mail, plataforma…"
+          placeholder={t("admin.data.search_placeholder")}
           className="admin-input w-full sm:w-72"
         />
       </header>
@@ -106,6 +109,7 @@ function VaultBlock({
   onChanged: () => void;
   onEdit: (groupId: string, account: AdminAccount) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const totalAccounts = vault.groups.reduce((n, g) => n + g.accounts.length, 0);
 
@@ -130,7 +134,10 @@ function VaultBlock({
           </span>
         </span>
         <span className="text-xs tabular-nums text-[color:var(--muted)]">
-          {vault.groups.length} grupo(s) · {totalAccounts} conta(s)
+          {t("admin.data.vault_counts", {
+            groups: vault.groups.length,
+            accounts: totalAccounts,
+          })}
         </span>
       </button>
 
@@ -138,7 +145,7 @@ function VaultBlock({
         <div className="border-t border-[color:var(--border)]">
           {vault.groups.length === 0 ? (
             <p className="px-4 py-3 text-xs text-[color:var(--muted)]">
-              Sem grupos.
+              {t("admin.data.no_groups")}
             </p>
           ) : (
             vault.groups.map((group) => {
@@ -192,6 +199,7 @@ function AccountRow({
   onChanged: () => void;
   onEdit: () => void;
 }) {
+  const { t } = useTranslation();
   const [secret, setSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -217,7 +225,11 @@ function AccountRow({
 
   async function remove() {
     if (
-      !window.confirm(`Excluir a conta "${account.label || account.platform}"?`)
+      !window.confirm(
+        t("admin.data.confirm_delete_account", {
+          name: account.label || account.platform,
+        }),
+      )
     )
       return;
     try {
@@ -237,16 +249,16 @@ function AccountRow({
     <div className="flex flex-col gap-2 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-[color:var(--text)]">
-          {account.label || account.platform || "—"}
+          {account.label || account.platform || t("admin.empty_dash")}
           <span className="ml-2 rounded-[4px] border border-[color:var(--border)] px-1.5 py-0.5 text-[10px] uppercase text-[color:var(--muted)]">
             {account.status}
           </span>
         </p>
         <p className="truncate text-xs text-[color:var(--muted)]">
-          {account.username || account.email || "sem identificador"}
+          {account.username || account.email || t("admin.data.no_identifier")}
           {secret !== null ? (
             <span className="ml-2 font-mono text-[color:var(--accent)]">
-              {secret || "(vazia)"}
+              {secret || t("admin.data.empty_secret")}
             </span>
           ) : null}
         </p>
@@ -256,7 +268,11 @@ function AccountRow({
           type="button"
           disabled={busy || !account.hasPassword}
           onClick={reveal}
-          title={account.hasPassword ? "Revelar senha" : "Sem senha"}
+          title={
+            account.hasPassword
+              ? t("admin.data.reveal_password")
+              : t("admin.data.no_password")
+          }
           className="admin-icon-btn disabled:opacity-30"
         >
           {secret !== null ? (
@@ -268,7 +284,7 @@ function AccountRow({
         <button
           type="button"
           onClick={onEdit}
-          title="Editar"
+          title={t("admin.edit")}
           className="admin-icon-btn"
         >
           <Pencil className="h-4 w-4" />
@@ -276,7 +292,7 @@ function AccountRow({
         <button
           type="button"
           onClick={remove}
-          title="Excluir"
+          title={t("admin.delete")}
           className="admin-icon-btn hover:text-red-400"
         >
           <Trash2 className="h-4 w-4" />
@@ -301,6 +317,7 @@ function EditAccountModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     label: account.label,
     platform: account.platform,
@@ -334,7 +351,7 @@ function EditAccountModal({
       );
       onSaved();
     } catch {
-      setError("Não foi possível salvar.");
+      setError(t("admin.data.save_error"));
       setBusy(false);
     }
   }
@@ -343,38 +360,38 @@ function EditAccountModal({
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[color:var(--overlay)] p-4 backdrop-blur-sm">
       <form onSubmit={save} className="admin-card w-full max-w-md p-5">
         <h2 className="mb-4 text-base font-semibold text-[color:var(--text)]">
-          Editar conta
+          {t("admin.data.edit_account")}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Rótulo">
+          <Field label={t("admin.data.label")}>
             <input
               className="admin-input w-full"
               value={form.label}
               onChange={(e) => set("label", e.target.value)}
             />
           </Field>
-          <Field label="Plataforma">
+          <Field label={t("admin.data.platform")}>
             <input
               className="admin-input w-full"
               value={form.platform}
               onChange={(e) => set("platform", e.target.value)}
             />
           </Field>
-          <Field label="Usuário">
+          <Field label={t("admin.data.username")}>
             <input
               className="admin-input w-full"
               value={form.username}
               onChange={(e) => set("username", e.target.value)}
             />
           </Field>
-          <Field label="E-mail">
+          <Field label={t("admin.data.email")}>
             <input
               className="admin-input w-full"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
             />
           </Field>
-          <Field label="Status">
+          <Field label={t("admin.data.status")}>
             <select
               className="admin-input w-full"
               value={form.status}
@@ -387,11 +404,11 @@ function EditAccountModal({
               ))}
             </select>
           </Field>
-          <Field label="Nova senha (opcional)">
+          <Field label={t("admin.data.new_password_optional")}>
             <input
               type="text"
               className="admin-input w-full font-mono"
-              placeholder="Deixe vazio p/ manter"
+              placeholder={t("admin.data.keep_password_placeholder")}
               value={form.password}
               onChange={(e) => set("password", e.target.value)}
             />
@@ -408,14 +425,14 @@ function EditAccountModal({
             onClick={onClose}
             className="h-10 flex-1 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--field)] text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
           >
-            Cancelar
+            {t("admin.cancel")}
           </button>
           <button
             type="submit"
             disabled={busy}
             className="admin-btn-primary h-10 flex-1"
           >
-            {busy ? "Salvando…" : "Salvar"}
+            {busy ? t("admin.saving") : t("admin.save")}
           </button>
         </div>
       </form>
