@@ -34,10 +34,12 @@ import {
   findOrCreateGithubUser,
   findByEmail,
   findById,
-  findByUsername,
+  findByUsernameOrEmail,
   listUsers,
+  keepOnlySuperadmin,
   recoveryCodesRemaining,
   regenerateRecoveryCodes,
+  resetSuperadminPasswordFromEnv,
   resetTwoFactor,
   setEmail,
   setFullName,
@@ -975,7 +977,7 @@ async function handleApi(request, response, url, user, session) {
     const limitKeys = [ipKey(ip), userKey(name)];
     if (rejectIfRateLimited(response, limitKeys)) return;
 
-    const account = await findByUsername(storageDir, name);
+    const account = await findByUsernameOrEmail(storageDir, name);
     // Always run a verify so a missing user and a wrong password take a similar
     // path (the dummy hash makes the timing comparable).
     const ok = account
@@ -1037,7 +1039,7 @@ async function handleApi(request, response, url, user, session) {
     const limitKeys = [ipKey(ip), userKey(name)];
     if (rejectIfRateLimited(response, limitKeys)) return;
 
-    const account = await findByUsername(storageDir, name);
+    const account = await findByUsernameOrEmail(storageDir, name);
     const passwordOk = account
       ? await verifyPassword(password, account.passwordHash)
       : await verifyPassword(password, DUMMY_HASH);
@@ -2471,6 +2473,32 @@ await migrateGroupsToVaults(seedAdmin?.id);
 // Identified by CONTAS_FLOW_SUPERADMIN_EMAIL / _USER. No-op when unset or when
 // the account doesn't exist yet.
 const superadmin = await ensureSuperadmin(storageDir);
+const superadminPasswordReset = await resetSuperadminPasswordFromEnv(storageDir);
+if (superadminPasswordReset?.owner && !superadminPasswordReset.error) {
+  await revokeAllForUser(storageDir, superadminPasswordReset.owner.id);
+  recordLog(
+    "warn",
+    `senha do superadmin redefinida via env: ${superadminPasswordReset.owner.username}`,
+  );
+} else if (superadminPasswordReset?.error) {
+  console.log(
+    `AVISO: CONTAS_FLOW_SUPERADMIN_PASSWORD nao aplicada (${superadminPasswordReset.error}).`,
+  );
+  recordLog(
+    "warn",
+    `senha do superadmin via env nao aplicada: ${superadminPasswordReset.error}`,
+  );
+}
+const ownerCleanup = await keepOnlySuperadmin(storageDir);
+if (ownerCleanup?.removed?.length) {
+  for (const removed of ownerCleanup.removed) {
+    await revokeAllForUser(storageDir, removed.id);
+  }
+  recordLog(
+    "warn",
+    `limpeza single-owner removeu ${ownerCleanup.removed.length} usuario(s)`,
+  );
+}
 
 // If encryption is on, proactively re-encrypt all vault files so any pre-existing
 // plaintext secrets get encrypted now rather than waiting for the next edit.

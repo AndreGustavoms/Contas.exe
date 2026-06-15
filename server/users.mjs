@@ -426,6 +426,29 @@ export async function ensureSeedAdmin(storageDir) {
   return [admin];
 }
 
+function ownerSelectorFromEnv() {
+  return {
+    email: normalizeEmail(process.env.CONTAS_FLOW_SUPERADMIN_EMAIL),
+    username: normalizeUsername(process.env.CONTAS_FLOW_SUPERADMIN_USER),
+  };
+}
+
+function findOwner(users, { email, username }) {
+  return users.find(
+    (u) =>
+      (email && u.email?.toLowerCase() === email) ||
+      (username && u.username === username),
+  );
+}
+
+function truthyEnv(value) {
+  return ["1", "true", "yes", "on"].includes(
+    String(value ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
 // Promove a conta dona ao papel "superadmin" no boot. Identifica a conta por
 // CONTAS_FLOW_SUPERADMIN_EMAIL (preferido) ou CONTAS_FLOW_SUPERADMIN_USER. Para
 // manter um único dono, qualquer OUTRO superadmin é rebaixado para admin. É a
@@ -433,16 +456,11 @@ export async function ensureSeedAdmin(storageDir) {
 // retorna null) se a env não estiver setada ou a conta não existir ainda.
 export function ensureSuperadmin(storageDir) {
   return withLock(async () => {
-    const email = normalizeEmail(process.env.CONTAS_FLOW_SUPERADMIN_EMAIL);
-    const username = normalizeUsername(process.env.CONTAS_FLOW_SUPERADMIN_USER);
+    const { email, username } = ownerSelectorFromEnv();
     if (!email && !username) return null;
 
     const users = await readUsersFile(storageDir);
-    const owner = users.find(
-      (u) =>
-        (email && u.email?.toLowerCase() === email) ||
-        (username && u.username === username),
-    );
+    const owner = findOwner(users, { email, username });
     if (!owner) return null;
 
     let changed = false;
@@ -461,6 +479,62 @@ export function ensureSuperadmin(storageDir) {
   });
 }
 
+// Optional break-glass maintenance for a single-owner deployment. When
+// CONTAS_FLOW_KEEP_ONLY_SUPERADMIN=1 is set, every login user except the owner
+// selected by CONTAS_FLOW_SUPERADMIN_EMAIL / _USER is removed on boot. This is
+// intentionally opt-in and should be used only when you want to collapse the
+// deployment back to one owner account.
+export function keepOnlySuperadmin(storageDir) {
+  return withLock(async () => {
+    if (!truthyEnv(process.env.CONTAS_FLOW_KEEP_ONLY_SUPERADMIN)) {
+      return null;
+    }
+    const { email, username } = ownerSelectorFromEnv();
+    if (!email && !username) return null;
+
+    const users = await readUsersFile(storageDir);
+    const owner = findOwner(users, { email, username });
+    if (!owner) return { owner: null, removed: [] };
+
+    const removed = users.filter((u) => u.id !== owner.id);
+    if (owner.role !== "superadmin" || removed.length > 0) {
+      owner.role = "superadmin";
+      await writeUsersFile(storageDir, [owner]);
+    }
+
+    return {
+      owner: publicUser(owner),
+      removed: removed.map(publicUser),
+    };
+  });
+}
+
+// Break-glass password recovery for hosted deployments where the owner cannot
+// log in yet. Set CONTAS_FLOW_SUPERADMIN_PASSWORD to a strong temporary password,
+// redeploy once, log in, then remove the variable and manage passwords in-app.
+export function resetSuperadminPasswordFromEnv(storageDir) {
+  return withLock(async () => {
+    const password = process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD ?? "";
+    if (!password) return null;
+
+    const { email, username } = ownerSelectorFromEnv();
+    if (!email && !username) {
+      return { owner: null, error: "missing_superadmin_selector" };
+    }
+
+    const users = await readUsersFile(storageDir);
+    const owner = findOwner(users, { email, username });
+    if (!owner) return { owner: null, error: "superadmin_not_found" };
+
+    const passwordErr = validatePassword(password, owner.username);
+    if (passwordErr) return { owner: publicUser(owner), error: passwordErr };
+
+    owner.passwordHash = await hashPassword(password);
+    await writeUsersFile(storageDir, users);
+    return { owner: publicUser(owner), error: null };
+  });
+}
+
 export async function listUsers(storageDir) {
   const users = await readUsersFile(storageDir);
   return users.map(publicUser);
@@ -471,6 +545,18 @@ export async function findByUsername(storageDir, username) {
   if (!target) return null;
   const users = await readUsersFile(storageDir);
   return users.find((user) => user.username === target) ?? null;
+}
+
+export async function findByUsernameOrEmail(storageDir, login) {
+  const target = normalizeUsername(login);
+  if (!target) return null;
+  const users = await readUsersFile(storageDir);
+  return (
+    users.find(
+      (user) =>
+        user.username === target || user.email?.toLowerCase() === target,
+    ) ?? null
+  );
 }
 
 export async function findById(storageDir, id) {

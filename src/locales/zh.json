@@ -1,6 +1,6 @@
 {
   "login": {
-    "username": "用户名",
+    "username": "用户名或电子邮件",
     "password": "密码",
     "show_password": "显示密码",
     "hide_password": "隐藏密码",

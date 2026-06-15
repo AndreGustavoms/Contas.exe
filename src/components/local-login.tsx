@@ -287,7 +287,7 @@ export function LocalLogin({
                     autoComplete="username"
                     id="login-user"
                     required
-                    maxLength={80}
+                    maxLength={254}
                     value={name}
                     onFocus={() => setError("")}
                     onChange={(event) => {

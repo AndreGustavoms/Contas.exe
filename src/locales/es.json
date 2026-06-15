@@ -1,6 +1,6 @@
 {
   "login": {
-    "username": "Usuario",
+    "username": "Usuario o correo",
     "password": "Contraseña",
     "show_password": "Mostrar contraseña",
     "hide_password": "Ocultar contraseña",
