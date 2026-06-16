@@ -62,7 +62,7 @@ function Column({
       <div
         ref={ref}
         onScroll={onScroll}
-        className="overflow-y-scroll"
+        className="overflow-y-scroll overflow-x-hidden"
         style={{ scrollbarWidth: "none" }}
         style={{ height: ITEM_H * 5, scrollSnapType: "y mandatory" }}
       >
