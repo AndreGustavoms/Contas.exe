@@ -182,14 +182,23 @@ async function getSessionUser(request) {
   return (await getSessionContext(request)).user;
 }
 
-// Secure is required in production (HTTPS) but breaks login over plain http on
-// localhost, where browsers drop Secure cookies. Hosted deployments set PORT
-// (Railway et al.) and sit behind HTTPS, so key Secure off that. Override with
-// CONTAS_FLOW_COOKIE_SECURE=0/1 if needed.
-const cookieSecure =
-  process.env.CONTAS_FLOW_COOKIE_SECURE != null
-    ? process.env.CONTAS_FLOW_COOKIE_SECURE === "1"
-    : Boolean(process.env.PORT);
+// Secure is required on HTTPS, but breaks login over plain HTTP when the app is
+// shared locally. Hosted deployments report HTTPS through X-Forwarded-Proto.
+// CONTAS_FLOW_COOKIE_SECURE=0/1 remains an explicit override.
+const cookieSecureOverride = process.env.CONTAS_FLOW_COOKIE_SECURE;
+
+function requestProto(request) {
+  const forwardedProto = request?.headers?.["x-forwarded-proto"];
+  if (typeof forwardedProto === "string" && forwardedProto.length > 0) {
+    return forwardedProto.split(",")[0].trim().toLowerCase();
+  }
+  return request?.socket?.encrypted ? "https" : "http";
+}
+
+function shouldUseSecureCookie(request) {
+  if (cookieSecureOverride != null) return cookieSecureOverride === "1";
+  return requestProto(request) === "https";
+}
 
 function appendSetCookie(response, cookie) {
   const existing = response.getHeader("Set-Cookie");
@@ -203,45 +212,45 @@ function appendSetCookie(response, cookie) {
   );
 }
 
-function sessionCookie(value, maxAge) {
+function sessionCookie(request, value, maxAge) {
   const flags = ["HttpOnly", "SameSite=Strict", "Path=/", `Max-Age=${maxAge}`];
-  if (cookieSecure) flags.splice(1, 0, "Secure");
+  if (shouldUseSecureCookie(request)) flags.splice(1, 0, "Secure");
   return `${SESSION_COOKIE}=${value}; ${flags.join("; ")}`;
 }
 
-function setSessionCookie(response, token) {
+function setSessionCookie(request, response, token) {
   // Cookie lifetime tracks the absolute session ceiling (3 days). The server still
   // enforces the 3h idle timeout independently, so the cookie outliving an idle
   // session is fine — the token just stops validating server-side.
   appendSetCookie(
     response,
-    sessionCookie(token, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
+    sessionCookie(request, token, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
   );
 }
 
-function clearSessionCookie(response) {
-  appendSetCookie(response, sessionCookie("", 0));
+function clearSessionCookie(request, response) {
+  appendSetCookie(response, sessionCookie(request, "", 0));
 }
 
 const GOOGLE_OAUTH_STATE_COOKIE = "contas_google_oauth_state";
 
-function googleOAuthStateCookie(value, maxAge) {
+function googleOAuthStateCookie(request, value, maxAge) {
   const flags = [
     "HttpOnly",
     "SameSite=Lax",
     "Path=/api/auth/google/callback",
     `Max-Age=${maxAge}`,
   ];
-  if (cookieSecure) flags.splice(1, 0, "Secure");
+  if (shouldUseSecureCookie(request)) flags.splice(1, 0, "Secure");
   return `${GOOGLE_OAUTH_STATE_COOKIE}=${encodeURIComponent(value)}; ${flags.join("; ")}`;
 }
 
-function setGoogleOAuthStateCookie(response, state) {
-  appendSetCookie(response, googleOAuthStateCookie(state, 10 * 60));
+function setGoogleOAuthStateCookie(request, response, state) {
+  appendSetCookie(response, googleOAuthStateCookie(request, state, 10 * 60));
 }
 
-function clearGoogleOAuthStateCookie(response) {
-  appendSetCookie(response, googleOAuthStateCookie("", 0));
+function clearGoogleOAuthStateCookie(request, response) {
+  appendSetCookie(response, googleOAuthStateCookie(request, "", 0));
 }
 
 function stateMatches(actual, expected) {
@@ -255,14 +264,7 @@ function stateMatches(actual, expected) {
 }
 
 function requestOrigin(request) {
-  const forwardedProto = request.headers["x-forwarded-proto"];
-  const proto =
-    typeof forwardedProto === "string"
-      ? forwardedProto.split(",")[0].trim()
-      : cookieSecure
-        ? "https"
-        : "http";
-  return `${proto}://${request.headers.host}`;
+  return `${requestProto(request)}://${request.headers.host}`;
 }
 
 function googleRedirectUri(request) {
@@ -274,23 +276,23 @@ function googleRedirectUri(request) {
 
 const GITHUB_OAUTH_STATE_COOKIE = "contas_github_oauth_state";
 
-function githubOAuthStateCookie(value, maxAge) {
+function githubOAuthStateCookie(request, value, maxAge) {
   const flags = [
     "HttpOnly",
     "SameSite=Lax",
     "Path=/api/auth/github/callback",
     `Max-Age=${maxAge}`,
   ];
-  if (cookieSecure) flags.splice(1, 0, "Secure");
+  if (shouldUseSecureCookie(request)) flags.splice(1, 0, "Secure");
   return `${GITHUB_OAUTH_STATE_COOKIE}=${encodeURIComponent(value)}; ${flags.join("; ")}`;
 }
 
-function setGithubOAuthStateCookie(response, state) {
-  appendSetCookie(response, githubOAuthStateCookie(state, 10 * 60));
+function setGithubOAuthStateCookie(request, response, state) {
+  appendSetCookie(response, githubOAuthStateCookie(request, state, 10 * 60));
 }
 
-function clearGithubOAuthStateCookie(response) {
-  appendSetCookie(response, githubOAuthStateCookie("", 0));
+function clearGithubOAuthStateCookie(request, response) {
+  appendSetCookie(response, githubOAuthStateCookie(request, "", 0));
 }
 
 function githubRedirectUri(request) {
@@ -302,23 +304,23 @@ function githubRedirectUri(request) {
 
 const YOUTUBE_OAUTH_STATE_COOKIE = "contas_youtube_oauth_state";
 
-function youtubeOAuthStateCookie(value, maxAge) {
+function youtubeOAuthStateCookie(request, value, maxAge) {
   const flags = [
     "HttpOnly",
     "SameSite=Lax",
     "Path=/api/youtube/callback",
     `Max-Age=${maxAge}`,
   ];
-  if (cookieSecure) flags.splice(1, 0, "Secure");
+  if (shouldUseSecureCookie(request)) flags.splice(1, 0, "Secure");
   return `${YOUTUBE_OAUTH_STATE_COOKIE}=${encodeURIComponent(value)}; ${flags.join("; ")}`;
 }
 
-function setYoutubeOAuthStateCookie(response, state) {
-  appendSetCookie(response, youtubeOAuthStateCookie(state, 10 * 60));
+function setYoutubeOAuthStateCookie(request, response, state) {
+  appendSetCookie(response, youtubeOAuthStateCookie(request, state, 10 * 60));
 }
 
-function clearYoutubeOAuthStateCookie(response) {
-  appendSetCookie(response, youtubeOAuthStateCookie("", 0));
+function clearYoutubeOAuthStateCookie(request, response) {
+  appendSetCookie(response, youtubeOAuthStateCookie(request, "", 0));
 }
 
 function redirect(response, location) {
@@ -770,7 +772,7 @@ function applySecurityHeaders(request, response) {
   );
   // HSTS only makes sense over HTTPS; gate it on the same signal as Secure
   // cookies so local http isn't told to force TLS.
-  if (cookieSecure) {
+  if (shouldUseSecureCookie(request)) {
     response.setHeader(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains",
@@ -842,7 +844,7 @@ async function handleApi(request, response, url, user, session) {
     }
 
     const state = `link:${randomBytes(32).toString("base64url")}`;
-    setGoogleOAuthStateCookie(response, state);
+    setGoogleOAuthStateCookie(request, response, state);
     try {
       redirect(
         response,
@@ -852,7 +854,7 @@ async function handleApi(request, response, url, user, session) {
         }),
       );
     } catch {
-      clearGoogleOAuthStateCookie(response);
+      clearGoogleOAuthStateCookie(request, response);
       redirect(response, "/?connection=google_error");
     }
     return;
@@ -873,7 +875,7 @@ async function handleApi(request, response, url, user, session) {
     }
 
     const state = `link:${randomBytes(32).toString("base64url")}`;
-    setGithubOAuthStateCookie(response, state);
+    setGithubOAuthStateCookie(request, response, state);
     try {
       redirect(
         response,
@@ -883,7 +885,7 @@ async function handleApi(request, response, url, user, session) {
         }),
       );
     } catch {
-      clearGithubOAuthStateCookie(response);
+      clearGithubOAuthStateCookie(request, response);
       redirect(response, "/?connection=github_error");
     }
     return;
@@ -896,7 +898,7 @@ async function handleApi(request, response, url, user, session) {
     }
 
     const state = randomBytes(32).toString("base64url");
-    setGoogleOAuthStateCookie(response, state);
+    setGoogleOAuthStateCookie(request, response, state);
     try {
       redirect(
         response,
@@ -906,7 +908,7 @@ async function handleApi(request, response, url, user, session) {
         }),
       );
     } catch (error) {
-      clearGoogleOAuthStateCookie(response);
+      clearGoogleOAuthStateCookie(request, response);
       redirect(response, "/?auth=google_error");
     }
     return;
@@ -918,7 +920,7 @@ async function handleApi(request, response, url, user, session) {
   ) {
     const expectedState = parseCookies(request)[GOOGLE_OAUTH_STATE_COOKIE];
     const actualState = url.searchParams.get("state");
-    clearGoogleOAuthStateCookie(response);
+    clearGoogleOAuthStateCookie(request, response);
 
     if (url.searchParams.get("error")) {
       redirect(response, "/?auth=google_error");
@@ -975,7 +977,7 @@ async function handleApi(request, response, url, user, session) {
       });
 
       await markReauth(storageDir, token);
-      setSessionCookie(response, token);
+      setSessionCookie(request, response, token);
       void logEvent(storageDir, {
         userId: result.user.id,
         username: result.user.username,
@@ -1012,7 +1014,7 @@ async function handleApi(request, response, url, user, session) {
     }
 
     const state = randomBytes(32).toString("base64url");
-    setGithubOAuthStateCookie(response, state);
+    setGithubOAuthStateCookie(request, response, state);
     try {
       redirect(
         response,
@@ -1022,7 +1024,7 @@ async function handleApi(request, response, url, user, session) {
         }),
       );
     } catch (error) {
-      clearGithubOAuthStateCookie(response);
+      clearGithubOAuthStateCookie(request, response);
       redirect(response, "/?auth=github_error");
     }
     return;
@@ -1034,7 +1036,7 @@ async function handleApi(request, response, url, user, session) {
   ) {
     const expectedState = parseCookies(request)[GITHUB_OAUTH_STATE_COOKIE];
     const actualState = url.searchParams.get("state");
-    clearGithubOAuthStateCookie(response);
+    clearGithubOAuthStateCookie(request, response);
 
     if (url.searchParams.get("error")) {
       redirect(response, "/?auth=github_error");
@@ -1091,7 +1093,7 @@ async function handleApi(request, response, url, user, session) {
       });
 
       await markReauth(storageDir, token);
-      setSessionCookie(response, token);
+      setSessionCookie(request, response, token);
       void logEvent(storageDir, {
         userId: result.user.id,
         username: result.user.username,
@@ -1157,7 +1159,7 @@ async function handleApi(request, response, url, user, session) {
         ip,
         userAgent: request.headers["user-agent"],
       });
-      setSessionCookie(response, token);
+      setSessionCookie(request, response, token);
       void logEvent(storageDir, {
         userId: account.id,
         username: account.username,
@@ -1237,7 +1239,7 @@ async function handleApi(request, response, url, user, session) {
       ip,
       userAgent: request.headers["user-agent"],
     });
-    setSessionCookie(response, token);
+    setSessionCookie(request, response, token);
     void logEvent(storageDir, {
       userId: account.id,
       username: account.username,
@@ -1474,7 +1476,7 @@ async function handleApi(request, response, url, user, session) {
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {
     const token = sessionToken(request);
     if (token) await revokeSession(storageDir, token);
-    clearSessionCookie(response);
+    clearSessionCookie(request, response);
     sendJson(response, 200, { authenticated: false });
     return;
   }
@@ -1486,7 +1488,7 @@ async function handleApi(request, response, url, user, session) {
   if (url.pathname === "/api/auth/status" && request.method === "GET") {
     const current = await getSessionUser(request);
     if (!current && sessionToken(request)) {
-      clearSessionCookie(response);
+      clearSessionCookie(request, response);
     }
     sendJson(response, 200, {
       authenticated: Boolean(current),
@@ -1692,7 +1694,7 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     await revokeAllForUser(storageDir, user.id);
-    clearSessionCookie(response);
+    clearSessionCookie(request, response);
     void logEvent(storageDir, {
       userId: user.id,
       username: user.username,
@@ -2260,12 +2262,12 @@ async function handleApi(request, response, url, user, session) {
   // Generates a CSRF state cookie (same pattern as Google/GitHub OAuth).
   if (url.pathname === "/api/youtube/connect" && request.method === "GET") {
     const state = randomBytes(32).toString("base64url");
-    setYoutubeOAuthStateCookie(response, state);
+    setYoutubeOAuthStateCookie(request, response, state);
     try {
       response.writeHead(302, { Location: buildAuthUrl(state) });
       response.end();
     } catch (error) {
-      clearYoutubeOAuthStateCookie(response);
+      clearYoutubeOAuthStateCookie(request, response);
       sendJson(response, 500, {
         error: "youtube_config",
         message: error instanceof Error ? error.message : "unknown",
@@ -2278,7 +2280,7 @@ async function handleApi(request, response, url, user, session) {
   if (url.pathname === "/api/youtube/callback" && request.method === "GET") {
     const expectedState = parseCookies(request)[YOUTUBE_OAUTH_STATE_COOKIE];
     const actualState = url.searchParams.get("state");
-    clearYoutubeOAuthStateCookie(response);
+    clearYoutubeOAuthStateCookie(request, response);
 
     if (url.searchParams.get("error")) {
       redirect(response, "/?youtube=error");
