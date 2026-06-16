@@ -212,7 +212,13 @@ export function resolveUploadPath(name) {
   if (typeof name !== "string" || name.trim() === "") {
     throw new Error("invalid_file");
   }
-  if (basename(name) !== name || name === "." || name === "..") {
+  if (
+    /[\\/]/.test(name) ||
+    /^[A-Za-z]:/.test(name) ||
+    basename(name) !== name ||
+    name === "." ||
+    name === ".."
+  ) {
     throw new Error("invalid_file");
   }
   const dir = resolve(uploadsDir);
