@@ -41,6 +41,12 @@ const tokensFile =
 const uploadsDir =
   process.env.YOUTUBE_UPLOAD_DIR ?? join(storageDir, "youtube-uploads");
 
+// Histórico de publicações. Guardamos só METADADOS (título, descrição, duração,
+// capa, ids) — nunca o arquivo de vídeo. O Contas é mero intermediário: o vídeo
+// passa por aqui rumo ao YouTube e é apagado assim que o upload termina.
+const historyFile =
+  process.env.YOUTUBE_HISTORY_DB ?? join(storageDir, "youtube-history.json");
+
 // Scopes: upload + read own channel info. youtube.upload is enough to insert
 // videos; youtube.readonly lets us read the channel name for display.
 const SCOPES = [
@@ -252,8 +258,29 @@ function safeUploadName(name) {
 // Streams an incoming request body straight to a file in the uploads dir, so a
 // large video never has to be buffered in memory. Returns { name, size }. Aborts
 // (and cleans up the partial file) past MAX_UPLOAD_BYTES.
+// Remove staged files left behind by uploads that were never published (e.g. the
+// user closed the tab mid-flow). Defensive: the normal path deletes right after
+// publishing. Best-effort, never throws.
+async function sweepStaleUploads(maxAgeMs = 2 * 60 * 60 * 1000) {
+  try {
+    const now = Date.now();
+    const entries = await readdir(uploadsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const full = join(uploadsDir, entry.name);
+      const info = await stat(full).catch(() => null);
+      if (info && now - info.mtimeMs > maxAgeMs) {
+        await unlink(full).catch(() => {});
+      }
+    }
+  } catch {
+    /* directory may not exist yet */
+  }
+}
+
 export async function stageUpload(originalName, source) {
   await ensureUploadsDir();
+  await sweepStaleUploads();
   const name = safeUploadName(originalName);
   const dest = resolveUploadPath(name); // validates confinement
 
@@ -276,6 +303,43 @@ export async function stageUpload(originalName, source) {
     throw error;
   }
   return { name, size };
+}
+
+// ----- Upload history (metadata only) -----
+
+async function readHistory() {
+  try {
+    const raw = await readFile(historyFile, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.items) ? parsed.items : [];
+  } catch {
+    return [];
+  }
+}
+
+async function appendHistory(record) {
+  const items = await readHistory();
+  items.unshift(record);
+  await mkdir(storageDir, { recursive: true });
+  // Cap so the file can't grow without bound.
+  await writeFile(
+    historyFile,
+    `${JSON.stringify({ items: items.slice(0, 200) }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+// Most recent uploads first (metadata only — never the video itself).
+export async function listUploadHistory() {
+  return readHistory();
+}
+
+// ISO 8601 duration ("PT1M30S") -> seconds. Null if unparseable.
+function parseIsoDuration(iso) {
+  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso ?? "");
+  if (!match) return null;
+  const [, h, m, s] = match;
+  return Number(h || 0) * 3600 + Number(m || 0) * 60 + Number(s || 0);
 }
 
 // ----- Upload (with optional scheduling via publishAt) -----
@@ -315,19 +379,66 @@ export async function uploadVideo({
           : "private",
       };
 
-  const response = await youtube.videos.insert({
-    part: ["snippet", "status"],
-    requestBody: {
-      snippet: { title, description, tags },
-      status,
-    },
-    media: { body: createReadStream(filePath) },
-  });
+  try {
+    const response = await youtube.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: { title, description, tags },
+        status,
+      },
+      media: { body: createReadStream(filePath) },
+    });
 
-  return {
-    videoId: response.data.id,
-    title: response.data.snippet?.title,
-    publishAt: response.data.status?.publishAt ?? null,
-    privacyStatus: response.data.status?.privacyStatus,
-  };
+    const videoId = response.data.id ?? null;
+
+    // Best-effort: read the processed duration. May be null if YouTube hasn't
+    // finished processing yet — that's fine, the history just omits it.
+    let durationSeconds = null;
+    if (videoId) {
+      try {
+        const details = await youtube.videos.list({
+          part: ["contentDetails"],
+          id: [videoId],
+        });
+        durationSeconds = parseIsoDuration(
+          details.data.items?.[0]?.contentDetails?.duration,
+        );
+      } catch {
+        /* leave null */
+      }
+    }
+
+    const thumbnailUrl = videoId
+      ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+      : null;
+
+    const result = {
+      videoId,
+      title: response.data.snippet?.title ?? title,
+      publishAt: response.data.status?.publishAt ?? null,
+      privacyStatus: response.data.status?.privacyStatus,
+      durationSeconds,
+      thumbnailUrl,
+    };
+
+    // Histórico: só metadados, nunca o arquivo.
+    await appendHistory({
+      videoId,
+      channelId,
+      title: result.title,
+      description,
+      tags,
+      privacyStatus: result.privacyStatus,
+      publishAt: result.publishAt,
+      durationSeconds,
+      thumbnailUrl,
+      uploadedAt: new Date().toISOString(),
+    });
+
+    return result;
+  } finally {
+    // O Contas é só intermediário: o video nunca fica salvo. Apagamos o arquivo
+    // preparado assim que o upload termina (com sucesso ou falha).
+    await unlink(filePath).catch(() => {});
+  }
 }

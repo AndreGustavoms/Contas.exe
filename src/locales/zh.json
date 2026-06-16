@@ -607,7 +607,8 @@
       "error_no_file": "请选择视频。",
       "error_no_title": "请输入标题。",
       "error_schedule_past": "请选择将来的日期/时间。",
-      "error_too_large": "视频过大（最大 2 GB）。"
+      "error_too_large": "视频过大（最大 2 GB）。",
+      "history": "上传历史"
     }
   }
 }

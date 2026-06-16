@@ -20,6 +20,7 @@ import {
   ensureUploadsDir,
   handleOAuthCallback,
   listConnectedChannels,
+  listUploadHistory,
   listUploadableFiles,
   stageUpload,
   uploadVideo,
@@ -2265,6 +2266,12 @@ async function handleApi(request, response, url, user, session) {
   // List connected channels (no secrets).
   if (url.pathname === "/api/youtube/channels" && request.method === "GET") {
     sendJson(response, 200, { channels: await listConnectedChannels() });
+    return;
+  }
+
+  // Upload history (metadata only — the video itself is never stored).
+  if (url.pathname === "/api/youtube/history" && request.method === "GET") {
+    sendJson(response, 200, { items: await listUploadHistory() });
     return;
   }
 

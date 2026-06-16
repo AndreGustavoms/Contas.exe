@@ -1,5 +1,17 @@
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { Calendar, CheckCircle2, ExternalLink, Upload } from "lucide-react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Upload,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -11,6 +23,26 @@ import { Spinner } from "../ui/spinner";
 
 type Channel = { id: string; title: string; connectedAt: string };
 type Privacy = "public" | "unlisted" | "private";
+
+type HistoryItem = {
+  videoId: string | null;
+  title: string;
+  description?: string;
+  durationSeconds: number | null;
+  thumbnailUrl: string | null;
+  uploadedAt: string;
+  privacyStatus?: string;
+};
+
+function fmtDuration(seconds: number | null): string {
+  if (!seconds || seconds <= 0) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const mm = String(m).padStart(h ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
 
 // Envia o arquivo via XHR para acompanhar o progresso (fetch não expõe upload
 // progress). Resolve com o nome já preparado no servidor.
@@ -65,7 +97,15 @@ export function YouTubePoster() {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ videoId: string } | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadHistory = useCallback(() => {
+    fetch("/api/youtube/history")
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d: { items?: HistoryItem[] }) => setHistory(d.items ?? []))
+      .catch(() => setHistory([]));
+  }, []);
 
   useEffect(() => {
     fetch("/api/youtube/channels")
@@ -76,7 +116,8 @@ export function YouTubePoster() {
         if (list[0]) setChannelId(list[0].id);
       })
       .catch(() => setChannels([]));
-  }, []);
+    loadHistory();
+  }, [loadHistory]);
 
   function pickFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -126,6 +167,7 @@ export function YouTubePoster() {
       if (!res.ok) throw new Error("publish_failed");
       const data: { videoId: string } = await res.json();
       setDone({ videoId: data.videoId });
+      loadHistory();
     } catch (err) {
       setError(
         err instanceof Error && err.message === "file_too_large"
@@ -191,6 +233,10 @@ export function YouTubePoster() {
         >
           {t("post.youtube.new_post")}
         </Button>
+
+        <div className="w-full pt-2 text-left">
+          <HistoryList items={history} />
+        </div>
       </div>
     );
   }
@@ -369,6 +415,71 @@ export function YouTubePoster() {
             ? t("post.youtube.schedule_btn")
             : t("post.youtube.publish")}
       </Button>
+
+      <HistoryList items={history} />
     </div>
+  );
+}
+
+// Histórico de uploads (metadados — o vídeo nunca fica salvo no Contas).
+function HistoryList({ items }: { items: HistoryItem[] }) {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mt-2 border-t border-[color:var(--border)] pt-5">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[color:var(--text)]">
+        <Clock className="h-4 w-4 text-[color:var(--muted)]" />
+        {t("post.youtube.history")}
+      </h2>
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <li
+            key={`${item.videoId ?? "v"}-${i}`}
+            className="flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-2.5"
+          >
+            <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-[color:var(--surface-soft)]">
+              {item.thumbnailUrl ? (
+                <img
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  src={item.thumbnailUrl}
+                />
+              ) : null}
+              {item.durationSeconds ? (
+                <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[10px] font-medium tabular-nums text-white">
+                  {fmtDuration(item.durationSeconds)}
+                </span>
+              ) : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[color:var(--text)]">
+                {item.title}
+              </p>
+              {item.description ? (
+                <p className="truncate text-xs text-[color:var(--muted)]">
+                  {item.description}
+                </p>
+              ) : null}
+              <p className="text-[11px] text-[color:var(--muted)]">
+                {new Date(item.uploadedAt).toLocaleString()}
+              </p>
+            </div>
+            {item.videoId ? (
+              <a
+                aria-label={t("post.youtube.view")}
+                className="shrink-0 text-[color:var(--muted)] transition hover:text-[color:var(--accent)]"
+                href={`https://studio.youtube.com/video/${item.videoId}/edit`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

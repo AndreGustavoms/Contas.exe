@@ -614,7 +614,8 @@
       "error_no_file": "Choose a video.",
       "error_no_title": "Enter a title.",
       "error_schedule_past": "Pick a future date/time.",
-      "error_too_large": "Video too large (max 2 GB)."
+      "error_too_large": "Video too large (max 2 GB).",
+      "history": "Upload history"
     }
   }
 }

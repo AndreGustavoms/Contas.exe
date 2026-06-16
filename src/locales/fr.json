@@ -612,7 +612,8 @@
       "error_no_file": "Choisissez une vidéo.",
       "error_no_title": "Saisissez un titre.",
       "error_schedule_past": "Choisissez une date/heure future.",
-      "error_too_large": "Vidéo trop volumineuse (max 2 Go)."
+      "error_too_large": "Vidéo trop volumineuse (max 2 Go).",
+      "history": "Historique des envois"
     }
   }
 }

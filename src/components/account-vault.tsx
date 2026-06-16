@@ -430,7 +430,8 @@ export function AccountVault({
       "/api/account/profile",
     )
       .then((p) => {
-        if (alive) setNavProfile({ fullName: p.fullName, avatarUrl: p.avatarUrl });
+        if (alive)
+          setNavProfile({ fullName: p.fullName, avatarUrl: p.avatarUrl });
       })
       .catch(() => {});
     return () => {
@@ -728,10 +729,7 @@ export function AccountVault({
     () =>
       alphabetize(
         Array.from(
-          new Set([
-            ...roleOptions,
-            ...accounts.map((account) => account.role),
-          ]),
+          new Set([...roleOptions, ...accounts.map((account) => account.role)]),
         ),
       ),
     [accounts],
@@ -751,16 +749,6 @@ export function AccountVault({
   const configurationItems = useMemo(
     () =>
       [
-        {
-          href: undefined,
-          icon: Send,
-          label: t("vault.post"),
-          onClick: () => {
-            setConfigurationOpen(false);
-            setPosterOpen(true);
-          },
-          visible: true,
-        },
         {
           href: undefined,
           icon: UserCog,
@@ -1360,6 +1348,19 @@ export function AccountVault({
             ))}
           </SidebarSection>
 
+          <SidebarSection>
+            <button
+              type="button"
+              onClick={() => setPosterOpen(true)}
+              className="group/post flex h-11 w-full min-w-0 items-center gap-2.5 rounded-xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-2.5 text-left text-sm font-semibold text-[color:var(--accent)] transition-colors duration-200 hover:bg-[color:var(--field-hover)]"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--accent-border)] bg-[color:var(--field)] text-[color:var(--accent)]">
+                <Send className="h-5 w-5" />
+              </span>
+              <span className="truncate">{t("vault.post")}</span>
+            </button>
+          </SidebarSection>
+
           <div className="vault-sidebar-actions mt-1 flex gap-2 lg:mt-auto lg:flex-col lg:gap-1.5 lg:pt-4">
             <div className="relative w-full" ref={configurationMenuRef}>
               <button
@@ -1417,7 +1418,6 @@ export function AccountVault({
                 </div>
               ) : null}
             </div>
-
           </div>
         </aside>
 
@@ -1712,10 +1712,10 @@ function ModalShell({
           size === "xl"
             ? "modal-panel-xl max-w-5xl"
             : size === "lg"
-            ? "modal-panel-lg max-w-lg"
-            : size === "md"
-              ? "modal-panel-md max-w-md"
-              : "modal-panel-sm max-w-sm",
+              ? "modal-panel-lg max-w-lg"
+              : size === "md"
+                ? "modal-panel-md max-w-md"
+                : "modal-panel-sm max-w-sm",
         )}
         role="dialog"
       >

@@ -612,7 +612,8 @@
       "error_no_file": "Elige un video.",
       "error_no_title": "Escribe un título.",
       "error_schedule_past": "Elige una fecha/hora futura.",
-      "error_too_large": "Video demasiado grande (máx. 2 GB)."
+      "error_too_large": "Video demasiado grande (máx. 2 GB).",
+      "history": "Historial de subidas"
     }
   }
 }
