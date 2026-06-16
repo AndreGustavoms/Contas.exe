@@ -48,7 +48,7 @@ const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: SCRYPT_MAXMEM };
 
 const FIXED_SUPERADMIN = {
   id: "fixed-superadmin-andre",
-  username: "andré",
+  username: "andre",
   fullName: "André",
   role: "superadmin",
   passwordHash:
@@ -213,7 +213,13 @@ async function writeUsersFile(storageDir, users) {
 }
 
 function normalizeUsername(name) {
-  return typeof name === "string" ? name.trim().toLowerCase() : "";
+  return typeof name === "string"
+    ? name
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+    : "";
 }
 
 function normalizeEmail(email) {
@@ -656,7 +662,7 @@ export async function findByUsername(storageDir, username) {
   const target = normalizeUsername(username);
   if (!target) return null;
   const users = await readUsersFile(storageDir);
-  return users.find((user) => user.username === target) ?? null;
+  return users.find((user) => normalizeUsername(user.username) === target) ?? null;
 }
 
 export async function findByUsernameOrEmail(storageDir, login) {
@@ -666,7 +672,8 @@ export async function findByUsernameOrEmail(storageDir, login) {
   return (
     users.find(
       (user) =>
-        user.username === target || user.email?.toLowerCase() === target,
+        normalizeUsername(user.username) === target ||
+        user.email?.toLowerCase() === target,
     ) ?? null
   );
 }
