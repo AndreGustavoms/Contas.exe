@@ -8,6 +8,13 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  /* Curvas de easing da identidade. --ease-fluid (easeOutExpo) dá aquela
+     desaceleração suave "premium"; --ease-spring um leve overshoot pra toques
+     vivos; --ease-smooth pro material-like. Usadas como timing padrão global. */
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
   --space-page-xs: 16px;
   --space-page-sm: 18px;
   --space-page-md: 20px;
@@ -482,6 +489,35 @@ summary:focus-visible {
 
 ::-webkit-scrollbar-thumb:active {
   background-color: var(--accent);
+}
+
+/* Movimento fluido global. Aplicamos a curva da identidade ao timing-function
+   de TODAS as transições/animações já existentes — não cria transições novas
+   (nada de `transition: all`, que daria jank), só faz cada uma desacelerar de
+   forma suave, com cara de alto FPS. Elementos que pedem mola (toggles, chips)
+   trazem o próprio cubic-bezier e continuam vencendo por especificidade. */
+*,
+*::before,
+*::after {
+  transition-timing-function: var(--ease-fluid);
+  animation-timing-function: var(--ease-fluid);
+}
+
+/* Rolagem suave por padrão (âncoras, foco). */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Acessibilidade: quem pede menos movimento recebe o mínimo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Media never overflows its container. Hero/logo classes that need to bleed
@@ -1989,19 +2025,20 @@ td {
 }
 
 .animate-pop-in {
-  animation: pop-in 160ms ease-out;
+  animation: pop-in 240ms var(--ease-fluid) both;
   transform-origin: top center;
+  will-change: transform, opacity;
 }
 
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.98);
+    transform: translate3d(0, -8px, 0) scale(0.97);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
