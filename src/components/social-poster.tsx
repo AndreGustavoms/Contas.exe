@@ -50,64 +50,53 @@ export function SocialPoster({ onClose }: { onClose: () => void }) {
   const current = NETWORKS.find((n) => n.id === active) ?? NETWORKS[0];
   const Panel = current.Panel;
 
+  // Página (não modal): preenche a área de conteúdo do cofre, ao lado da sidebar.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <section className="vault-card animate-rise relative flex min-h-[calc(100dvh-150px)] overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
+
+      {/* Menu de redes */}
+      <nav className="account-settings-nav flex w-52 shrink-0 flex-col border-r border-[color:var(--border)] p-4 pt-5">
+        <div className="mb-5 flex items-center gap-2 px-1">
+          <Send className="h-4 w-4 text-[color:var(--accent)]" />
+          <span className="text-sm font-semibold text-[color:var(--text)]">
+            {t("post.title")}
+          </span>
+        </div>
+        <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[color:var(--muted)]">
+          {t("post.networks")}
+        </p>
+        {NETWORKS.map(({ id, label, Icon, accent }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActive(id)}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+              active === id
+                ? "bg-[color:var(--field)] text-[color:var(--text)]"
+                : "text-[color:var(--muted)] hover:bg-[color:var(--field)] hover:text-[color:var(--text)]",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" style={{ color: accent }} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Painel da rede selecionada */}
+      <div className="account-settings-content min-w-0 flex-1 overflow-y-auto p-6">
+        <Panel />
+      </div>
+
       <button
         aria-label={t("post.close")}
-        className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+        className="absolute right-4 top-4 rounded-lg p-1.5 text-[color:var(--muted)] transition hover:bg-[color:var(--field)] hover:text-[color:var(--text)]"
         type="button"
         onClick={onClose}
-      />
-      <section
-        aria-modal="true"
-        role="dialog"
-        className="account-settings-panel app-panel animate-pop-in relative flex w-full overflow-hidden rounded-[28px] border backdrop-blur-2xl"
       >
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
-
-        {/* Menu de redes */}
-        <nav className="account-settings-nav flex w-52 shrink-0 flex-col border-r border-[color:var(--border)] p-4 pt-5">
-          <div className="mb-5 flex items-center gap-2 px-1">
-            <Send className="h-4 w-4 text-[color:var(--accent)]" />
-            <span className="text-sm font-semibold text-[color:var(--text)]">
-              {t("post.title")}
-            </span>
-          </div>
-          <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[color:var(--muted)]">
-            {t("post.networks")}
-          </p>
-          {NETWORKS.map(({ id, label, Icon, accent }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActive(id)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-                active === id
-                  ? "bg-[color:var(--field)] text-[color:var(--text)]"
-                  : "text-[color:var(--muted)] hover:bg-[color:var(--field)] hover:text-[color:var(--text)]",
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" style={{ color: accent }} />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Painel da rede selecionada */}
-        <div className="account-settings-content flex-1 overflow-y-auto p-6">
-          <Panel />
-        </div>
-
-        <button
-          aria-label={t("post.close")}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-[color:var(--muted)] transition hover:bg-[color:var(--field)] hover:text-[color:var(--text)]"
-          type="button"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </section>
-    </div>
+        <X className="h-4 w-4" />
+      </button>
+    </section>
   );
 }

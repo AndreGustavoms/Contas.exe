@@ -1329,21 +1329,27 @@ export function AccountVault({
             label={t("vault.networks_section")}
           >
             <SidebarButton
-              active={platformFilter === ALL}
+              active={!posterOpen && platformFilter === ALL}
               count={accounts.length}
               icon={Layers}
               label={t("vault.all_filter")}
-              onClick={() => setPlatformFilter(ALL)}
+              onClick={() => {
+                setPosterOpen(false);
+                setPlatformFilter(ALL);
+              }}
             />
             {sidebarPlatforms.map((platform) => (
               <SidebarButton
                 key={platform}
-                active={platformFilter === platform}
+                active={!posterOpen && platformFilter === platform}
                 count={platformCounts[platform] ?? 0}
                 icon={platformIconFor(platform)}
                 label={platform}
                 platform={platform}
-                onClick={() => setPlatformFilter(platform)}
+                onClick={() => {
+                  setPosterOpen(false);
+                  setPlatformFilter(platform);
+                }}
               />
             ))}
           </SidebarSection>
@@ -1424,94 +1430,98 @@ export function AccountVault({
           ref={contentRef}
           className="vault-content min-w-0 px-0 pb-6 pt-0 lg:pb-8"
         >
-          <div
-            className="vault-card animate-rise"
-            style={{ animationDelay: "60ms" }}
-          >
-            <div className="vault-toolbar flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="shrink-0">
-                <p className="text-base font-semibold text-[color:var(--text)]">
-                  {t("vault.records")}
-                </p>
-                <p className="mt-0.5 text-sm text-[color:var(--muted)]">
-                  {filteredAccounts.length} / {accounts.length}
-                </p>
-              </div>
-              <div className="vault-filters flex flex-wrap items-center gap-2 sm:gap-3">
-                {message && !isAccountModalOpen ? (
-                  <span className="accent-pill rounded-full border px-3 py-1 text-xs font-medium">
-                    {message}
-                  </span>
-                ) : null}
-                <div className="relative min-w-0 flex-1 basis-full sm:w-56 sm:flex-none sm:basis-auto">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--muted)]" />
-                  <Input
-                    aria-label={t("vault.search_label")}
-                    className="pl-9"
-                    placeholder={t("vault.search_placeholder")}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
+          {posterOpen ? (
+            <SocialPoster onClose={() => setPosterOpen(false)} />
+          ) : (
+            <div
+              className="vault-card animate-rise"
+              style={{ animationDelay: "60ms" }}
+            >
+              <div className="vault-toolbar flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="shrink-0">
+                  <p className="text-base font-semibold text-[color:var(--text)]">
+                    {t("vault.records")}
+                  </p>
+                  <p className="mt-0.5 text-sm text-[color:var(--muted)]">
+                    {filteredAccounts.length} / {accounts.length}
+                  </p>
                 </div>
-                <FilterSelect
-                  icon={Filter}
-                  label={t("vault.role_label")}
-                  options={[
-                    { value: ALL, label: t("vault.roles_default") },
-                    ...accountRoles.map((value) => ({ value })),
-                  ]}
-                  value={roleFilter}
-                  onChange={setRoleFilter}
-                />
-                <button
-                  className="vault-btn-secondary"
-                  type="button"
-                  onClick={openCreateModal}
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("vault.new_account")}
-                </button>
-              </div>
-            </div>
-
-            <div className="border-t border-[color:var(--border)] px-4 py-3 sm:px-5">
-              <StatusTabs
-                tabs={statusTabs}
-                value={statusFilter}
-                onChange={setStatusFilter}
-              />
-            </div>
-
-            <div className="border-t border-[color:var(--border)]">
-              {filteredAccounts.length ? (
-                <div className="vault-list">
-                  {filteredAccounts
-                    .slice(0, visibleCount)
-                    .map((account, index) => (
-                      <AccountRow
-                        key={account.id}
-                        account={account}
-                        index={index}
-                        isActive={
-                          (isAccountModalOpen && account.id === editingId) ||
-                          account.id === quickViewAccount?.id
-                        }
-                        onSelect={() => selectAccount(account)}
-                      />
-                    ))}
-                  {visibleCount < filteredAccounts.length ? (
-                    <div ref={listSentinelRef} aria-hidden className="h-10" />
+                <div className="vault-filters flex flex-wrap items-center gap-2 sm:gap-3">
+                  {message && !isAccountModalOpen ? (
+                    <span className="accent-pill rounded-full border px-3 py-1 text-xs font-medium">
+                      {message}
+                    </span>
                   ) : null}
+                  <div className="relative min-w-0 flex-1 basis-full sm:w-56 sm:flex-none sm:basis-auto">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--muted)]" />
+                    <Input
+                      aria-label={t("vault.search_label")}
+                      className="pl-9"
+                      placeholder={t("vault.search_placeholder")}
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </div>
+                  <FilterSelect
+                    icon={Filter}
+                    label={t("vault.role_label")}
+                    options={[
+                      { value: ALL, label: t("vault.roles_default") },
+                      ...accountRoles.map((value) => ({ value })),
+                    ]}
+                    value={roleFilter}
+                    onChange={setRoleFilter}
+                  />
+                  <button
+                    className="vault-btn-secondary"
+                    type="button"
+                    onClick={openCreateModal}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("vault.new_account")}
+                  </button>
                 </div>
-              ) : (
-                <div className="vault-empty">
-                  <span className="text-[color:var(--muted)]">
-                    {t("vault.no_accounts")}
-                  </span>
-                </div>
-              )}
+              </div>
+
+              <div className="border-t border-[color:var(--border)] px-4 py-3 sm:px-5">
+                <StatusTabs
+                  tabs={statusTabs}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
+              </div>
+
+              <div className="border-t border-[color:var(--border)]">
+                {filteredAccounts.length ? (
+                  <div className="vault-list">
+                    {filteredAccounts
+                      .slice(0, visibleCount)
+                      .map((account, index) => (
+                        <AccountRow
+                          key={account.id}
+                          account={account}
+                          index={index}
+                          isActive={
+                            (isAccountModalOpen && account.id === editingId) ||
+                            account.id === quickViewAccount?.id
+                          }
+                          onSelect={() => selectAccount(account)}
+                        />
+                      ))}
+                    {visibleCount < filteredAccounts.length ? (
+                      <div ref={listSentinelRef} aria-hidden className="h-10" />
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="vault-empty">
+                    <span className="text-[color:var(--muted)]">
+                      {t("vault.no_accounts")}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </section>
       </div>
 
@@ -1629,10 +1639,6 @@ export function AccountVault({
           user={user}
           onProfileChange={setNavProfile}
         />
-      ) : null}
-
-      {posterOpen ? (
-        <SocialPoster onClose={() => setPosterOpen(false)} />
       ) : null}
 
       {toast ? (
