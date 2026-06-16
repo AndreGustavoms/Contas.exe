@@ -2470,6 +2470,10 @@ td {
     padding-top: var(--card-gap) !important;
   }
 
+  .vault-navbar {
+    padding-left: 1.25rem;
+  }
+
   .vault-content {
     padding-top: 0;
   }
