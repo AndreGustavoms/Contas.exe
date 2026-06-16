@@ -23,11 +23,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import {
-  GeneratePasswordButton,
-  PasswordStrengthMeter,
-} from "./ui/password-tools";
+import { PasswordStrengthMeter } from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
+import { QrCode } from "./ui/qr-code";
 import { cn } from "../lib/utils";
 import { type AppTheme } from "../theme";
 import { type SessionUser } from "../App";
@@ -894,12 +892,6 @@ function SegurancaTab({
                   )}
                 </button>
               </div>
-              <GeneratePasswordButton
-                onGenerate={(pw) => {
-                  setNewPw(pw);
-                  setShowNewPw(true);
-                }}
-              />
             </div>
             <PasswordStrengthMeter password={newPw} />
           </label>
@@ -969,7 +961,15 @@ function SegurancaTab({
         ) : setup ? (
           <form className="grid gap-3" onSubmit={confirmEnable}>
             <p className="text-sm text-[color:var(--muted)]">
-              {t("account.two_factor_manual_key")}
+              {t("account.two_factor_scan_instruction")}
+            </p>
+            <div className="flex justify-center">
+              <div className="rounded-2xl bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
+                <QrCode value={setup.otpauthUri} size={176} />
+              </div>
+            </div>
+            <p className="text-xs text-[color:var(--muted)]">
+              {t("account.two_factor_manual_fallback")}
             </p>
             <div className="flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-sm text-[color:var(--text)]">

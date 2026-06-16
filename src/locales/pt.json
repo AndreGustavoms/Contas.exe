@@ -58,6 +58,8 @@
     "two_factor_file_header": "Contas_exe — códigos de recuperação 2FA (uso único)",
     "two_factor_copy_key": "Copiar chave",
     "two_factor_key_copied": "Chave copiada.",
+    "two_factor_scan_instruction": "Escaneie o QR Code com seu app autenticador (Google Authenticator, Authy…).",
+    "two_factor_manual_fallback": "Não consegue escanear? Insira esta chave manualmente no app:",
     "two_factor_manual_key": "Adicione esta chave no seu app autenticador (Google Authenticator, Authy…) usando \"inserir chave manualmente\":",
     "two_factor_confirm_label": "Digite o código gerado pelo app para confirmar",
     "two_factor_cancel": "Cancelar",

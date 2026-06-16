@@ -56,6 +56,8 @@
     "two_factor_file_header": "Contas_exe — codes de récupération 2FA (usage unique)",
     "two_factor_copy_key": "Copier la clé",
     "two_factor_key_copied": "Clé copiée.",
+    "two_factor_scan_instruction": "Scannez le QR code avec votre application d'authentification (Google Authenticator, Authy…).",
+    "two_factor_manual_fallback": "Impossible de scanner ? Saisissez cette clé manuellement dans l'application :",
     "two_factor_manual_key": "Ajoutez cette clé dans votre application d'authentification (Google Authenticator, Authy…) en utilisant « saisir la clé manuellement » :",
     "two_factor_confirm_label": "Entrez le code généré par l'application pour confirmer",
     "two_factor_cancel": "Annuler",
