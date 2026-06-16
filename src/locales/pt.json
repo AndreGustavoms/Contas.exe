@@ -243,7 +243,6 @@
     "export": "Exportar",
     "import": "Importar",
     "theme": "Tema",
-    "group_section": "Grupo",
     "networks_section": "Redes",
     "all_filter": "Todas",
     "no_groups": "Nenhum grupo",
@@ -255,11 +254,8 @@
     "configuration": "Configuração",
     "account": "Conta",
     "data_tools": "Dados",
-    "data_tools_description": "Exporte ou importe os dados do grupo ativo em JSON.",
-    "data_tools_export_title": "Exportar backup",
-    "data_tools_export_description": "Baixa um arquivo JSON com as contas do grupo selecionado.",
-    "data_tools_import_title": "Importar backup",
-    "data_tools_import_description": "Cria um novo grupo a partir de um arquivo JSON existente.",
+    "export_group": "Exportar grupo (JSON)",
+    "import_group": "Importar novo grupo",
     "team": "Equipe",
     "my_account": "Minha conta",
     "panel": "Painel",
@@ -296,7 +292,6 @@
     "wizard_step_username": "Usuário",
     "wizard_step_password": "Senha",
     "wizard_step_2fa": "2FA",
-    "wizard_step_confirm": "Confirmar",
     "wizard_name_placeholder": "YouTube principal",
     "wizard_email_placeholder": "email@dominio.com",
     "wizard_username_placeholder": "@usuario",
@@ -306,8 +301,6 @@
     "wizard_saving": "Salvando...",
     "wizard_save": "Salvar",
     "wizard_add": "Adicionar",
-    "wizard_back": "Voltar",
-    "wizard_next": "Seguir",
     "field_email": "Email",
     "field_username": "Usuário",
     "field_password": "Senha",
@@ -642,7 +635,9 @@
       "error_no_title": "Informe um título.",
       "error_schedule_past": "Escolha uma data/hora futura.",
       "error_too_large": "Vídeo muito grande (máx. 2 GB).",
-      "history": "Histórico de uploads"
+      "history": "Histórico de uploads",
+      "channel_connected_at": "Conectado em {{date}}",
+      "channel_selected": "Selecionado"
     }
   }
 }

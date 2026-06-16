@@ -243,7 +243,6 @@
     "export": "Export",
     "import": "Import",
     "theme": "Theme",
-    "group_section": "Group",
     "networks_section": "Networks",
     "all_filter": "All",
     "no_groups": "No groups",
@@ -255,11 +254,8 @@
     "configuration": "Settings",
     "account": "Account",
     "data_tools": "Data",
-    "data_tools_description": "Export or import the active group's data as JSON.",
-    "data_tools_export_title": "Export backup",
-    "data_tools_export_description": "Downloads a JSON file with the selected group's accounts.",
-    "data_tools_import_title": "Import backup",
-    "data_tools_import_description": "Creates a new group from an existing JSON file.",
+    "export_group": "Export group (JSON)",
+    "import_group": "Import new group",
     "team": "Team",
     "my_account": "My account",
     "panel": "Panel",
@@ -296,7 +292,6 @@
     "wizard_step_username": "Username",
     "wizard_step_password": "Password",
     "wizard_step_2fa": "2FA",
-    "wizard_step_confirm": "Confirm",
     "wizard_name_placeholder": "Main YouTube",
     "wizard_email_placeholder": "email@domain.com",
     "wizard_username_placeholder": "@username",
@@ -306,8 +301,6 @@
     "wizard_saving": "Saving...",
     "wizard_save": "Save",
     "wizard_add": "Add",
-    "wizard_back": "Back",
-    "wizard_next": "Next",
     "field_email": "Email",
     "field_username": "Username",
     "field_password": "Password",
@@ -619,7 +612,9 @@
       "error_no_title": "Enter a title.",
       "error_schedule_past": "Pick a future date/time.",
       "error_too_large": "Video too large (max 2 GB).",
-      "history": "Upload history"
+      "history": "Upload history",
+      "channel_connected_at": "Connected on {{date}}",
+      "channel_selected": "Selected"
     }
   }
 }

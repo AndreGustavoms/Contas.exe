@@ -13,9 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
-  ArrowLeft,
   Check,
-  CheckCircle2,
   ChevronDown,
   Download,
   Eye,
@@ -120,8 +118,6 @@ function slugify(value: string) {
   );
 }
 
-const WIZARD_STEP_COUNT = 8;
-const CONFIRM_STEP = WIZARD_STEP_COUNT - 1;
 
 const selectTriggerClass =
   "group flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-3 text-sm font-medium text-[color:var(--text)] shadow-[inset_0_1px_0_var(--inset-light),0_16px_34px_var(--field-shadow)] outline-none backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--focus-ring)] sm:h-10";
@@ -499,13 +495,11 @@ export function AccountVault({
       configTimer.current = null;
     }, 180);
   }, []);
-  const [dataToolsOpen, setDataToolsOpen] = useState(false);
   const [usersDialogOpen, setUsersDialogOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [posterOpen, setPosterOpen] = useState(false);
   const configurationMenuRef = useRef<HTMLDivElement>(null);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
-  const [wizardStep, setWizardStep] = useState(0);
   const [quickViewAccount, setQuickViewAccount] =
     useState<AccountRecord | null>(null);
   const [message, setMessage] = useState("");
@@ -799,16 +793,6 @@ export function AccountVault({
           visible: isAdmin,
         },
         {
-          href: undefined,
-          icon: Download,
-          label: t("vault.data_tools"),
-          onClick: () => {
-            setConfigurationOpen(false);
-            setDataToolsOpen(true);
-          },
-          visible: true,
-        },
-        {
           href: "/admin",
           icon: ShieldAlert,
           label: t("vault.panel"),
@@ -933,7 +917,6 @@ export function AccountVault({
     label: string;
     value: AccountStatus | typeof ALL;
   }>;
-  const canContinueWizard = wizardStep !== 0 || draft.label.trim().length > 0;
   const canSaveDraft = [
     draft.label,
     draft.email,
@@ -958,14 +941,12 @@ export function AccountVault({
     setEditingId(null);
     setDraft(emptyAccountDraft);
     setShowPassword(false);
-    setWizardStep(0);
     setMessage("");
     setIsAccountModalOpen(true);
   }
 
   function closeAccountModal() {
     setIsAccountModalOpen(false);
-    setWizardStep(0);
     resetForm();
   }
 
@@ -978,21 +959,8 @@ export function AccountVault({
     setEditingId(account.id);
     setDraft(toDraft(account));
     setShowPassword(false);
-    setWizardStep(0);
     setMessage("");
     setIsAccountModalOpen(true);
-  }
-
-  function nextWizardStep() {
-    if (!canContinueWizard) {
-      return;
-    }
-
-    setWizardStep((current) => Math.min(current + 1, CONFIRM_STEP));
-  }
-
-  function previousWizardStep() {
-    setWizardStep((current) => Math.max(current - 1, 0));
   }
 
   async function saveAccount() {
@@ -1052,7 +1020,6 @@ export function AccountVault({
     setQuickViewReveal(false);
     setQuickViewSecret("");
     setIsAccountModalOpen(false);
-    setWizardStep(0);
     resetForm();
     setDeleteAccountId(id);
   }
@@ -1364,6 +1331,8 @@ export function AccountVault({
               groups={groups}
               onCreate={createGroup}
               onDelete={deleteGroup}
+              onExport={exportBackup}
+              onImport={() => importInputRef.current?.click()}
               onRename={renameGroup}
               onSelect={selectGroup}
             />
@@ -1579,18 +1548,14 @@ export function AccountVault({
 
       {isAccountModalOpen ? (
         <AccountWizardModal
-          canContinue={canContinueWizard}
           canSave={canSaveDraft}
           draft={draft}
           editing={Boolean(editingId)}
           isSaving={isSaving}
           message={message}
           showPassword={showPassword}
-          step={wizardStep}
-          onBack={previousWizardStep}
           onClose={closeAccountModal}
           onDelete={() => deleteAccount()}
-          onNext={nextWizardStep}
           onSave={saveAccount}
           onTogglePassword={() => setShowPassword((current) => !current)}
           onUpdate={updateDraft}
@@ -1666,18 +1631,6 @@ export function AccountVault({
           currentUsername={user?.username ?? ""}
           onClose={() => setUsersDialogOpen(false)}
           withReauth={withReauth}
-        />
-      ) : null}
-
-      {dataToolsOpen ? (
-        <DataToolsModal
-          activeGroupName={activeGroup?.name ?? ""}
-          onClose={() => setDataToolsOpen(false)}
-          onExport={exportBackup}
-          onImport={() => {
-            setDataToolsOpen(false);
-            importInputRef.current?.click();
-          }}
         />
       ) : null}
 
@@ -1799,97 +1752,6 @@ function ModalShell({
         ) : null}
         {children}
       </section>
-    </div>
-  );
-}
-
-function DataToolsModal({
-  activeGroupName,
-  onClose,
-  onExport,
-  onImport,
-}: {
-  activeGroupName: string;
-  onClose: () => void;
-  onExport: () => void;
-  onImport: () => void;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <ModalShell onClose={onClose} size="md" title={t("vault.data_tools")}>
-      <p className="mt-1 text-sm leading-relaxed text-[color:var(--muted)]">
-        {t("vault.data_tools_description")}
-      </p>
-
-      {activeGroupName ? (
-        <div className="mt-4 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
-            {t("vault.group_section")}
-          </p>
-          <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text)]">
-            {activeGroupName}
-          </p>
-        </div>
-      ) : null}
-
-      <div className="mt-5 grid gap-3">
-        <DataToolAction
-          icon={Download}
-          title={t("vault.data_tools_export_title")}
-          description={t("vault.data_tools_export_description")}
-          actionLabel={t("vault.export")}
-          onClick={onExport}
-        />
-        <DataToolAction
-          icon={Upload}
-          title={t("vault.data_tools_import_title")}
-          description={t("vault.data_tools_import_description")}
-          actionLabel={t("vault.import")}
-          onClick={onImport}
-        />
-      </div>
-    </ModalShell>
-  );
-}
-
-function DataToolAction({
-  actionLabel,
-  description,
-  icon: Icon,
-  onClick,
-  title,
-}: {
-  actionLabel: string;
-  description: string;
-  icon: LucideIcon;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--field)] p-4 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-      <div className="flex min-w-0 gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] text-[color:var(--accent)]">
-          <Icon className="h-4 w-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[color:var(--text)]">
-            {title}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[color:var(--muted)]">
-            {description}
-          </p>
-        </div>
-      </div>
-      <Button
-        className="h-9 w-full shrink-0 min-[430px]:w-auto"
-        type="button"
-        variant="outline"
-        onClick={onClick}
-      >
-        <Icon className="h-4 w-4" />
-        {actionLabel}
-      </Button>
     </div>
   );
 }
@@ -2028,21 +1890,17 @@ function RadarGlyph() {
 }
 
 type AccountWizardModalProps = {
-  canContinue: boolean;
   canSave: boolean;
   draft: AccountDraft;
   editing: boolean;
   isSaving: boolean;
   message: string;
-  onBack: () => void;
   onClose: () => void;
   onDelete: () => void;
-  onNext: () => void;
   onSave: () => void;
   onTogglePassword: () => void;
   onUpdate: DraftUpdater;
   showPassword: boolean;
-  step: number;
 };
 
 function AccountWizardModal({
@@ -2064,17 +1922,6 @@ function AccountWizardModal({
 }: AccountWizardModalProps) {
   const { t } = useTranslation();
   const { closing, close } = useClosing(onClose);
-  const wizardSteps = [
-    t("vault.wizard_step_name"),
-    t("vault.wizard_step_network"),
-    t("vault.wizard_step_role"),
-    t("vault.wizard_step_email"),
-    t("vault.wizard_step_username"),
-    t("vault.wizard_step_password"),
-    t("vault.wizard_step_2fa"),
-    t("vault.wizard_step_confirm"),
-  ];
-  const isConfirmStep = step === CONFIRM_STEP;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -2113,14 +1960,11 @@ function AccountWizardModal({
 
         <div className="relative flex items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-muted)]">
-              {editing ? t("vault.wizard_edit") : t("vault.wizard_new")}
-            </p>
             <h2
-              className="mt-2 text-2xl font-semibold tracking-normal text-[color:var(--text)] sm:text-3xl"
+              className="text-2xl font-semibold tracking-normal text-[color:var(--text)] sm:text-3xl"
               id="account-wizard-title"
             >
-              {wizardSteps[step]}
+              {editing ? t("vault.wizard_edit") : t("vault.wizard_new")}
             </h2>
           </div>
           <Button
@@ -2133,26 +1977,10 @@ function AccountWizardModal({
           </Button>
         </div>
 
-        <div className="mt-5 flex gap-1.5">
-          {wizardSteps.map((label, index) => (
-            <span
-              aria-label={label}
-              className={cn(
-                "h-1.5 flex-1 rounded-full transition duration-300",
-                index <= step
-                  ? "bg-[color:var(--accent)]"
-                  : "bg-[color:var(--surface-soft)]",
-              )}
-              key={label}
-            />
-          ))}
-        </div>
-
-        <div className="relative mt-7 min-h-[250px]">
-          <WizardStepContent
+        <div className="relative mt-6">
+          <AccountForm
             draft={draft}
             showPassword={showPassword}
-            step={step}
             onTogglePassword={onTogglePassword}
             onUpdate={onUpdate}
           />
@@ -2168,151 +1996,128 @@ function AccountWizardModal({
           <div className="flex items-center gap-2">
             {editing ? (
               <Button
-                size="icon"
                 type="button"
                 variant="ghost"
                 onClick={onDelete}
               >
                 <Trash2 className="h-4 w-4" />
-              </Button>
-            ) : null}
-            {step > 0 ? (
-              <Button type="button" variant="outline" onClick={onBack}>
-                <ArrowLeft className="h-4 w-4" />
-                {t("vault.wizard_back")}
+                {t("vault.delete")}
               </Button>
             ) : null}
           </div>
 
-          {isConfirmStep ? (
-            <Button
-              disabled={isSaving || !canSave}
-              type="button"
-              variant="neon"
-              onClick={onSave}
-            >
-              {isSaving ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {isSaving
-                ? t("vault.wizard_saving")
-                : editing
-                  ? t("vault.wizard_save")
-                  : t("vault.wizard_add")}
-            </Button>
-          ) : (
-            <Button disabled={!canContinue} type="button" onClick={onNext}>
-              {t("vault.wizard_next")}
-            </Button>
-          )}
+          <Button
+            disabled={isSaving || !canSave}
+            type="button"
+            variant="neon"
+            onClick={onSave}
+          >
+            {isSaving ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {isSaving
+              ? t("vault.wizard_saving")
+              : editing
+                ? t("vault.wizard_save")
+                : t("vault.wizard_add")}
+          </Button>
         </div>
       </section>
     </div>
   );
 }
 
-type WizardStepContentProps = {
+type AccountFormProps = {
   draft: AccountDraft;
   onTogglePassword: () => void;
   onUpdate: DraftUpdater;
   showPassword: boolean;
-  step: number;
 };
 
-function WizardStepContent({
+// Placeholders de exemplo (ex.: "YouTube principal"): menores, em itálico e
+// apagados, para se distinguirem de um valor digitado de verdade.
+const HINT_PLACEHOLDER =
+  "placeholder:text-[0.8rem] placeholder:font-normal placeholder:italic placeholder:text-[color:color-mix(in_srgb,var(--muted-soft)_45%,transparent)]";
+
+// Formulário único: todos os campos da conta numa tela só (sem etapas).
+function AccountForm({
   draft,
   onTogglePassword,
   onUpdate,
   showPassword,
-  step,
-}: WizardStepContentProps) {
+}: AccountFormProps) {
   const { t } = useTranslation();
 
-  if (step === 0) {
-    return (
+  return (
+    <div className="grid gap-5">
       <Field label={t("vault.wizard_step_name")}>
         <Input
           autoFocus
           value={draft.label}
           placeholder={t("vault.wizard_name_placeholder")}
-          className="placeholder:text-[0.8rem] placeholder:font-normal placeholder:italic placeholder:text-[color:color-mix(in_srgb,var(--muted-soft)_45%,transparent)]"
+          className={HINT_PLACEHOLDER}
           onChange={(event) => onUpdate("label", event.target.value)}
         />
       </Field>
-    );
-  }
 
-  if (step === 1) {
-    return (
-      <ChoiceGrid>
-        {platformOptions.map((platform) => (
-          <ChoiceButton
-            key={platform}
-            selected={draft.platform === platform}
-            onClick={() => onUpdate("platform", platform)}
-          >
-            <MiniPlatformIcon platform={platform} />
-            {platform}
-          </ChoiceButton>
-        ))}
-      </ChoiceGrid>
-    );
-  }
-
-  if (step === 2) {
-    return (
-      <ChoiceGrid>
-        {roleOptions.map((role) => (
-          <ChoiceButton
-            key={role}
-            selected={draft.role === role}
-            onClick={() => onUpdate("role", role)}
-          >
-            {role}
-          </ChoiceButton>
-        ))}
-      </ChoiceGrid>
-    );
-  }
-
-  if (step === 3) {
-    return (
-      <Field label={t("vault.field_email")}>
-        <Input
-          autoFocus
-          autoComplete="username"
-          inputMode="email"
-          value={draft.email}
-          placeholder={t("vault.wizard_email_placeholder")}
-          onChange={(event) => onUpdate("email", event.target.value)}
-        />
+      <Field label={t("vault.wizard_step_network")}>
+        <ChoiceGrid>
+          {platformOptions.map((platform) => (
+            <ChoiceButton
+              key={platform}
+              selected={draft.platform === platform}
+              onClick={() => onUpdate("platform", platform)}
+            >
+              <MiniPlatformIcon platform={platform} />
+              {platform}
+            </ChoiceButton>
+          ))}
+        </ChoiceGrid>
       </Field>
-    );
-  }
 
-  if (step === 4) {
-    return (
-      <Field label={t("vault.field_username")}>
-        <Input
-          autoFocus
-          value={draft.username}
-          placeholder={t("vault.wizard_username_placeholder")}
-          onChange={(event) => onUpdate("username", event.target.value)}
-        />
+      <Field label={t("vault.wizard_step_role")}>
+        <ChoiceGrid>
+          {roleOptions.map((role) => (
+            <ChoiceButton
+              key={role}
+              selected={draft.role === role}
+              onClick={() => onUpdate("role", role)}
+            >
+              {role}
+            </ChoiceButton>
+          ))}
+        </ChoiceGrid>
       </Field>
-    );
-  }
 
-  if (step === 5) {
-    return (
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label={t("vault.field_email")}>
+          <Input
+            autoComplete="username"
+            inputMode="email"
+            className={HINT_PLACEHOLDER}
+            value={draft.email}
+            placeholder={t("vault.wizard_email_placeholder")}
+            onChange={(event) => onUpdate("email", event.target.value)}
+          />
+        </Field>
+
+        <Field label={t("vault.field_username")}>
+          <Input
+            className={HINT_PLACEHOLDER}
+            value={draft.username}
+            placeholder={t("vault.wizard_username_placeholder")}
+            onChange={(event) => onUpdate("username", event.target.value)}
+          />
+        </Field>
+      </div>
+
       <Field label={t("vault.field_password")}>
         <div className="relative">
           <Input
-            autoFocus
             autoComplete="current-password"
-            className="pr-11"
+            className={cn("pr-11", HINT_PLACEHOLDER)}
             type={showPassword ? "text" : "password"}
             value={draft.password}
             placeholder={t("vault.field_password")}
@@ -2334,62 +2139,24 @@ function WizardStepContent({
           </button>
         </div>
       </Field>
-    );
-  }
 
-  if (step === 6) {
-    return (
-      <ChoiceGrid>
-        <ChoiceButton
-          selected={draft.twoFactor}
-          onClick={() => onUpdate("twoFactor", true)}
-        >
-          <ShieldCheck className="h-4 w-4" />
-          {t("vault.wizard_2fa_active")}
-        </ChoiceButton>
-        <ChoiceButton
-          selected={!draft.twoFactor}
-          onClick={() => onUpdate("twoFactor", false)}
-        >
-          {t("vault.wizard_2fa_no")}
-        </ChoiceButton>
-      </ChoiceGrid>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] p-3">
-        <PlatformGlyph platform={draft.platform} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[color:var(--text)]">
-            {draft.label || t("vault.wizard_no_name")}
-          </p>
-          <p className="mt-1 text-xs text-[color:var(--muted)]">
-            {draft.platform} / {draft.role}
-          </p>
-        </div>
-        <CheckCircle2 className="ml-auto h-5 w-5 text-[color:var(--accent-soft)]" />
-      </div>
-      <div className="grid gap-2 text-sm">
-        <SummaryRow label={t("vault.field_email")} value={draft.email || "-"} />
-        <SummaryRow
-          label={t("vault.field_username")}
-          value={draft.username || "-"}
-        />
-        <SummaryRow
-          label={t("vault.field_password")}
-          value={draft.password ? "********" : "-"}
-        />
-        <SummaryRow
-          label={t("vault.wizard_step_2fa")}
-          value={
-            draft.twoFactor
-              ? t("vault.wizard_2fa_active")
-              : t("vault.wizard_2fa_no")
-          }
-        />
-      </div>
+      <Field label={t("vault.wizard_step_2fa")}>
+        <ChoiceGrid>
+          <ChoiceButton
+            selected={draft.twoFactor}
+            onClick={() => onUpdate("twoFactor", true)}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {t("vault.wizard_2fa_active")}
+          </ChoiceButton>
+          <ChoiceButton
+            selected={!draft.twoFactor}
+            onClick={() => onUpdate("twoFactor", false)}
+          >
+            {t("vault.wizard_2fa_no")}
+          </ChoiceButton>
+        </ChoiceGrid>
+      </Field>
     </div>
   );
 }
@@ -2422,22 +2189,6 @@ function ChoiceButton({ children, onClick, selected }: ChoiceButtonProps) {
     >
       {children}
     </button>
-  );
-}
-
-type SummaryRowProps = {
-  label: string;
-  value: string;
-};
-
-function SummaryRow({ label, value }: SummaryRowProps) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-3 py-2">
-      <span className="text-[color:var(--muted-soft)]">{label}</span>
-      <span className="min-w-0 truncate font-medium text-[color:var(--text)]">
-        {value}
-      </span>
-    </div>
   );
 }
 
@@ -2515,6 +2266,8 @@ type GroupSwitcherProps = {
   groups: GroupSummary[];
   onCreate: () => void;
   onDelete: () => void;
+  onExport: () => void;
+  onImport: () => void;
   onRename: () => void;
   onSelect: (id: string) => void;
 };
@@ -2524,6 +2277,8 @@ function GroupSwitcher({
   groups,
   onCreate,
   onDelete,
+  onExport,
+  onImport,
   onRename,
   onSelect,
 }: GroupSwitcherProps) {
@@ -2708,6 +2463,28 @@ function GroupSwitcher({
             onClick={() => {
               closeMenu();
               onDelete();
+            }}
+          />
+
+          <div className="my-1.5 h-px bg-[color:var(--border)]" />
+          <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
+            {t("vault.data_tools")}
+          </p>
+          <GroupMenuItem
+            icon={Download}
+            label={t("vault.export_group")}
+            disabled={!activeGroup}
+            onClick={() => {
+              closeMenu();
+              onExport();
+            }}
+          />
+          <GroupMenuItem
+            icon={Upload}
+            label={t("vault.import_group")}
+            onClick={() => {
+              closeMenu();
+              onImport();
             }}
           />
         </div>

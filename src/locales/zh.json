@@ -236,7 +236,6 @@
     "export": "导出",
     "import": "导入",
     "theme": "主题",
-    "group_section": "分组",
     "networks_section": "网络",
     "all_filter": "全部",
     "no_groups": "没有分组",
@@ -248,11 +247,8 @@
     "configuration": "设置",
     "account": "账户",
     "data_tools": "数据",
-    "data_tools_description": "以 JSON 导出或导入当前分组的数据。",
-    "data_tools_export_title": "导出备份",
-    "data_tools_export_description": "下载包含所选分组账户的 JSON 文件。",
-    "data_tools_import_title": "导入备份",
-    "data_tools_import_description": "从现有 JSON 文件创建新分组。",
+    "export_group": "导出分组（JSON）",
+    "import_group": "导入新分组",
     "team": "团队",
     "my_account": "我的账户",
     "panel": "面板",
@@ -289,7 +285,6 @@
     "wizard_step_username": "用户名",
     "wizard_step_password": "密码",
     "wizard_step_2fa": "2FA",
-    "wizard_step_confirm": "确认",
     "wizard_name_placeholder": "主 YouTube 账号",
     "wizard_email_placeholder": "email@domain.com",
     "wizard_username_placeholder": "@用户名",
@@ -299,8 +294,6 @@
     "wizard_saving": "保存中...",
     "wizard_save": "保存",
     "wizard_add": "添加",
-    "wizard_back": "返回",
-    "wizard_next": "下一步",
     "field_email": "邮箱",
     "field_username": "用户名",
     "field_password": "密码",
@@ -612,7 +605,9 @@
       "error_no_title": "请输入标题。",
       "error_schedule_past": "请选择将来的日期/时间。",
       "error_too_large": "视频过大（最大 2 GB）。",
-      "history": "上传历史"
+      "history": "上传历史",
+      "channel_connected_at": "{{date}} ???",
+      "channel_selected": "???"
     }
   }
 }
