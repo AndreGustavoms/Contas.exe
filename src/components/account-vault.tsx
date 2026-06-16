@@ -335,6 +335,22 @@ function titleFor(account: AccountRecord) {
   );
 }
 
+function titleCaseName(value: string) {
+  const cleaned = value
+    .trim()
+    .replace(/@.*/, "")
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!cleaned) return "Usuário";
+  if (/[A-ZÀ-ÖØ-Þ]/.test(cleaned)) return cleaned;
+
+  return cleaned.replace(/\p{L}+/gu, (word) => {
+    if (word.length <= 2) return word;
+    return word.charAt(0).toLocaleUpperCase() + word.slice(1);
+  });
+}
+
 function compareText(a: string, b: string) {
   return textCollator.compare(a, b);
 }
@@ -1277,6 +1293,15 @@ export function AccountVault({
     reader.readAsText(file);
   }
 
+  const navName = titleCaseName(navProfile?.fullName ?? user?.username ?? "");
+  const navInitial = navName.charAt(0).toLocaleUpperCase();
+  const navRole =
+    user?.role === "superadmin"
+      ? "Superadmin"
+      : user?.role === "admin"
+        ? "Administrador"
+        : "Perfil";
+
   return (
     <main
       className={cn(
@@ -1293,8 +1318,8 @@ export function AccountVault({
       />
 
       <nav className="vault-navbar">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent)] text-xs font-bold text-white">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent)] text-sm font-bold text-white shadow-[0_10px_24px_-14px_var(--accent)] ring-2 ring-white/70">
             {navProfile?.avatarUrl ? (
               <img
                 alt=""
@@ -1302,15 +1327,17 @@ export function AccountVault({
                 src={navProfile.avatarUrl}
               />
             ) : (
-              (navProfile?.fullName ?? user?.username ?? "?")
-                .trim()
-                .charAt(0)
-                .toUpperCase()
+              navInitial
             )}
           </span>
-          <p className="max-w-[42vw] truncate text-sm font-semibold tracking-wide text-[color:var(--text)] sm:max-w-xs">
-            {navProfile?.fullName ?? user?.username ?? "Usuario"}
-          </p>
+          <div className="min-w-0 leading-none">
+            <p className="max-w-[42vw] truncate text-[15px] font-semibold text-[color:var(--text)] sm:max-w-xs">
+              {navName}
+            </p>
+            <p className="mt-1 truncate text-[11px] font-medium text-[color:var(--muted)]">
+              {navRole}
+            </p>
+          </div>
         </div>
 
         <div className="vault-navbar-actions ml-auto flex flex-wrap items-center justify-end gap-2">
@@ -1968,7 +1995,7 @@ function ConfirmDialog({
           {t("vault.cancel")}
         </Button>
         <button
-          className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-red-500 px-4 text-sm font-semibold text-white shadow-[0_10px_28px_-8px_rgba(239,68,68,0.7)] transition duration-300 hover:bg-red-400"
+          className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-red-950/20 bg-red-700 px-4 text-sm font-semibold text-white shadow-[0_14px_32px_-12px_rgba(127,29,29,0.9)] transition duration-300 hover:-translate-y-0.5 hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--page-bg)] active:translate-y-0"
           type="button"
           onClick={onConfirm}
         >

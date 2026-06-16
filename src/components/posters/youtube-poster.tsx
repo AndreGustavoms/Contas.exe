@@ -9,6 +9,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Plus,
   ExternalLink,
   Upload,
 } from "lucide-react";
@@ -113,7 +114,6 @@ export function YouTubePoster() {
       .then((d: { channels?: Channel[] }) => {
         const list = d.channels ?? [];
         setChannels(list);
-        if (list[0]) setChannelId(list[0].id);
       })
       .catch(() => setChannels([]));
     loadHistory();
@@ -224,6 +224,7 @@ export function YouTubePoster() {
           className="mt-2"
           onClick={() => {
             setDone(null);
+            setChannelId("");
             setFile(null);
             setTitle("");
             setDescription("");
@@ -252,23 +253,38 @@ export function YouTubePoster() {
         </p>
       </header>
 
-      {/* Canal */}
-      <label className="grid gap-1.5">
-        <span className="text-xs font-medium text-[color:var(--muted)]">
-          {t("post.youtube.channel")}
-        </span>
-        <select
-          className="login-input h-11 rounded-xl px-3"
-          value={channelId}
-          onChange={(e) => setChannelId(e.target.value)}
-        >
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* Canal/perfil */}
+      <section className="grid gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="grid min-w-0 flex-1 gap-1.5">
+            <span className="text-xs font-medium text-[color:var(--muted)]">
+              {t("post.youtube.channel")}
+            </span>
+            <select
+              className="login-input h-11 rounded-xl px-3"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+            >
+              <option value="">{t("post.youtube.channel_placeholder")}</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <a
+            className="login-btn-primary inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold"
+            href="/api/youtube/connect"
+          >
+            <Plus className="h-4 w-4" />
+            {t("post.youtube.connect_another")}
+          </a>
+        </div>
+        <p className="text-xs text-[color:var(--muted)]">
+          {t("post.youtube.channel_note")}
+        </p>
+      </section>
 
       {/* Vídeo */}
       <div className="grid gap-1.5">

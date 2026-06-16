@@ -385,8 +385,9 @@ function PerfilTab({
         body: JSON.stringify({ avatarUrl }),
       });
       setProfile((current) => (current ? { ...current, avatarUrl } : current));
+      const currentFullName = (profile?.fullName ?? fullName.trim()) || null;
       onProfileChange?.({
-        fullName: profile?.fullName ?? null,
+        fullName: currentFullName,
         avatarUrl,
       });
       setAvatarSaved(true);
@@ -420,15 +421,16 @@ function PerfilTab({
     .slice(0, 2)
     .join("");
   const avatarUrl = profile?.avatarUrl ?? "";
-  const displayName = profile?.fullName ?? user?.username;
+  const displayName = profile?.fullName || user?.username || "";
   const displayUsername = profile?.username ?? user?.username ?? "";
   const showUsername =
     displayUsername &&
     displayName?.trim().toLowerCase() !== displayUsername.trim().toLowerCase();
+  const email = profile?.email ?? "";
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-lg font-semibold text-[color:var(--text)]">
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-[color:var(--text)]">
         {t("account.nav_perfil")}
       </h2>
 
@@ -525,7 +527,8 @@ function PerfilTab({
       <SettingsRule />
 
       {/* Full name — exibe o valor com um lápis pra editar quando preciso. */}
-      <div className="grid gap-1.5">
+      <div className="grid gap-4 rounded-2xl border border-[color:var(--border)] bg-[color:var(--field)] p-4 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.75)] md:grid-cols-2">
+        <div className="grid gap-1.5">
         <label className="text-xs font-semibold uppercase tracking-widest text-[color:var(--muted)]">
           {t("account.full_name_label")}
         </label>
@@ -592,8 +595,26 @@ function PerfilTab({
           </div>
         )}
         {nameSaved && (
-          <p className="text-xs text-green-400">{t("account.saved")}</p>
+          <p className="text-xs font-medium text-[color:var(--accent-soft)]">
+            {t("account.saved")}
+          </p>
         )}
+        </div>
+        <div className="grid gap-1.5">
+          <label className="text-xs font-semibold uppercase tracking-widest text-[color:var(--muted)]">
+            {t("account.email_label")}
+          </label>
+          <div className="flex h-10 items-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-3">
+            <span
+              className={cn(
+                "truncate text-sm font-medium",
+                email ? "text-[color:var(--text)]" : "text-[color:var(--muted)]",
+              )}
+            >
+              {email || "—"}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

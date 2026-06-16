@@ -404,12 +404,7 @@ export function LocalLogin({
                   <button
                     className="login-oauth-btn"
                     type="button"
-                    disabled={!oauthProviders.google || submitting}
-                    title={
-                      oauthProviders.google
-                        ? undefined
-                        : t("login.google_not_configured")
-                    }
+                    disabled={submitting}
                     onClick={startGoogleLogin}
                   >
                     <svg className="login-oauth-icon" viewBox="0 0 24 24">

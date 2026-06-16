@@ -32,6 +32,7 @@ import {
   deleteUser,
   disableTwoFactor,
   enableTwoFactor,
+  ensureFixedSuperadmin,
   ensureSeedAdmin,
   ensureSuperadmin,
   findOrCreateGoogleUser,
@@ -41,6 +42,7 @@ import {
   findByEmail,
   findById,
   findByUsernameOrEmail,
+  isFixedSuperadmin,
   listUsers,
   keepOnlySuperadmin,
   recoveryCodesRemaining,
@@ -1515,6 +1517,19 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
+  // Small profile payload for app chrome (navbar). Same avatar precedence as
+  // /api/account/me, but without account/security details.
+  if (url.pathname === "/api/account/profile" && request.method === "GET") {
+    const full = await findById(storageDir, user.id);
+    sendJson(response, 200, {
+      fullName: full?.fullName ?? null,
+      avatarUrl: full?.avatarRemoved
+        ? null
+        : (full?.avatarUrl ?? full?.google?.picture ?? full?.github?.avatar ?? null),
+    });
+    return;
+  }
+
   // Update own full name (no reauth — not security-sensitive).
   if (url.pathname === "/api/account/profile" && request.method === "PUT") {
     const body = await readBody(request);
@@ -1554,6 +1569,10 @@ async function handleApi(request, response, url, user, session) {
     const full = await findById(storageDir, user.id);
     if (!full) {
       notFound(response);
+      return;
+    }
+    if (isFixedSuperadmin(full)) {
+      badRequest(response, "fixed_superadmin");
       return;
     }
     const valid = await verifyPassword(current, full.passwordHash);
@@ -2716,9 +2735,10 @@ const server = createServer(async (request, response) => {
 // Startup: seed the bootstrap admin from APP_AUTH_* if the user store is empty,
 // then migrate any legacy groups.json into per-user vault files. On subsequent
 // boots the migration is a fast no-op (vault files already exist).
+const fixedSuperadminUsers = await ensureFixedSuperadmin(storageDir);
 const seededUsers = await ensureSeedAdmin(storageDir);
 const seedAdmin = seededUsers.find((item) => item.role === "admin");
-await migrateGroupsToVaults(seedAdmin?.id);
+await migrateGroupsToVaults(seedAdmin?.id ?? fixedSuperadminUsers[0]?.id);
 
 // Make sure the YouTube uploads staging directory exists so the user has a
 // place to drop videos before calling POST /api/youtube/upload.

@@ -280,9 +280,9 @@ export default function AdminApp() {
       </aside>
 
       {/* Conteúdo */}
-      <main className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:h-screen">
-        <div className="mx-auto w-full max-w-5xl">
-          {tab === "overview" && <OverviewTab />}
+      <main className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:h-screen lg:px-8">
+        <div className="mx-auto w-full max-w-7xl">
+          {tab === "overview" && <OverviewTab onOpenTab={setTab} />}
           {tab === "users" && (
             <UsersTab withReauth={withReauth} currentUsername={username} />
           )}
