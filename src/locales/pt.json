@@ -55,7 +55,7 @@
     "two_factor_download_codes": "Baixar .txt",
     "two_factor_copy_codes": "Copiar todos",
     "two_factor_codes_copied": "Copiados!",
-    "two_factor_file_header": "Contas_exe — códigos de recuperação 2FA (uso único)",
+    "two_factor_file_header": "Contas — códigos de recuperação 2FA (uso único)",
     "two_factor_copy_key": "Copiar chave",
     "two_factor_key_copied": "Chave copiada.",
     "two_factor_reveal": "Mostrar",
@@ -239,7 +239,7 @@
     "audit_group_deleted": "Grupo excluído"
   },
   "vault": {
-    "logo_label": "Contas_exe",
+    "logo_label": "Contas",
     "export": "Exportar",
     "import": "Importar",
     "theme": "Tema",

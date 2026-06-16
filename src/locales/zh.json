@@ -53,7 +53,7 @@
     "two_factor_download_codes": "下载 .txt",
     "two_factor_copy_codes": "复制全部",
     "two_factor_codes_copied": "已复制！",
-    "two_factor_file_header": "Contas_exe — 2FA 恢复代码（一次性使用）",
+    "two_factor_file_header": "Contas — 2FA 恢复代码（一次性使用）",
     "two_factor_copy_key": "复制密钥",
     "two_factor_key_copied": "密钥已复制。",
     "two_factor_reveal": "显示",
@@ -232,7 +232,7 @@
     "audit_group_deleted": "分组已删除"
   },
   "vault": {
-    "logo_label": "Contas_exe",
+    "logo_label": "Contas",
     "export": "导出",
     "import": "导入",
     "theme": "主题",

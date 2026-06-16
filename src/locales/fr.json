@@ -53,7 +53,7 @@
     "two_factor_download_codes": "Télécharger .txt",
     "two_factor_copy_codes": "Tout copier",
     "two_factor_codes_copied": "Copiés !",
-    "two_factor_file_header": "Contas_exe — codes de récupération 2FA (usage unique)",
+    "two_factor_file_header": "Contas — codes de récupération 2FA (usage unique)",
     "two_factor_copy_key": "Copier la clé",
     "two_factor_key_copied": "Clé copiée.",
     "two_factor_reveal": "Afficher",
@@ -237,7 +237,7 @@
     "audit_group_deleted": "Groupe supprimé"
   },
   "vault": {
-    "logo_label": "Contas_exe",
+    "logo_label": "Contas",
     "export": "Exporter",
     "import": "Importer",
     "theme": "Thème",

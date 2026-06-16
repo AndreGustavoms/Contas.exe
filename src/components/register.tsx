@@ -144,11 +144,11 @@ export function Register({ onBack, onDone, theme }: RegisterProps) {
                 <div className="login-mobile-mark">
                   <img
                     src="/logo-square.png"
-                    alt="Contas_exe"
+                    alt="Contas"
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-                <span>Contas_exe</span>
+                <span>Contas</span>
               </div>
               <h2>{t("register.title")}</h2>
             </div>

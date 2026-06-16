@@ -194,11 +194,11 @@ export function LocalLogin({
                 <div className="login-mobile-mark">
                   <img
                     src="/logo-square.png"
-                    alt="Contas_exe"
+                    alt="Contas"
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-                <span>Contas_exe</span>
+                <span>Contas</span>
               </div>
 
               {step === "password" && (
@@ -222,13 +222,13 @@ export function LocalLogin({
                         lengthAdjust="spacing"
                         dy="-5"
                       >
-                        CONTAS_EXE · CONTAS_EXE · CONTAS_EXE · CONTAS_EXE ·
+                        CONTAS · CONTAS · CONTAS · CONTAS · CONTAS · CONTAS ·
                       </textPath>
                     </text>
                   </svg>
                   <img
                     src="/logo-square.png"
-                    alt="Contas_exe"
+                    alt="Contas"
                     className="login-brand-logo"
                   />
                 </div>

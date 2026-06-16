@@ -35,7 +35,7 @@ function withLock(fn) {
   return run;
 }
 
-const ISSUER = "Contas_exe"; // shown in the authenticator app
+const ISSUER = "Contas"; // shown in the authenticator app
 
 const scryptAsync = promisify(scrypt);
 

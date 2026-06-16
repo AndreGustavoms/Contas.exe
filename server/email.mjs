@@ -4,7 +4,7 @@
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
 const FROM_ADDRESS =
-  process.env.RESEND_FROM ?? "Contas_exe <onboarding@resend.dev>";
+  process.env.RESEND_FROM ?? "Contas <onboarding@resend.dev>";
 
 export async function sendEmail({ to, subject, html }) {
   if (!RESEND_API_KEY) {

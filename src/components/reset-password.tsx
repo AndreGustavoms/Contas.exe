@@ -90,11 +90,11 @@ export function ResetPassword({ token, onDone, theme }: ResetPasswordProps) {
                 <div className="login-mobile-mark">
                   <img
                     src="/logo-square.png"
-                    alt="Contas_exe"
+                    alt="Contas"
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-                <span>Contas_exe</span>
+                <span>Contas</span>
               </div>
               <h2>{t("reset.title")}</h2>
               {!done && <p>{t("reset.subtitle")}</p>}

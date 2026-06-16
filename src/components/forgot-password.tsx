@@ -51,11 +51,11 @@ export function ForgotPassword({ onBack, theme }: ForgotPasswordProps) {
                 <div className="login-mobile-mark">
                   <img
                     src="/logo-square.png"
-                    alt="Contas_exe"
+                    alt="Contas"
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-                <span>Contas_exe</span>
+                <span>Contas</span>
               </div>
               <h2>{t("login.forgot_password")}</h2>
               {!done && <p>{t("login.forgot_instruction")}</p>}

@@ -1,6 +1,6 @@
 {
-  "name": "Contas_exe",
-  "short_name": "Contas_exe",
+  "name": "Contas",
+  "short_name": "Contas",
   "description": "Organiza contas de redes sociais e acessos locais.",
   "start_url": "/",
   "display": "standalone",

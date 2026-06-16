@@ -1303,7 +1303,7 @@ async function handleApi(request, response, url, user, session) {
         const link = `${base}/reset-password?token=${raw}`;
         await sendEmail({
           to: email,
-          subject: "Redefinir sua senha — Contas_exe",
+          subject: "Redefinir sua senha — Contas",
           html: `
 <p>Olá, <strong>${account.username}</strong>.</p>
 <p>Clique no link abaixo para redefinir sua senha. O link expira em 15 minutos.</p>
@@ -2736,7 +2736,7 @@ setInterval(() => {
 }, SESSION_IDLE_MS).unref();
 
 server.listen(port, host, () => {
-  console.log(`Contas_exe API: listening on ${host}:${port}`);
+  console.log(`Contas API: listening on ${host}:${port}`);
   recordLog("info", `servidor no ar em ${host}:${port}`);
   if (seededUsers.length === 0) {
     console.log(
