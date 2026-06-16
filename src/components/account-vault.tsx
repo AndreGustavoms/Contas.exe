@@ -1904,21 +1904,17 @@ type AccountWizardModalProps = {
 };
 
 function AccountWizardModal({
-  canContinue,
   canSave,
   draft,
   editing,
   isSaving,
   message,
-  onBack,
   onClose,
   onDelete,
-  onNext,
   onSave,
   onTogglePassword,
   onUpdate,
   showPassword,
-  step,
 }: AccountWizardModalProps) {
   const { t } = useTranslation();
   const { closing, close } = useClosing(onClose);
