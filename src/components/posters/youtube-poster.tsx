@@ -117,8 +117,9 @@ export function YouTubePoster() {
   const [privacy, setPrivacy] = useState<Privacy>("private");
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [schedule, setSchedule] = useState("");
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const [scheduleDate, setScheduleDate] = useState(today);
+  const [scheduleTime, setScheduleTime] = useState("09:00");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [videoDim, setVideoDim] = useState<{ w: number; h: number } | null>(null);
   const [busy, setBusy] = useState(false);
