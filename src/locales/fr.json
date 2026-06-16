@@ -341,7 +341,8 @@
     "import_group_name": "Comptes importés {{date}}",
     "toast_imported": "Importé dans \"{{group}}\"",
     "error_backup_invalid": "Sauvegarde invalide",
-    "post": "Publier"
+    "post": "Publier",
+    "publish_section": "Fonctions"
   },
   "platforms": {
     "Email": "E-mail",

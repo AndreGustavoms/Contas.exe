@@ -1348,17 +1348,16 @@ export function AccountVault({
             ))}
           </SidebarSection>
 
-          <SidebarSection>
-            <button
-              type="button"
+          <SidebarSection
+            itemsClassName="vault-menu-row -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:mx-0 lg:block lg:gap-0 lg:space-y-1 lg:overflow-visible lg:px-0 lg:pb-0"
+            label={t("vault.publish_section")}
+          >
+            <SidebarButton
+              active={posterOpen}
+              icon={Send}
+              label={t("vault.post")}
               onClick={() => setPosterOpen(true)}
-              className="group/post flex h-11 w-full min-w-0 items-center gap-2.5 rounded-xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-2.5 text-left text-sm font-semibold text-[color:var(--accent)] transition-colors duration-200 hover:bg-[color:var(--field-hover)]"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--accent-border)] bg-[color:var(--field)] text-[color:var(--accent)]">
-                <Send className="h-5 w-5" />
-              </span>
-              <span className="truncate">{t("vault.post")}</span>
-            </button>
+            />
           </SidebarSection>
 
           <div className="vault-sidebar-actions mt-1 flex gap-2 lg:mt-auto lg:flex-col lg:gap-1.5 lg:pt-4">

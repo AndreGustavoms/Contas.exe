@@ -336,7 +336,8 @@
     "import_group_name": "已导入账户 {{date}}",
     "toast_imported": "已导入到「{{group}}」",
     "error_backup_invalid": "备份无效",
-    "post": "发布"
+    "post": "发布",
+    "publish_section": "功能"
   },
   "platforms": {
     "Email": "邮箱",

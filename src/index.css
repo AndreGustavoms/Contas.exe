@@ -84,6 +84,8 @@
   --inset-light: rgba(255, 255, 255, 0.05);
   --field-shadow: rgba(2, 6, 23, 0.18);
   --login-bg: #070a12;
+  --scrollbar-thumb: rgba(148, 163, 184, 0.22);
+  --scrollbar-thumb-hover: var(--accent-muted);
 }
 
 .theme-white {
@@ -120,6 +122,8 @@
   --inset-light: rgba(255, 255, 255, 0.6);
   --field-shadow: rgba(15, 23, 42, 0.06);
   --login-bg: #e9edf3;
+  --scrollbar-thumb: rgba(15, 23, 42, 0.18);
+  --scrollbar-thumb-hover: var(--accent-muted);
 }
 
 @media (max-width: 359px) {
@@ -442,6 +446,37 @@ textarea:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--accent, #22c55e);
   outline-offset: 2px;
+}
+
+/* Scrollbar na identidade do Contas: trilho invisível e um polegar discreto
+   em pílula que assume o verde de marca ao passar o mouse. Adapta ao tema via
+   as variáveis --scrollbar-* (claro/escuro). Firefox usa scrollbar-color. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(148, 163, 184, 0.22)) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb, rgba(148, 163, 184, 0.22));
+  border-radius: 9999px;
+  /* Borda transparente recortada (padding-box) afina o polegar e dá respiro. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover, var(--accent));
 }
 
 /* Media never overflows its container. Hero/logo classes that need to bleed

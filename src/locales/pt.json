@@ -343,7 +343,8 @@
     "import_group_name": "Contas importadas {{date}}",
     "toast_imported": "Importado para \"{{group}}\"",
     "error_backup_invalid": "Backup inválido",
-    "post": "Postar"
+    "post": "Postar",
+    "publish_section": "Funções"
   },
   "platforms": {
     "Email": "Email",
