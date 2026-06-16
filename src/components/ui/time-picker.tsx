@@ -62,7 +62,8 @@ function Column({
       <div
         ref={ref}
         onScroll={onScroll}
-        className="scrollbar-none overflow-y-scroll"
+        className="overflow-y-scroll"
+        style={{ scrollbarWidth: "none" }}
         style={{ height: ITEM_H * 5, scrollSnapType: "y mandatory" }}
       >
         {/* padding so first/last items can center */}
