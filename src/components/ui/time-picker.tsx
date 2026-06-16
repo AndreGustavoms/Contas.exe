@@ -177,13 +177,14 @@ export function TimePicker({ value, onChange, disabled }: TimePickerProps) {
             <Column items={MINUTES} selected={selM} onSelect={handleM} />
           </div>
 
-          <div className="border-t border-[color:var(--border)] px-4 py-2.5 flex justify-end">
+          <div className="border-t border-[color:var(--border)] px-3 py-3">
             <button
               type="button"
               onClick={() => { commit(); setOpen(false); }}
-              className="text-[12px] font-semibold text-[color:var(--accent-soft)] transition hover:text-[color:var(--accent)]"
+              className="group relative w-full overflow-hidden rounded-xl bg-[color:var(--accent)] py-2.5 text-sm font-bold tracking-wide text-[color:var(--accent-foreground)] shadow-[0_8px_24px_-8px_var(--accent)] transition-all duration-200 hover:brightness-110 hover:shadow-[0_12px_28px_-8px_var(--accent)]"
             >
-              OK
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-500 group-hover:translate-x-full" />
+              Confirmar
             </button>
           </div>
         </div>
