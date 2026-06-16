@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileVideo2,
   Film,
+  MessageSquare,
   Plus,
   Shield,
   Smartphone,
@@ -30,7 +31,7 @@ import { YouTubeIcon } from "../platform-icons";
 
 type Channel = { id: string; title: string; connectedAt: string };
 type Privacy = "public" | "unlisted" | "private";
-type VideoType = "video" | "short";
+type VideoType = "video" | "short" | "community";
 
 type HistoryItem = {
   videoId: string | null;
@@ -374,7 +375,7 @@ export function YouTubePoster() {
       {/* ── Tipo ── */}
       <section className="border-t border-[color:var(--border)] py-6">
         <SectionLabel>{t("post.youtube.video_type")}</SectionLabel>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {(
             [
               {
@@ -388,6 +389,12 @@ export function YouTubePoster() {
                 icon: Smartphone,
                 label: t("post.youtube.type_short"),
                 hint: t("post.youtube.type_short_hint"),
+              },
+              {
+                value: "community" as VideoType,
+                icon: MessageSquare,
+                label: t("post.youtube.type_community"),
+                hint: t("post.youtube.type_community_hint"),
               },
             ] as const
           ).map(({ value, icon: Icon, label, hint }) => {
@@ -429,7 +436,7 @@ export function YouTubePoster() {
       </section>
 
       {/* ── Vídeo ── */}
-      <section className="border-t border-[color:var(--border)] py-6">
+      {videoType !== "community" && <section className="border-t border-[color:var(--border)] py-6">
         <SectionLabel>{t("post.youtube.video")}</SectionLabel>
         <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={pickFile} />
         <button
@@ -472,7 +479,7 @@ export function YouTubePoster() {
             />
           </div>
         )}
-      </section>
+      </section>}
 
       {/* ── Conteúdo ── */}
       <section className="border-t border-[color:var(--border)] py-6 grid gap-4">

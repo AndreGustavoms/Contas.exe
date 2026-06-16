@@ -589,6 +589,8 @@
       "type_video_hint": "Horizontal · any duration",
       "type_short": "Short",
       "type_short_hint": "Vertical · up to 60 seconds",
+      "type_community": "Community",
+      "type_community_hint": "Text, image or poll",
       "choose_file": "Choose a video from your computer",
       "choose_hint": "MP4, MOV, etc. — uploaded straight from your browser.",
       "field_title": "Title",

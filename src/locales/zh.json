@@ -582,6 +582,8 @@
       "type_video_hint": "横屏 · 任意时长",
       "type_short": "短片",
       "type_short_hint": "竖屏 · 最长 60 秒",
+      "type_community": "社区帖子",
+      "type_community_hint": "文字、图片或投票",
       "choose_file": "从电脑选择视频",
       "choose_hint": "MP4、MOV 等 — 直接从浏览器上传。",
       "field_title": "标题",

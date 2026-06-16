@@ -612,6 +612,8 @@
       "type_video_hint": "Horizontal · qualquer duração",
       "type_short": "Short",
       "type_short_hint": "Vertical · até 60 segundos",
+      "type_community": "Comunidade",
+      "type_community_hint": "Texto, imagem ou enquete",
       "choose_file": "Escolher vídeo do computador",
       "choose_hint": "MP4, MOV, etc. — enviado direto pelo navegador.",
       "field_title": "Título",
