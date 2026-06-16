@@ -84,8 +84,8 @@
   --inset-light: rgba(255, 255, 255, 0.05);
   --field-shadow: rgba(2, 6, 23, 0.18);
   --login-bg: #070a12;
-  --scrollbar-thumb: rgba(148, 163, 184, 0.4);
-  --scrollbar-thumb-hover: var(--accent);
+  --scrollbar-thumb: rgba(34, 197, 94, 0.55);
+  --scrollbar-thumb-hover: var(--accent-hover);
 }
 
 .theme-white {
@@ -122,8 +122,8 @@
   --inset-light: rgba(255, 255, 255, 0.6);
   --field-shadow: rgba(15, 23, 42, 0.06);
   --login-bg: #e9edf3;
-  --scrollbar-thumb: rgba(15, 23, 42, 0.32);
-  --scrollbar-thumb-hover: var(--accent);
+  --scrollbar-thumb: rgba(22, 163, 74, 0.6);
+  --scrollbar-thumb-hover: var(--accent-hover);
 }
 
 @media (max-width: 359px) {
