@@ -13,6 +13,7 @@ import {
   Clock,
   ExternalLink,
   FileVideo2,
+  Plus,
   Shield,
   Upload,
   Users,
