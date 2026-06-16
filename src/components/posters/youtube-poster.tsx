@@ -7,16 +7,21 @@ import {
   useState,
 } from "react";
 import {
+  BarChart2,
   Calendar,
   CheckCircle2,
   Clapperboard,
   Clock,
   ExternalLink,
   FileVideo2,
+  Image as ImageIcon,
+  Info,
   Plus,
   Shield,
+  Type,
   Upload,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -25,13 +30,10 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { YouTubeIcon } from "../platform-icons";
 
-// Painel de publicação no YouTube. Fluxo: escolher canal conectado, enviar o
-// vídeo do navegador (streaming pro servidor, com progresso) e publicar com
-// título/descrição/tags, privado/não listado/público OU agendado.
-
 type Channel = { id: string; title: string; connectedAt: string };
 type Privacy = "public" | "unlisted" | "private";
 type VideoType = "video" | "short" | "community";
+type CommunityContent = "text" | "image" | "poll";
 
 type HistoryItem = {
   videoId: string | null;
@@ -53,8 +55,6 @@ function fmtDuration(seconds: number | null): string {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-// Envia o arquivo via XHR para acompanhar o progresso (fetch não expõe upload
-// progress). Resolve com o nome já preparado no servidor.
 function uploadVideoFile(
   file: File,
   onProgress: (fraction: number) => void,
@@ -64,7 +64,7 @@ function uploadVideoFile(
     xhr.open("POST", "/api/youtube/uploads");
     xhr.setRequestHeader(
       "X-Upload-Filename",
-      encodeURIComponent(file.name || "video"),
+      encodeURIComponent(file.name || "upload"),
     );
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
@@ -101,25 +101,43 @@ function fmtConnectedAt(value: string): string {
 
 export function YouTubePoster() {
   const { t } = useTranslation();
+
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [channelId, setChannelId] = useState("");
   const [videoType, setVideoType] = useState<VideoType>("video");
+
+  // Video / Short
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [privacy, setPrivacy] = useState<Privacy>("private");
   const [schedule, setSchedule] = useState("");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+
+  // Community
+  const [communityContent, setCommunityContent] = useState<CommunityContent>("text");
+  const [communityText, setCommunityText] = useState("");
+  const [communityCaption, setCommunityCaption] = useState("");
+  const [communityImageFile, setCommunityImageFile] = useState<File | null>(null);
+  const [communityImagePreview, setCommunityImagePreview] = useState<string | null>(null);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ videoId: string } | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailRef = useRef<HTMLInputElement>(null);
+  const communityImageRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!file) { setPreviewUrl(null); return; }
@@ -127,8 +145,20 @@ export function YouTubePoster() {
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
-  const selectedChannel =
-    channels?.find((channel) => channel.id === channelId) ?? null;
+
+  useEffect(() => {
+    if (!thumbnailFile) { setThumbnailPreview(null); return; }
+    const url = URL.createObjectURL(thumbnailFile);
+    setThumbnailPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [thumbnailFile]);
+
+  useEffect(() => {
+    if (!communityImageFile) { setCommunityImagePreview(null); return; }
+    const url = URL.createObjectURL(communityImageFile);
+    setCommunityImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [communityImageFile]);
 
   function updateSchedulePart(part: "date" | "time", value: string) {
     const nextDate = part === "date" ? value : scheduleDate;
@@ -139,9 +169,7 @@ export function YouTubePoster() {
   }
 
   function clearSchedule() {
-    setScheduleDate("");
-    setScheduleTime("");
-    setSchedule("");
+    setScheduleDate(""); setScheduleTime(""); setSchedule("");
   }
 
   const loadHistory = useCallback(() => {
@@ -154,10 +182,7 @@ export function YouTubePoster() {
   useEffect(() => {
     fetch("/api/youtube/channels")
       .then((r) => (r.ok ? r.json() : { channels: [] }))
-      .then((d: { channels?: Channel[] }) => {
-        const list = d.channels ?? [];
-        setChannels(list);
-      })
+      .then((d: { channels?: Channel[] }) => setChannels(d.channels ?? []))
       .catch(() => setChannels([]));
     loadHistory();
   }, [loadHistory]);
@@ -168,6 +193,32 @@ export function YouTubePoster() {
     setDone(null);
     setError("");
     if (f && !title) setTitle(f.name.replace(/\.[^.]+$/, ""));
+  }
+
+  function addPollOption() {
+    if (pollOptions.length < 5) setPollOptions([...pollOptions, ""]);
+  }
+
+  function removePollOption(i: number) {
+    if (pollOptions.length > 2) setPollOptions(pollOptions.filter((_, idx) => idx !== i));
+  }
+
+  function updatePollOption(i: number, value: string) {
+    const next = [...pollOptions];
+    next[i] = value;
+    setPollOptions(next);
+  }
+
+  async function copyToClipboard() {
+    let text = "";
+    if (communityContent === "text") text = communityText;
+    else if (communityContent === "poll") {
+      text = [pollQuestion, ...pollOptions.filter(Boolean).map((o, i) => `${i + 1}. ${o}`)].join("\n");
+    }
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   async function publish() {
@@ -191,6 +242,12 @@ export function YouTubePoster() {
       const staged = await uploadVideoFile(file, setProgress);
       setProgress(null);
 
+      let thumbnailName: string | undefined;
+      if (videoType === "video" && thumbnailFile) {
+        const stagedThumb = await uploadVideoFile(thumbnailFile, () => {});
+        thumbnailName = stagedThumb.name;
+      }
+
       const res = await fetch("/api/youtube/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,13 +256,11 @@ export function YouTubePoster() {
           file: staged.name,
           title: title.trim(),
           description,
-          tags: tags
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
           publishAt,
           privacyStatus: privacy,
           videoType,
+          ...(thumbnailName && { thumbnailName }),
         }),
       });
       if (!res.ok) throw new Error("publish_failed");
@@ -224,9 +279,7 @@ export function YouTubePoster() {
     }
   }
 
-  if (channels === null) {
-    return <div className="skeleton h-40 w-full rounded-2xl" />;
-  }
+  if (channels === null) return <div className="skeleton h-40 w-full rounded-2xl" />;
 
   if (channels.length === 0) {
     return (
@@ -235,16 +288,10 @@ export function YouTubePoster() {
           <YouTubeIcon className="h-7 w-7" />
         </span>
         <div>
-          <h2 className="text-base font-semibold text-[color:var(--text)]">
-            {t("post.youtube.connect_title")}
-          </h2>
-          <p className="mt-1 max-w-sm text-sm text-[color:var(--muted)]">
-            {t("post.youtube.connect_desc")}
-          </p>
+          <h2 className="text-base font-semibold text-[color:var(--text)]">{t("post.youtube.connect_title")}</h2>
+          <p className="mt-1 max-w-sm text-sm text-[color:var(--muted)]">{t("post.youtube.connect_desc")}</p>
         </div>
-        <a className="login-btn-primary px-6" href="/api/youtube/connect">
-          {t("post.youtube.connect_btn")}
-        </a>
+        <a className="login-btn-primary px-6" href="/api/youtube/connect">{t("post.youtube.connect_btn")}</a>
       </div>
     );
   }
@@ -253,9 +300,7 @@ export function YouTubePoster() {
     return (
       <div className="grid place-items-center gap-4 py-12 text-center">
         <CheckCircle2 className="h-10 w-10 text-[color:var(--accent)]" />
-        <h2 className="text-lg font-semibold text-[color:var(--text)]">
-          {t("post.youtube.success")}
-        </h2>
+        <h2 className="text-lg font-semibold text-[color:var(--text)]">{t("post.youtube.success")}</h2>
         <div className="flex gap-3">
           <a
             className="inline-flex items-center gap-1.5 text-sm font-medium text-[color:var(--accent)] hover:underline"
@@ -269,13 +314,9 @@ export function YouTubePoster() {
           <Button
             variant="outline"
             onClick={() => {
-              setDone(null);
-              setChannelId("");
-              setFile(null);
-              setTitle("");
-              setDescription("");
-              setTags("");
-              clearSchedule();
+              setDone(null); setChannelId(""); setFile(null);
+              setTitle(""); setDescription(""); setTags("");
+              setThumbnailFile(null); clearSchedule();
             }}
           >
             {t("post.youtube.new_post")}
@@ -291,13 +332,10 @@ export function YouTubePoster() {
   const fieldCls =
     "h-11 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-4 text-sm text-[color:var(--text)] outline-none transition-all duration-200 placeholder:text-[color:var(--muted-soft)] focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent)]/20";
 
-  const SectionLabel = ({
-    dot,
-    children,
-  }: {
-    dot?: "red" | "accent";
-    children: ReactNode;
-  }) => (
+  const textareaCls =
+    "w-full resize-y rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-4 py-3 text-sm text-[color:var(--text)] outline-none transition-all duration-200 placeholder:text-[color:var(--muted-soft)] focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent)]/20";
+
+  const SectionLabel = ({ dot, children }: { dot?: "red" | "accent"; children: ReactNode }) => (
     <span className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--muted-soft)]">
       <span
         className={cn(
@@ -310,6 +348,12 @@ export function YouTubePoster() {
       {children}
     </span>
   );
+
+  const typeCards = [
+    { value: "video" as VideoType, icon: Clapperboard, label: t("post.youtube.type_video"), hint: t("post.youtube.type_video_hint") },
+    { value: "short" as VideoType, icon: Zap, label: t("post.youtube.type_short"), hint: t("post.youtube.type_short_hint") },
+    { value: "community" as VideoType, icon: Users, label: t("post.youtube.type_community"), hint: t("post.youtube.type_community_hint") },
+  ] as const;
 
   return (
     <div>
@@ -325,7 +369,6 @@ export function YouTubePoster() {
             {t("post.youtube.connect_another")}
           </a>
         </div>
-
         <div className="grid gap-2 sm:grid-cols-2">
           {channels.map((channel) => {
             const selected = channel.id === channelId;
@@ -356,16 +399,10 @@ export function YouTubePoster() {
                   <YouTubeIcon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-[color:var(--text)]">
-                    {channel.title}
-                  </span>
-                  <span className="block text-[11px] text-[color:var(--muted)]">
-                    {fmtConnectedAt(channel.connectedAt)}
-                  </span>
+                  <span className="block truncate text-sm font-semibold text-[color:var(--text)]">{channel.title}</span>
+                  <span className="block text-[11px] text-[color:var(--muted)]">{fmtConnectedAt(channel.connectedAt)}</span>
                 </span>
-                {selected && (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-red-400/80" />
-                )}
+                {selected && <CheckCircle2 className="h-4 w-4 shrink-0 text-red-400/80" />}
               </button>
             );
           })}
@@ -376,35 +413,14 @@ export function YouTubePoster() {
       <section className="border-t border-[color:var(--border)] py-6">
         <SectionLabel>{t("post.youtube.video_type")}</SectionLabel>
         <div className="grid grid-cols-3 gap-2">
-          {(
-            [
-              {
-                value: "video" as VideoType,
-                icon: Clapperboard,
-                label: t("post.youtube.type_video"),
-                hint: t("post.youtube.type_video_hint"),
-              },
-              {
-                value: "short" as VideoType,
-                icon: Zap,
-                label: t("post.youtube.type_short"),
-                hint: t("post.youtube.type_short_hint"),
-              },
-              {
-                value: "community" as VideoType,
-                icon: Users,
-                label: t("post.youtube.type_community"),
-                hint: t("post.youtube.type_community_hint"),
-              },
-            ] as const
-          ).map(({ value, icon: Icon, label, hint }) => {
+          {typeCards.map(({ value, icon: Icon, label, hint }) => {
             const active = videoType === value;
             return (
               <button
                 key={value}
                 type="button"
                 aria-pressed={active}
-                onClick={() => setVideoType(value)}
+                onClick={() => { setVideoType(value); setError(""); }}
                 className={cn(
                   "group relative flex flex-col gap-2 overflow-hidden rounded-xl border px-4 py-3 text-left transition-all duration-200",
                   active
@@ -435,171 +451,430 @@ export function YouTubePoster() {
         </div>
       </section>
 
-      {/* ── Vídeo ── */}
-      {videoType !== "community" && <section className="border-t border-[color:var(--border)] py-6">
-        <SectionLabel>{t("post.youtube.video")}</SectionLabel>
-        <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={pickFile} />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            "group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed py-9 transition-all duration-300",
-            file
-              ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)]"
-              : "border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-surface)]",
-          )}
-        >
-          <span
-            className={cn(
-              "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300",
-              file
-                ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-[0_8px_28px_-8px_var(--accent)]"
-                : "border border-[color:var(--border)] text-[color:var(--muted)] group-hover:border-[color:var(--accent-border)] group-hover:text-[color:var(--accent)] group-hover:shadow-[0_0_20px_var(--accent-glow)]",
-            )}
-          >
-            <Upload className="h-5 w-5" />
-          </span>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-[color:var(--text)]">
-              {file ? file.name : t("post.youtube.choose_file")}
-            </p>
-            <p className="mt-0.5 text-xs text-[color:var(--muted)]">
-              {file ? fmtSize(file.size) : t("post.youtube.choose_hint")}
-            </p>
-          </div>
-        </button>
-
-        {previewUrl && (
-          <div className="mt-3 overflow-hidden rounded-xl border border-[color:var(--accent-border)] bg-black shadow-[0_8px_32px_-8px_var(--accent-glow)]">
-            <video
-              src={previewUrl}
-              className="max-h-56 w-full object-contain"
-              controls
-              muted
-            />
-          </div>
-        )}
-      </section>}
-
-      {/* ── Conteúdo ── */}
-      <section className="border-t border-[color:var(--border)] py-6 grid gap-4">
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-semibold text-[color:var(--muted)]">
-            {t("post.youtube.field_title")}
-          </span>
-          <input className={fieldCls} maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-semibold text-[color:var(--muted)]">
-            {t("post.youtube.field_description")}
-          </span>
-          <textarea
-            className="min-h-28 w-full resize-y rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] px-4 py-3 text-sm text-[color:var(--text)] outline-none transition-all duration-200 focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent)]/20"
-            maxLength={5000}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-semibold text-[color:var(--muted)]">
-            {t("post.youtube.field_tags")}
-          </span>
-          <input
-            className={fieldCls}
-            placeholder={t("post.youtube.tags_placeholder")}
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-          />
-        </label>
-      </section>
-
-      {/* ── Privacidade + Agendamento ── */}
-      <section className="border-t border-[color:var(--border)] py-6 grid gap-5 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--muted)]">
-            <Shield className="h-3.5 w-3.5" />
-            {t("post.youtube.privacy")}
-          </span>
-          <select
-            className={cn(fieldCls, "cursor-pointer")}
-            value={privacy}
-            disabled={Boolean(schedule)}
-            onChange={(e) => setPrivacy(e.target.value as Privacy)}
-          >
-            <option value="private">{t("post.youtube.privacy_private")}</option>
-            <option value="unlisted">{t("post.youtube.privacy_unlisted")}</option>
-            <option value="public">{t("post.youtube.privacy_public")}</option>
-          </select>
-        </div>
-
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--muted)]">
-              <Calendar className="h-3.5 w-3.5" />
-              {t("post.youtube.schedule")}
-            </span>
-            {schedule ? (
-              <button
-                className="text-[11px] font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-                type="button"
-                onClick={clearSchedule}
+      {/* ══════════════════ VÍDEO / SHORT ══════════════════ */}
+      {videoType !== "community" && (
+        <>
+          {/* ── Arquivo ── */}
+          <section className="border-t border-[color:var(--border)] py-6">
+            <SectionLabel>{t("post.youtube.video")}</SectionLabel>
+            <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={pickFile} />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                "group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed py-9 transition-all duration-300",
+                file
+                  ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)]"
+                  : "border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-surface)]",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300",
+                  file
+                    ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-[0_8px_28px_-8px_var(--accent)]"
+                    : "border border-[color:var(--border)] text-[color:var(--muted)] group-hover:border-[color:var(--accent-border)] group-hover:text-[color:var(--accent)] group-hover:shadow-[0_0_20px_var(--accent-glow)]",
+                )}
               >
-                Limpar
+                <Upload className="h-5 w-5" />
+              </span>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-[color:var(--text)]">
+                  {file ? file.name : t("post.youtube.choose_file")}
+                </p>
+                <p className="mt-0.5 text-xs text-[color:var(--muted)]">
+                  {file ? fmtSize(file.size) : t("post.youtube.choose_hint")}
+                </p>
+              </div>
+            </button>
+            {previewUrl && (
+              <div className="mt-3 overflow-hidden rounded-xl border border-[color:var(--accent-border)] bg-black shadow-[0_8px_32px_-8px_var(--accent-glow)]">
+                <video src={previewUrl} className="max-h-56 w-full object-contain" controls muted />
+              </div>
+            )}
+          </section>
+
+          {/* ── Conteúdo: título, descrição, tags ── */}
+          <section className="border-t border-[color:var(--border)] py-6 grid gap-4">
+            <label className="grid gap-1.5">
+              <span className="text-[11px] font-semibold text-[color:var(--muted)]">{t("post.youtube.field_title")}</span>
+              <input className={fieldCls} maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-[11px] font-semibold text-[color:var(--muted)]">{t("post.youtube.field_description")}</span>
+              <textarea
+                className={cn(textareaCls, "min-h-28")}
+                maxLength={5000}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-[11px] font-semibold text-[color:var(--muted)]">{t("post.youtube.field_tags")}</span>
+              <input
+                className={fieldCls}
+                placeholder={t("post.youtube.tags_placeholder")}
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+            </label>
+          </section>
+
+          {/* ── Thumbnail (Vídeo apenas) ── */}
+          {videoType === "video" && (
+            <section className="border-t border-[color:var(--border)] py-6">
+              <SectionLabel>{t("post.youtube.thumbnail")}</SectionLabel>
+              <input
+                ref={thumbnailRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => setThumbnailFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                onClick={() => thumbnailRef.current?.click()}
+                className={cn(
+                  "group flex w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-all duration-200",
+                  thumbnailFile
+                    ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)]"
+                    : "border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-surface)]",
+                )}
+              >
+                {thumbnailPreview ? (
+                  <img src={thumbnailPreview} alt="" className="h-12 w-20 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[color:var(--border)] text-[color:var(--muted)] transition-all duration-200 group-hover:border-[color:var(--accent-border)] group-hover:text-[color:var(--accent)]">
+                    <ImageIcon className="h-5 w-5" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[color:var(--text)]">
+                    {thumbnailFile ? thumbnailFile.name : t("post.youtube.choose_thumbnail")}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[color:var(--muted)]">
+                    {thumbnailFile ? fmtSize(thumbnailFile.size) : t("post.youtube.thumbnail_hint")}
+                  </p>
+                </div>
+                {thumbnailFile && (
+                  <button
+                    type="button"
+                    className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--text)]"
+                    onClick={(e) => { e.stopPropagation(); setThumbnailFile(null); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </button>
-            ) : null}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input aria-label="Data" type="date" className={fieldCls} value={scheduleDate} onChange={(e) => updateSchedulePart("date", e.target.value)} />
-            <input aria-label="Hora" type="time" className={fieldCls} value={scheduleTime} onChange={(e) => updateSchedulePart("time", e.target.value)} />
-          </div>
-          {schedule ? (
-            <p className="text-[11px] text-[color:var(--muted)]">{t("post.youtube.schedule_note")}</p>
-          ) : null}
-        </div>
-      </section>
+            </section>
+          )}
 
-      {/* ── Progresso ── */}
-      {progress !== null ? (
-        <div className="border-t border-[color:var(--border)] py-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[color:var(--muted)]">
-              {t("post.youtube.uploading", { percent: Math.round(progress * 100) })}
-            </span>
-            <span className="font-mono text-[11px] font-bold text-[color:var(--accent)]">
-              {Math.round(progress * 100)}%
-            </span>
-          </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-[color:var(--field)]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[color:var(--accent)] to-[color:var(--accent-hover)] shadow-[0_0_8px_var(--accent-glow)] transition-all duration-300"
-              style={{ width: `${Math.round(progress * 100)}%` }}
-            />
-          </div>
-        </div>
-      ) : null}
+          {/* ── Aviso Short ── */}
+          {videoType === "short" && (
+            <section className="border-t border-[color:var(--border)] py-6">
+              <div className="flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3.5">
+                <Zap className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+                <p className="text-[12px] leading-relaxed text-yellow-200/80">
+                  {t("post.youtube.short_notice")}
+                </p>
+              </div>
+            </section>
+          )}
 
-      {/* ── Publicar ── */}
-      <section className="border-t border-[color:var(--border)] pt-6 grid gap-3">
-        {error ? <p className="text-sm font-medium text-red-400">{error}</p> : null}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={publish}
-          className="group relative flex h-12 w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-[color:var(--accent)] text-sm font-bold tracking-wide text-[color:var(--accent-foreground)] shadow-[0_16px_40px_-16px_var(--accent)] transition-all duration-300 hover:brightness-110 hover:shadow-[0_20px_48px_-16px_var(--accent)] disabled:opacity-50 disabled:shadow-none"
-        >
-          <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-          {busy ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-          {busy
-            ? progress !== null
-              ? t("post.youtube.uploading", { percent: Math.round((progress ?? 0) * 100) })
-              : t("post.youtube.publishing")
-            : schedule
-              ? t("post.youtube.schedule_btn")
-              : t("post.youtube.publish")}
-        </button>
-      </section>
+          {/* ── Privacidade + Agendamento ── */}
+          <section className="border-t border-[color:var(--border)] py-6 grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--muted)]">
+                <Shield className="h-3.5 w-3.5" />
+                {t("post.youtube.privacy")}
+              </span>
+              <select
+                className={cn(fieldCls, "cursor-pointer")}
+                value={privacy}
+                disabled={Boolean(schedule)}
+                onChange={(e) => setPrivacy(e.target.value as Privacy)}
+              >
+                <option value="private">{t("post.youtube.privacy_private")}</option>
+                <option value="unlisted">{t("post.youtube.privacy_unlisted")}</option>
+                <option value="public">{t("post.youtube.privacy_public")}</option>
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[color:var(--muted)]">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {t("post.youtube.schedule")}
+                </span>
+                {schedule && (
+                  <button
+                    className="text-[11px] font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                    type="button"
+                    onClick={clearSchedule}
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input aria-label="Data" type="date" className={fieldCls} value={scheduleDate} onChange={(e) => updateSchedulePart("date", e.target.value)} />
+                <input aria-label="Hora" type="time" className={fieldCls} value={scheduleTime} onChange={(e) => updateSchedulePart("time", e.target.value)} />
+              </div>
+              {schedule && <p className="text-[11px] text-[color:var(--muted)]">{t("post.youtube.schedule_note")}</p>}
+            </div>
+          </section>
+
+          {/* ── Progresso ── */}
+          {progress !== null && (
+            <div className="border-t border-[color:var(--border)] py-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-[color:var(--muted)]">
+                  {t("post.youtube.uploading", { percent: Math.round(progress * 100) })}
+                </span>
+                <span className="font-mono text-[11px] font-bold text-[color:var(--accent)]">
+                  {Math.round(progress * 100)}%
+                </span>
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-[color:var(--field)]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[color:var(--accent)] to-[color:var(--accent-hover)] shadow-[0_0_8px_var(--accent-glow)] transition-all duration-300"
+                  style={{ width: `${Math.round(progress * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Publicar ── */}
+          <section className="border-t border-[color:var(--border)] pt-6 grid gap-3">
+            {error && <p className="text-sm font-medium text-red-400">{error}</p>}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={publish}
+              className="group relative flex h-12 w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-[color:var(--accent)] text-sm font-bold tracking-wide text-[color:var(--accent-foreground)] shadow-[0_16px_40px_-16px_var(--accent)] transition-all duration-300 hover:brightness-110 hover:shadow-[0_20px_48px_-16px_var(--accent)] disabled:opacity-50 disabled:shadow-none"
+            >
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              {busy ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+              {busy
+                ? progress !== null
+                  ? t("post.youtube.uploading", { percent: Math.round((progress ?? 0) * 100) })
+                  : t("post.youtube.publishing")
+                : schedule
+                  ? t("post.youtube.schedule_btn")
+                  : t("post.youtube.publish")}
+            </button>
+          </section>
+        </>
+      )}
+
+      {/* ══════════════════ COMUNIDADE ══════════════════ */}
+      {videoType === "community" && (
+        <>
+          {/* ── Aviso API ── */}
+          <section className="border-t border-[color:var(--border)] py-6">
+            <div className="flex items-start gap-3 rounded-xl border border-orange-500/20 bg-orange-500/10 px-4 py-3.5">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-orange-400" />
+              <p className="text-[12px] leading-relaxed text-orange-200/80">
+                {t("post.youtube.community_notice")}
+              </p>
+            </div>
+          </section>
+
+          {/* ── Tipo de conteúdo ── */}
+          <section className="border-t border-[color:var(--border)] py-6">
+            <SectionLabel>{t("post.youtube.community_content")}</SectionLabel>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { value: "text" as CommunityContent, icon: Type, label: t("post.youtube.community_type_text") },
+                  { value: "image" as CommunityContent, icon: ImageIcon, label: t("post.youtube.community_type_image") },
+                  { value: "poll" as CommunityContent, icon: BarChart2, label: t("post.youtube.community_type_poll") },
+                ] as const
+              ).map(({ value, icon: Icon, label }) => {
+                const active = communityContent === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCommunityContent(value)}
+                    className={cn(
+                      "group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-4 py-3 text-left transition-all duration-200",
+                      active
+                        ? "border-[color:var(--accent-border)] bg-gradient-to-br from-[color:var(--accent-surface)] to-transparent"
+                        : "border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-surface)]",
+                    )}
+                  >
+                    {active && (
+                      <div className="absolute left-0 top-0 h-full w-0.5 rounded-r bg-[color:var(--accent)] shadow-[0_0_10px_var(--accent-glow)]" />
+                    )}
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
+                        active
+                          ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-[0_4px_14px_-4px_var(--accent)]"
+                          : "border border-[color:var(--border)] text-[color:var(--muted)] group-hover:border-[color:var(--accent-border)] group-hover:text-[color:var(--accent)]",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm font-semibold text-[color:var(--text)]">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* ── Texto ── */}
+          {communityContent === "text" && (
+            <section className="border-t border-[color:var(--border)] py-6">
+              <textarea
+                className={cn(textareaCls, "min-h-36")}
+                maxLength={5000}
+                placeholder={t("post.youtube.community_text_placeholder")}
+                value={communityText}
+                onChange={(e) => setCommunityText(e.target.value)}
+              />
+              <p className="mt-1.5 text-right text-[11px] text-[color:var(--muted)]">
+                {communityText.length} / 5000
+              </p>
+            </section>
+          )}
+
+          {/* ── Imagem ── */}
+          {communityContent === "image" && (
+            <section className="border-t border-[color:var(--border)] py-6 grid gap-4">
+              <input
+                ref={communityImageRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setCommunityImageFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                onClick={() => communityImageRef.current?.click()}
+                className={cn(
+                  "group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed py-9 transition-all duration-300",
+                  communityImageFile
+                    ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)]"
+                    : "border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:bg-[color:var(--accent-surface)]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300",
+                    communityImageFile
+                      ? "bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-[0_8px_28px_-8px_var(--accent)]"
+                      : "border border-[color:var(--border)] text-[color:var(--muted)] group-hover:border-[color:var(--accent-border)] group-hover:text-[color:var(--accent)] group-hover:shadow-[0_0_20px_var(--accent-glow)]",
+                  )}
+                >
+                  <ImageIcon className="h-5 w-5" />
+                </span>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-[color:var(--text)]">
+                    {communityImageFile ? communityImageFile.name : t("post.youtube.community_image_choose")}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[color:var(--muted)]">
+                    {communityImageFile ? fmtSize(communityImageFile.size) : t("post.youtube.community_image_hint")}
+                  </p>
+                </div>
+              </button>
+              {communityImagePreview && (
+                <div className="overflow-hidden rounded-xl border border-[color:var(--accent-border)] shadow-[0_8px_32px_-8px_var(--accent-glow)]">
+                  <img src={communityImagePreview} alt="" className="max-h-64 w-full object-contain" />
+                </div>
+              )}
+              <label className="grid gap-1.5">
+                <span className="text-[11px] font-semibold text-[color:var(--muted)]">
+                  {t("post.youtube.community_caption")}
+                </span>
+                <textarea
+                  className={cn(textareaCls, "min-h-20")}
+                  maxLength={5000}
+                  placeholder={t("post.youtube.community_caption_placeholder")}
+                  value={communityCaption}
+                  onChange={(e) => setCommunityCaption(e.target.value)}
+                />
+              </label>
+            </section>
+          )}
+
+          {/* ── Enquete ── */}
+          {communityContent === "poll" && (
+            <section className="border-t border-[color:var(--border)] py-6 grid gap-4">
+              <label className="grid gap-1.5">
+                <span className="text-[11px] font-semibold text-[color:var(--muted)]">
+                  {t("post.youtube.community_poll_question")}
+                </span>
+                <input
+                  className={fieldCls}
+                  maxLength={500}
+                  placeholder={t("post.youtube.community_poll_question_placeholder")}
+                  value={pollQuestion}
+                  onChange={(e) => setPollQuestion(e.target.value)}
+                />
+              </label>
+              <div className="grid gap-2">
+                {pollOptions.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className={cn(fieldCls, "flex-1")}
+                      maxLength={65}
+                      placeholder={t("post.youtube.community_poll_option", { n: i + 1 })}
+                      value={opt}
+                      onChange={(e) => updatePollOption(i, e.target.value)}
+                    />
+                    {pollOptions.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => removePollOption(i)}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {pollOptions.length < 5 ? (
+                <button
+                  type="button"
+                  onClick={addPollOption}
+                  className="flex items-center gap-1.5 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-2.5 text-[12px] font-semibold text-[color:var(--muted)] transition hover:border-[color:var(--accent-border)] hover:text-[color:var(--accent)]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t("post.youtube.community_poll_add")}
+                </button>
+              ) : (
+                <p className="text-[11px] text-[color:var(--muted)]">{t("post.youtube.community_poll_max")}</p>
+              )}
+            </section>
+          )}
+
+          {/* ── Ações ── */}
+          <section className="border-t border-[color:var(--border)] pt-6 grid gap-3">
+            {communityContent !== "image" && (
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] text-sm font-semibold text-[color:var(--muted)] transition hover:border-[color:var(--accent-border)] hover:text-[color:var(--accent)]"
+              >
+                {copied ? "✓ Copiado!" : t("post.youtube.community_copy")}
+              </button>
+            )}
+            <a
+              href="https://studio.youtube.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="group relative flex h-12 w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-[color:var(--accent)] text-sm font-bold tracking-wide text-[color:var(--accent-foreground)] shadow-[0_16px_40px_-16px_var(--accent)] transition-all duration-300 hover:brightness-110 hover:shadow-[0_20px_48px_-16px_var(--accent)]"
+            >
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <ExternalLink className="h-4 w-4" />
+              {t("post.youtube.community_open_studio")}
+            </a>
+          </section>
+        </>
+      )}
 
       <HistoryList items={history} />
     </div>
@@ -625,7 +900,11 @@ function HistoryList({ items }: { items: HistoryItem[] }) {
             <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-[color:var(--surface-soft)]">
               {item.thumbnailUrl ? (
                 <img alt="" className="h-full w-full object-cover" loading="lazy" src={item.thumbnailUrl} />
-              ) : null}
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[color:var(--muted)]">
+                  <FileVideo2 className="h-5 w-5" />
+                </div>
+              )}
               {item.durationSeconds ? (
                 <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[10px] tabular-nums text-white">
                   {fmtDuration(item.durationSeconds)}
