@@ -145,7 +145,7 @@ export function DatePicker({ value, onChange, disabled, placeholder = "dd/mm/aaa
 
       {/* Calendar dropdown */}
       {open && (
-        <div className="absolute z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--surface-soft)] shadow-[0_16px_48px_-8px_var(--accent-glow),0_4px_16px_-4px_rgba(0,0,0,.5)] backdrop-blur-xl">
+        <div className="absolute z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--card)] shadow-[0_20px_56px_-8px_var(--accent-glow),0_8px_24px_-4px_rgba(0,0,0,.7)]">
 
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3">

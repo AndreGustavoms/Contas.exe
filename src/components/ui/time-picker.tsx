@@ -55,9 +55,9 @@ function Column({
         style={{ top: "50%", transform: "translateY(-50%)", height: ITEM_H }}
       />
       {/* fade top */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[color:var(--surface-soft)] to-transparent z-10" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[color:var(--card)] to-transparent z-10" />
       {/* fade bottom */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[color:var(--surface-soft)] to-transparent z-10" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[color:var(--card)] to-transparent z-10" />
 
       <div
         ref={ref}
@@ -153,7 +153,7 @@ export function TimePicker({ value, onChange, disabled }: TimePickerProps) {
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--surface-soft)] shadow-[0_16px_48px_-8px_var(--accent-glow),0_4px_16px_-4px_rgba(0,0,0,.5)] backdrop-blur-xl">
+        <div className="absolute z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--card)] shadow-[0_20px_56px_-8px_var(--accent-glow),0_8px_24px_-4px_rgba(0,0,0,.7)]">
           {/* separator label */}
           <div className="flex items-center border-b border-[color:var(--border)] px-4 py-2.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--muted)]">Hora</span>
