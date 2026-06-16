@@ -153,7 +153,7 @@ export function TimePicker({ value, onChange, disabled }: TimePickerProps) {
       </button>
 
       {open && (
-        <div className="absolute z-50 bottom-full mb-2 w-44 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--page-bg)] shadow-[0_20px_56px_-8px_var(--accent-glow),0_8px_24px_-4px_rgba(0,0,0,.7)]">
+        <div className="absolute z-50 bottom-full mb-2 w-64 overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--page-bg)] shadow-[0_20px_56px_-8px_var(--accent-glow),0_8px_24px_-4px_rgba(0,0,0,.7)]">
           {/* separator label */}
           <div className="flex items-center border-b border-[color:var(--border)] px-4 py-2.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--muted)]">Hora</span>
