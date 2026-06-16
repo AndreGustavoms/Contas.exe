@@ -9,15 +9,15 @@ import {
 import {
   Calendar,
   CheckCircle2,
+  Clapperboard,
   Clock,
   ExternalLink,
   FileVideo2,
-  Film,
-  MessageSquare,
   Plus,
   Shield,
-  Smartphone,
   Upload,
+  Users,
+  Zap,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
@@ -380,19 +380,19 @@ export function YouTubePoster() {
             [
               {
                 value: "video" as VideoType,
-                icon: Film,
+                icon: Clapperboard,
                 label: t("post.youtube.type_video"),
                 hint: t("post.youtube.type_video_hint"),
               },
               {
                 value: "short" as VideoType,
-                icon: Smartphone,
+                icon: Zap,
                 label: t("post.youtube.type_short"),
                 hint: t("post.youtube.type_short_hint"),
               },
               {
                 value: "community" as VideoType,
-                icon: MessageSquare,
+                icon: Users,
                 label: t("post.youtube.type_community"),
                 hint: t("post.youtube.type_community_hint"),
               },
