@@ -28,6 +28,7 @@ import { PasswordStrengthMeter } from "./ui/password-tools";
 import { Spinner } from "./ui/spinner";
 import { QrCode } from "./ui/qr-code";
 import { cn } from "../lib/utils";
+import { useClosing } from "../lib/use-closing";
 import { type AppTheme } from "../theme";
 import { type SessionUser } from "../App";
 import { LANGUAGES } from "../i18n";
@@ -205,14 +206,17 @@ export function AccountSettings({
 }: AccountSettingsProps) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("perfil");
+  // No modo embutido (aba) não há animação de fechar; o close é imediato.
+  const { closing, close } = useClosing(onClose);
+  const dismiss = embedded ? onClose : close;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") dismiss();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [dismiss]);
 
   const content = (
     <section
@@ -222,7 +226,9 @@ export function AccountSettings({
         "account-settings-panel app-panel relative flex w-full overflow-hidden border backdrop-blur-2xl",
         embedded
           ? "min-h-[520px] rounded-2xl"
-          : "animate-pop-in rounded-[28px]",
+          : closing
+            ? "animate-pop-out rounded-[28px]"
+            : "animate-pop-in rounded-[28px]",
       )}
     >
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
@@ -238,7 +244,7 @@ export function AccountSettings({
               aria-label={t("account.close")}
               size="icon"
               variant="ghost"
-              onClick={onClose}
+              onClick={dismiss}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -297,9 +303,12 @@ export function AccountSettings({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         aria-label={t("account.close")}
-        className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+        className={cn(
+          "fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md",
+          closing ? "animate-overlay-out" : "animate-overlay-in",
+        )}
         type="button"
-        onClick={onClose}
+        onClick={dismiss}
       />
       {content}
     </div>
@@ -586,7 +595,6 @@ function PerfilTab({
           <p className="text-xs text-green-400">{t("account.saved")}</p>
         )}
       </div>
-
     </div>
   );
 }
@@ -632,7 +640,9 @@ function ConexoesTab() {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
-    api<Profile>("/api/account/me").then(setProfile).catch(() => {});
+    api<Profile>("/api/account/me")
+      .then(setProfile)
+      .catch(() => {});
   }, []);
 
   return (
@@ -1038,12 +1048,7 @@ function SegurancaTab({
             </p>
             <div className="flex justify-center">
               <div className="relative rounded-2xl bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-                <div
-                  className={cn(
-                    "transition",
-                    !secretRevealed && "blur-md",
-                  )}
-                >
+                <div className={cn("transition", !secretRevealed && "blur-md")}>
                   <QrCode value={setup.otpauthUri} size={176} />
                 </div>
                 {!secretRevealed && (
@@ -1063,9 +1068,7 @@ function SegurancaTab({
             </p>
             <div className="flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-sm text-[color:var(--text)]">
-                {secretRevealed
-                  ? setup.secret
-                  : "•••• •••• •••• •••• ••••"}
+                {secretRevealed ? setup.secret : "•••• •••• •••• •••• ••••"}
               </code>
               <button
                 aria-label={

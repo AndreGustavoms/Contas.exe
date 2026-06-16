@@ -55,6 +55,7 @@ import {
 } from "../data/credential-records";
 import type { SessionUser } from "../App";
 import { cn } from "../lib/utils";
+import { useClosing } from "../lib/use-closing";
 import { type AppTheme } from "../theme";
 import {
   FacebookIcon,
@@ -470,6 +471,18 @@ export function AccountVault({
   } | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   const [configurationOpen, setConfigurationOpen] = useState(false);
+  const [configClosing, setConfigClosing] = useState(false);
+  const configTimer = useRef<number | null>(null);
+  // Fecha o dropdown animando a saída antes de desmontar o conteúdo.
+  const closeConfiguration = useCallback(() => {
+    if (configTimer.current != null) return;
+    setConfigClosing(true);
+    configTimer.current = window.setTimeout(() => {
+      setConfigurationOpen(false);
+      setConfigClosing(false);
+      configTimer.current = null;
+    }, 180);
+  }, []);
   const [dataToolsOpen, setDataToolsOpen] = useState(false);
   const [usersDialogOpen, setUsersDialogOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
@@ -799,13 +812,13 @@ export function AccountVault({
 
     function handlePointerDown(event: PointerEvent) {
       if (!configurationMenuRef.current?.contains(event.target as Node)) {
-        setConfigurationOpen(false);
+        closeConfiguration();
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setConfigurationOpen(false);
+        closeConfiguration();
       }
     }
 
@@ -816,7 +829,7 @@ export function AccountVault({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [configurationOpen]);
+  }, [configurationOpen, closeConfiguration]);
 
   const filteredAccounts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -1373,7 +1386,11 @@ export function AccountVault({
                 aria-haspopup="menu"
                 className="group/config flex h-11 w-full min-w-0 items-center gap-2.5 rounded-xl border border-transparent px-2.5 text-left text-sm font-semibold text-[color:var(--muted)] transition-colors duration-200 hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] hover:text-[color:var(--text)]"
                 type="button"
-                onClick={() => setConfigurationOpen((current) => !current)}
+                onClick={() =>
+                  configurationOpen
+                    ? closeConfiguration()
+                    : setConfigurationOpen(true)
+                }
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--field)] text-[color:var(--accent)] transition duration-300 group-hover/config:bg-[color:var(--field-hover)]">
                   <Settings className="h-5 w-5" />
@@ -1383,7 +1400,10 @@ export function AccountVault({
 
               {configurationOpen ? (
                 <div
-                  className="menu-popover animate-pop-in absolute bottom-[calc(100%+8px)] left-0 right-0 z-50 w-full max-w-full overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel-strong)] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl lg:bottom-[calc(100%+10px)]"
+                  className={cn(
+                    "menu-popover absolute bottom-[calc(100%+8px)] left-0 right-0 z-50 w-full max-w-full overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel-strong)] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur-2xl lg:bottom-[calc(100%+10px)]",
+                    configClosing ? "animate-pop-out" : "animate-pop-in",
+                  )}
                   role="menu"
                 >
                   <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
@@ -1681,17 +1701,18 @@ function ModalShell({
   title,
 }: ModalShellProps) {
   const { t } = useTranslation();
+  const { closing, close } = useClosing(onClose);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        close();
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [close]);
 
   return (
     // Wrapper rolável + painel com m-auto: centraliza quando cabe e permite
@@ -1706,14 +1727,18 @@ function ModalShell({
     >
       <button
         aria-label={t("vault.close")}
-        className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+        className={cn(
+          "fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md",
+          closing ? "animate-overlay-out" : "animate-overlay-in",
+        )}
         type="button"
-        onClick={onClose}
+        onClick={close}
       />
       <section
         aria-modal="true"
         className={cn(
-          "modal-panel app-panel animate-pop-in relative m-auto w-full overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6",
+          "modal-panel app-panel relative m-auto w-full overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6",
+          closing ? "animate-pop-out" : "animate-pop-in",
           size === "xl"
             ? "modal-panel-xl max-w-5xl"
             : size === "lg"
@@ -1734,7 +1759,7 @@ function ModalShell({
               aria-label={t("vault.close")}
               size="icon"
               variant="ghost"
-              onClick={onClose}
+              onClick={close}
             >
               <X className="h-4 w-4" />
             </Button>

@@ -2051,6 +2051,45 @@ td {
   }
 }
 
+/* Saída do painel: espelha o pop-in (leve scale/translate + motion blur), mas
+   indo embora. `forwards` segura o estado final invisível até o desmonte. */
+.animate-pop-out {
+  animation: pop-out 200ms var(--ease-fluid) forwards;
+  transform-origin: top center;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.97);
+    filter: blur(5px);
+  }
+}
+
+/* Fade do backdrop/overlay — entra e sai suave, acompanhando o painel. */
+.animate-overlay-in {
+  animation: overlay-fade 200ms var(--ease-fluid) backwards;
+}
+
+.animate-overlay-out {
+  animation: overlay-fade 200ms var(--ease-fluid) reverse forwards;
+}
+
+@keyframes overlay-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .animate-rise {
   animation: rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }

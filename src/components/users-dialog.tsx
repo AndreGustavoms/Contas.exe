@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
+import { useClosing } from "../lib/use-closing";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import {
@@ -186,6 +187,8 @@ export function UsersDialog({
   withReauth,
 }: UsersDialogProps) {
   const { t } = useTranslation();
+  const { closing, close } = useClosing(onClose);
+  const dismiss = embedded ? onClose : close;
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -207,11 +210,11 @@ export function UsersDialog({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") dismiss();
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [dismiss]);
 
   async function loadUsers() {
     try {
@@ -455,9 +458,12 @@ export function UsersDialog({
       {!embedded ? (
         <button
           aria-label={t("team.close")}
-          className="fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md"
+          className={cn(
+            "fixed inset-0 bg-[color:var(--overlay)] backdrop-blur-md",
+            closing ? "animate-overlay-out" : "animate-overlay-in",
+          )}
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
         />
       ) : null}
       <section
@@ -466,7 +472,9 @@ export function UsersDialog({
           "modal-panel modal-panel-lg app-panel relative m-auto w-full overflow-hidden border p-5 backdrop-blur-2xl sm:p-6",
           embedded
             ? "max-w-none rounded-2xl"
-            : "max-w-lg animate-pop-in rounded-[28px]",
+            : closing
+              ? "max-w-lg animate-pop-out rounded-[28px]"
+              : "max-w-lg animate-pop-in rounded-[28px]",
         )}
         role={embedded ? undefined : "dialog"}
       >
@@ -484,7 +492,7 @@ export function UsersDialog({
               aria-label={t("team.close")}
               size="icon"
               variant="ghost"
-              onClick={onClose}
+              onClick={dismiss}
             >
               <X className="h-4 w-4" />
             </Button>
