@@ -19,13 +19,16 @@ import {
   buildAuthUrl,
   ensureUploadsDir,
   handleOAuthCallback,
+  isYouTubeUploadError,
   listConnectedChannels,
   listUploadHistory,
   listUploadableFiles,
+  MAX_STAGED_UPLOAD_BYTES,
   stageUpload,
   deleteVideo,
   uploadVideo,
   uploadsDirectory,
+  YOUTUBE_MAX_UPLOAD_BYTES,
 } from "./youtube.mjs";
 import {
   consumeRecoveryCode,
@@ -303,6 +306,19 @@ function githubRedirectUri(request) {
 }
 
 const YOUTUBE_OAUTH_STATE_COOKIE = "contas_youtube_oauth_state";
+const YOUTUBE_STATE_PREFIX = "yt";
+
+function buildYoutubeOAuthState(userId) {
+  return `${YOUTUBE_STATE_PREFIX}:${userId}:${randomBytes(32).toString("base64url")}`;
+}
+
+function youtubeOwnerFromState(state) {
+  const parts = String(state ?? "").split(":");
+  if (parts.length !== 3 || parts[0] !== YOUTUBE_STATE_PREFIX || !parts[1]) {
+    return null;
+  }
+  return parts[1];
+}
 
 function youtubeOAuthStateCookie(request, value, maxAge) {
   const flags = [
@@ -623,23 +639,16 @@ async function migrateGroupsToVaults(adminId) {
   }
 }
 
-// Moves every group in `fromUserId`'s vault into `toUserId`'s vault. Called
-// when a user is deleted so their groups don't become invisible/orphaned.
-async function reassignGroups(fromUserId, toUserId) {
-  const fromDb = await readVault(fromUserId);
-  if (fromDb.groups.length === 0) return;
-  const toDb = await readVault(toUserId);
-  for (const group of fromDb.groups) {
-    toDb.groups.push({ ...group, ownerId: toUserId });
-  }
-  await writeVault(toUserId, toDb);
+// Deletes a removed user's vault contents instead of moving them to the acting
+// admin. User vaults are isolated; deletion must not transfer private accounts.
+async function purgeUserVault(fromUserId) {
   await writeVault(fromUserId, { groups: [] });
 }
 
 // ---- Per-user vault storage ----
 // Each user's credentials live in vaults/{userId}.json, fully isolated from
-// other users at the filesystem level. Admins can still read all vaults for
-// backup and cross-vault group operations.
+// other users at the filesystem level. Superadmin-only control-plane routes can
+// read all vaults for backup and oversight.
 
 async function ensureVaultsDir() {
   await mkdir(vaultsDir, { recursive: true });
@@ -1169,7 +1178,7 @@ async function handleApi(request, response, url, user, session) {
       });
       sendJson(response, 200, {
         authenticated: true,
-        user: { username: account.username, role: account.role },
+        user: { id: account.id, username: account.username, role: account.role },
       });
       return;
     }
@@ -1249,7 +1258,7 @@ async function handleApi(request, response, url, user, session) {
     });
     sendJson(response, 200, {
       authenticated: true,
-      user: { username: account.username, role: account.role },
+      user: { id: account.id, username: account.username, role: account.role },
     });
     return;
   }
@@ -1492,7 +1501,9 @@ async function handleApi(request, response, url, user, session) {
     }
     sendJson(response, 200, {
       authenticated: Boolean(current),
-      user: current ? { username: current.username, role: current.role } : null,
+      user: current
+        ? { id: current.id, username: current.username, role: current.role }
+        : null,
     });
     return;
   }
@@ -1863,13 +1874,13 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // ----- Backup (admin only) -----
+  // ----- Backup (superadmin only) -----
   // Full export of all groups and accounts (decrypted plaintext, so the backup
   // is actually usable) plus the user roster WITHOUT password hashes (restoring
   // people means re-setting their passwords; we don't ship hashes in a download).
   // Downloaded as a dated JSON attachment for the admin to store off-platform.
   if (url.pathname === "/api/admin/backup" && request.method === "GET") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1899,10 +1910,10 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // ----- Users (admin only) -----
+  // ----- Users (superadmin only) -----
 
   if (url.pathname === "/api/users") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1943,7 +1954,7 @@ async function handleApi(request, response, url, user, session) {
 
   const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
   if (userMatch) {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -1968,9 +1979,7 @@ async function handleApi(request, response, url, user, session) {
           notFound(response);
           return;
         }
-        // Re-home the deleted user's groups to the acting admin so their data
-        // stays visible and manageable instead of becoming orphaned.
-        await reassignGroups(targetId, user.id);
+        await purgeUserVault(targetId);
         void logEvent(storageDir, {
           userId: user.id,
           username: user.username,
@@ -1991,7 +2000,7 @@ async function handleApi(request, response, url, user, session) {
 
   const userPwMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/password$/);
   if (userPwMatch && request.method === "PUT") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2043,13 +2052,13 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // Admin force-resets another user's 2FA (safety net for someone locked out of
-  // their authenticator and recovery codes). Admin only + reauth.
+  // Superadmin force-resets another user's 2FA (safety net for someone locked
+  // out of their authenticator and recovery codes). Superadmin only + reauth.
   const user2faResetMatch = url.pathname.match(
     /^\/api\/users\/([^/]+)\/2fa\/reset$/,
   );
   if (user2faResetMatch && request.method === "POST") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2075,13 +2084,13 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // "Log out of all devices" for a user: revoke every active session they hold.
-  // Admin only (same gate as the rest of /api/users) + recent re-auth (it can lock
-  // people out, including the acting admin).
+  // Superadmin only (same gate as the rest of /api/users) + recent re-auth (it
+  // can lock people out, including the acting superadmin).
   const userSessionsMatch = url.pathname.match(
     /^\/api\/users\/([^/]+)\/sessions\/revoke$/,
   );
   if (userSessionsMatch && request.method === "POST") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2104,11 +2113,12 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // ----- Sessions (admin: view & revoke) -----
-  // Lets an admin see who is logged in and end specific sessions. The requester's
-  // own session is flagged `current` so the UI can label "this device".
+  // ----- Sessions (superadmin: view & revoke) -----
+  // Lets a superadmin see who is logged in and end specific sessions. The
+  // requester's own session is flagged `current` so the UI can label
+  // "this device".
   if (url.pathname === "/api/sessions" && request.method === "GET") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2119,7 +2129,7 @@ async function handleApi(request, response, url, user, session) {
 
   const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
   if (sessionMatch && request.method === "DELETE") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2138,11 +2148,11 @@ async function handleApi(request, response, url, user, session) {
     return;
   }
 
-  // ----- Audit trail (admin only) -----
+  // ----- Audit trail (superadmin only) -----
   // The recent security-relevant events (who did what, when). No secrets.
   // Query params: limit (<=500), offset, action, username, from, to, q.
   if (url.pathname === "/api/audit" && request.method === "GET") {
-    if (!isAdmin(user)) {
+    if (!isSuperadmin(user)) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
@@ -2261,7 +2271,7 @@ async function handleApi(request, response, url, user, session) {
   // Begin OAuth: redirect the browser to Google's consent screen.
   // Generates a CSRF state cookie (same pattern as Google/GitHub OAuth).
   if (url.pathname === "/api/youtube/connect" && request.method === "GET") {
-    const state = randomBytes(32).toString("base64url");
+    const state = buildYoutubeOAuthState(user.id);
     setYoutubeOAuthStateCookie(request, response, state);
     try {
       response.writeHead(302, { Location: buildAuthUrl(state) });
@@ -2292,6 +2302,12 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
 
+    const ownerId = youtubeOwnerFromState(expectedState);
+    if (!ownerId || !(await findById(storageDir, ownerId))) {
+      redirect(response, "/?youtube=error");
+      return;
+    }
+
     const code = url.searchParams.get("code");
     if (!code) {
       redirect(response, "/?youtube=error");
@@ -2299,7 +2315,7 @@ async function handleApi(request, response, url, user, session) {
     }
 
     try {
-      const channel = await handleOAuthCallback(code);
+      const channel = await handleOAuthCallback(code, ownerId);
       redirect(
         response,
         `/?youtube=connected&channel=${encodeURIComponent(channel?.title ?? "")}`,
@@ -2315,13 +2331,13 @@ async function handleApi(request, response, url, user, session) {
 
   // List connected channels (no secrets).
   if (url.pathname === "/api/youtube/channels" && request.method === "GET") {
-    sendJson(response, 200, { channels: await listConnectedChannels() });
+    sendJson(response, 200, { channels: await listConnectedChannels(user.id) });
     return;
   }
 
   // Upload history (metadata only — the video itself is never stored).
   if (url.pathname === "/api/youtube/history" && request.method === "GET") {
-    sendJson(response, 200, { items: await listUploadHistory() });
+    sendJson(response, 200, { items: await listUploadHistory(user.id) });
     return;
   }
 
@@ -2330,8 +2346,8 @@ async function handleApi(request, response, url, user, session) {
   // then reference it by name in POST /api/youtube/upload.
   if (url.pathname === "/api/youtube/uploads" && request.method === "GET") {
     sendJson(response, 200, {
-      directory: uploadsDirectory(),
-      files: await listUploadableFiles(),
+      directory: uploadsDirectory(user.id),
+      files: await listUploadableFiles(user.id),
     });
     return;
   }
@@ -2348,18 +2364,45 @@ async function handleApi(request, response, url, user, session) {
       } catch {
         /* keep raw if it isn't valid percent-encoding */
       }
-      const staged = await stageUpload(originalName, request);
+      const staged = await stageUpload(originalName, request, user.id);
       sendJson(response, 200, staged);
     } catch (error) {
       const code = error instanceof Error ? error.message : "unknown";
       if (code === "file_too_large") {
         response.setHeader("Connection", "close");
-        sendJson(response, 413, { error: "file_too_large" });
+        const source =
+          MAX_STAGED_UPLOAD_BYTES < YOUTUBE_MAX_UPLOAD_BYTES
+            ? "local"
+            : "youtube";
+        sendJson(response, 413, {
+          error: "file_too_large",
+          source,
+          limitBytes: MAX_STAGED_UPLOAD_BYTES,
+          message:
+            source === "youtube"
+              ? "O YouTube aceita videos de ate 256 GB."
+              : "Este servidor esta configurado para aceitar videos menores que o limite do YouTube.",
+          userMessage:
+            source === "youtube"
+              ? "O arquivo passou do tamanho maximo aceito pelo YouTube: 256 GB."
+              : "O arquivo passou do limite configurado neste servidor. Use um arquivo menor ou aumente YOUTUBE_MAX_STAGING_BYTES.",
+        });
       } else if (code === "invalid_file") {
-        sendJson(response, 400, { error: "invalid_file" });
+        sendJson(response, 400, {
+          error: "invalid_file",
+          source: "local",
+          message: "Nome de arquivo invalido.",
+          userMessage: "Renomeie o arquivo usando apenas o nome, sem pastas.",
+        });
       } else {
         recordLog("error", `youtube: falha ao receber upload (${code})`);
-        sendJson(response, 500, { error: "upload_failed" });
+        sendJson(response, 500, {
+          error: "upload_failed",
+          source: "local",
+          message: "Falha ao receber o arquivo.",
+          userMessage:
+            "Nao consegui preparar o video no servidor antes de enviar ao YouTube. Tente novamente.",
+        });
       }
     }
     return;
@@ -2386,6 +2429,7 @@ async function handleApi(request, response, url, user, session) {
 
     try {
       const result = await uploadVideo({
+        ownerId: user.id,
         channelId,
         file,
         title,
@@ -2420,6 +2464,23 @@ async function handleApi(request, response, url, user, session) {
           error: "file_not_found",
           message: "Arquivo não encontrado na pasta de uploads do YouTube.",
         });
+      } else if (code === "empty_file") {
+        sendJson(response, 400, {
+          error: "empty_file",
+          source: "local",
+          message: "Arquivo vazio.",
+          userMessage:
+            "O arquivo selecionado esta vazio. Escolha o video novamente.",
+        });
+      } else if (code === "youtube_file_too_large") {
+        sendJson(response, 413, {
+          error: "file_too_large",
+          source: "youtube",
+          limitBytes: YOUTUBE_MAX_UPLOAD_BYTES,
+          message: "O YouTube aceita videos de ate 256 GB.",
+          userMessage:
+            "O arquivo passou do tamanho maximo aceito pelo YouTube: 256 GB.",
+        });
       } else if (code === "channel_not_connected") {
         sendJson(response, 404, {
           error: "channel_not_connected",
@@ -2427,6 +2488,22 @@ async function handleApi(request, response, url, user, session) {
         });
       } else if (code.startsWith("missing_env:")) {
         sendJson(response, 500, { error: "youtube_config", message: code });
+      } else if (isYouTubeUploadError(error)) {
+        const details = error.details ?? {};
+        const status =
+          Number.isFinite(details.status) &&
+          details.status >= 400 &&
+          details.status < 600
+            ? details.status
+            : 502;
+        recordLog(
+          "error",
+          `youtube: upload recusado pelo YouTube (${details.reason || details.status || "unknown"})`,
+        );
+        sendJson(response, status, {
+          error: "youtube_upload",
+          ...details,
+        });
       } else {
         recordLog("error", `youtube: falha no upload (${code})`);
         sendJson(response, 500, { error: "youtube_upload", message: code });
@@ -2449,7 +2526,7 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     try {
-      await deleteVideo(channelId, videoId);
+      await deleteVideo(channelId, videoId, user.id);
       sendJson(response, 200, { ok: true });
     } catch (err) {
       const code = err?.message ?? "unknown";
@@ -2468,54 +2545,35 @@ async function handleApi(request, response, url, user, session) {
 
   // ----- Groups -----
   // Every group route is vault-scoped: each user's groups live in their own
-  // vaults/{userId}.json. Members touch only their vault; admins can access any
-  // group across all vaults. A group the caller can't reach is reported as 404
-  // (not 403) to avoid leaking whether a group exists.
+  // vaults/{userId}.json. The caller only looks in their own vault. A group the
+  // caller can't reach is reported as 404 to avoid leaking whether it exists.
 
-  // Resolves the vault and group entry for a given group ID, enforcing access.
-  // Members only look in their own vault; admins scan all vaults.
+  // Resolves the current user's vault and group entry for a given group ID.
   // Returns { db, index, vaultUserId } or writes 404 and returns null.
   async function resolveGroupEntry(rawGroupId) {
     const groupId = decodeURIComponent(rawGroupId);
-    if (!isAdmin(user)) {
-      const db = await readVault(user.id);
-      const index = db.groups.findIndex((g) => g.id === groupId);
-      if (index === -1) {
-        notFound(response);
-        return null;
-      }
-      return { db, index, vaultUserId: user.id };
+    const db = await readVault(user.id);
+    const index = db.groups.findIndex((g) => g.id === groupId);
+    if (index === -1) {
+      notFound(response);
+      return null;
     }
-    // Admin: find the group across all vaults
-    const allVaults = await readAllVaults();
-    for (const { userId, db } of allVaults) {
-      const index = db.groups.findIndex((g) => g.id === groupId);
-      if (index !== -1) return { db, index, vaultUserId: userId };
-    }
-    notFound(response);
-    return null;
+    return { db, index, vaultUserId: user.id };
   }
 
   if (url.pathname === "/api/groups" && request.method === "GET") {
-    let groups;
-    if (isAdmin(user)) {
-      const allVaults = await readAllVaults();
-      groups = allVaults.flatMap(({ db }) => db.groups);
-    } else {
-      const db = await readVault(user.id);
+    const db = await readVault(user.id);
       // Primeiro acesso: cria grupo padrão automaticamente.
-      if (db.groups.length === 0) {
-        const defaultGroup = normalizeGroup({
+    if (db.groups.length === 0) {
+      const defaultGroup = normalizeGroup({
           name: "Geral",
           ownerId: user.id,
           accounts: [],
-        });
-        db.groups.push(defaultGroup);
-        await writeVault(user.id, db);
-      }
-      groups = db.groups;
+      });
+      db.groups.push(defaultGroup);
+      await writeVault(user.id, db);
     }
-    sendJson(response, 200, { groups: groups.map(groupSummary) });
+    sendJson(response, 200, { groups: db.groups.map(groupSummary) });
     return;
   }
 
@@ -2564,15 +2622,7 @@ async function handleApi(request, response, url, user, session) {
         target: `group:${deletedId}`,
         ip: clientIp(request),
       });
-      // Return the caller's visible groups after the deletion.
-      let groups;
-      if (isAdmin(user)) {
-        const allVaults = await readAllVaults();
-        groups = allVaults.flatMap(({ db: v }) => v.groups);
-      } else {
-        groups = db.groups; // same vault, already spliced in memory
-      }
-      sendJson(response, 200, { groups: groups.map(groupSummary) });
+      sendJson(response, 200, { groups: db.groups.map(groupSummary) });
       return;
     }
 

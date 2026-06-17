@@ -28,7 +28,8 @@ import { google } from "googleapis";
 import { decryptField, encryptField } from "./crypto.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const storageDir = join(rootDir, "storage");
+const storageDir =
+  process.env.CONTAS_FLOW_STORAGE_DIR ?? join(rootDir, "storage");
 const tokensFile =
   process.env.YOUTUBE_TOKENS_DB ?? join(storageDir, "youtube.json");
 
@@ -40,6 +41,11 @@ const tokensFile =
 // non-starter anyway; staging the file on disk first is the practical design.
 const uploadsDir =
   process.env.YOUTUBE_UPLOAD_DIR ?? join(storageDir, "youtube-uploads");
+
+// Official YouTube upload limits used for deterministic pre-flight checks.
+// Source: YouTube Help / YouTube Data API docs (256 GB or 12 hours).
+export const YOUTUBE_MAX_UPLOAD_BYTES = 256 * 1024 * 1024 * 1024;
+export const YOUTUBE_MAX_DURATION_SECONDS = 12 * 60 * 60;
 
 // Histórico de publicações. Guardamos só METADADOS (título, descrição, duração,
 // capa, ids) — nunca o arquivo de vídeo. O Contas é mero intermediário: o vídeo
@@ -73,9 +79,15 @@ function createOAuthClient() {
 }
 
 // ----- Token storage (channels) -----
-// Shape: { channels: [{ id, title, refreshToken, connectedAt }] }
+// Shape: { channels: [{ ownerId, id, title, refreshToken, connectedAt }] }
 // refreshToken is encrypted at rest (see server/crypto.mjs); the rest of this
 // module works with the decrypted token in memory.
+
+function safeStorageKey(value) {
+  const safe = String(value ?? "").replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safe) throw new Error("invalid_user_id");
+  return safe;
+}
 
 async function readTokens() {
   try {
@@ -111,7 +123,9 @@ async function writeTokens(data) {
 
 async function saveChannel(channel) {
   const data = await readTokens();
-  const index = data.channels.findIndex((item) => item.id === channel.id);
+  const index = data.channels.findIndex(
+    (item) => item.id === channel.id && item.ownerId === channel.ownerId,
+  );
 
   if (index === -1) {
     data.channels.push(channel);
@@ -125,7 +139,9 @@ async function saveChannel(channel) {
   }
 
   await writeTokens(data);
-  return data.channels.find((item) => item.id === channel.id);
+  return data.channels.find(
+    (item) => item.id === channel.id && item.ownerId === channel.ownerId,
+  );
 }
 
 // ----- OAuth flow -----
@@ -144,7 +160,7 @@ export function buildAuthUrl(state) {
 
 // Step 2: Google redirects back with ?code=...; exchange it for tokens, read
 // the channel identity, and persist the refresh token.
-export async function handleOAuthCallback(code) {
+export async function handleOAuthCallback(code, ownerId) {
   const client = createOAuthClient();
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
@@ -157,6 +173,7 @@ export async function handleOAuthCallback(code) {
 
   const channel = response.data.items?.[0];
   const saved = await saveChannel({
+    ownerId: safeStorageKey(ownerId),
     id: channel?.id ?? "unknown",
     title: channel?.snippet?.title ?? "Canal sem nome",
     refreshToken: tokens.refresh_token ?? "",
@@ -167,19 +184,25 @@ export async function handleOAuthCallback(code) {
 }
 
 // List connected channels (no secrets) for display.
-export async function listConnectedChannels() {
+export async function listConnectedChannels(ownerId) {
   const data = await readTokens();
-  return data.channels.map(({ id, title, connectedAt }) => ({
-    id,
-    title,
-    connectedAt,
-  }));
+  const safeOwnerId = safeStorageKey(ownerId);
+  return data.channels
+    .filter((channel) => channel.ownerId === safeOwnerId)
+    .map(({ id, title, connectedAt }) => ({
+      id,
+      title,
+      connectedAt,
+    }));
 }
 
 // Build an authenticated client for a given channel using its refresh token.
-async function clientForChannel(channelId) {
+async function clientForChannel(channelId, ownerId) {
   const data = await readTokens();
-  const channel = data.channels.find((item) => item.id === channelId);
+  const safeOwnerId = safeStorageKey(ownerId);
+  const channel = data.channels.find(
+    (item) => item.id === channelId && item.ownerId === safeOwnerId,
+  );
 
   if (!channel?.refreshToken) {
     throw new Error("channel_not_connected");
@@ -199,8 +222,13 @@ export async function ensureUploadsDir() {
   return resolve(uploadsDir);
 }
 
-export function uploadsDirectory() {
-  return resolve(uploadsDir);
+function uploadsDirForOwner(ownerId) {
+  if (!ownerId) return resolve(uploadsDir);
+  return resolve(uploadsDir, safeStorageKey(ownerId));
+}
+
+export function uploadsDirectory(ownerId) {
+  return uploadsDirForOwner(ownerId);
 }
 
 // Resolve a caller-supplied file name to an absolute path confined to
@@ -208,7 +236,7 @@ export function uploadsDirectory() {
 // an absolute path, a drive letter, or a "." / ".." segment is rejected. A bare
 // name survives basename() unchanged, so that single comparison rejects every
 // traversal/absolute form on both POSIX and Windows. Throws "invalid_file".
-export function resolveUploadPath(name) {
+export function resolveUploadPath(name, ownerId) {
   if (typeof name !== "string" || name.trim() === "") {
     throw new Error("invalid_file");
   }
@@ -221,7 +249,7 @@ export function resolveUploadPath(name) {
   ) {
     throw new Error("invalid_file");
   }
-  const dir = resolve(uploadsDir);
+  const dir = uploadsDirForOwner(ownerId);
   const resolved = resolve(dir, name);
   // Defense in depth: confirm the result really sits inside uploadsDir.
   if (resolved !== join(dir, name) || !resolved.startsWith(dir + sep)) {
@@ -232,13 +260,14 @@ export function resolveUploadPath(name) {
 
 // List the video files currently staged for upload (name + size in bytes).
 // Returns [] when the directory doesn't exist yet.
-export async function listUploadableFiles() {
+export async function listUploadableFiles(ownerId) {
+  const dir = uploadsDirForOwner(ownerId);
   try {
-    const entries = await readdir(uploadsDir, { withFileTypes: true });
+    const entries = await readdir(dir, { withFileTypes: true });
     const files = [];
     for (const entry of entries) {
       if (!entry.isFile()) continue;
-      const { size } = await stat(join(uploadsDir, entry.name));
+      const { size } = await stat(join(dir, entry.name));
       files.push({ name: entry.name, size });
     }
     return files.sort((a, b) => a.name.localeCompare(b.name));
@@ -249,7 +278,15 @@ export async function listUploadableFiles() {
 
 // Cap for a single staged video. Browser→server streaming bypasses the JSON
 // body cap, but we still bound it so a runaway upload can't fill the disk.
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+function configuredUploadCap() {
+  const configured = Number(process.env.YOUTUBE_MAX_STAGING_BYTES);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.min(configured, YOUTUBE_MAX_UPLOAD_BYTES);
+  }
+  return YOUTUBE_MAX_UPLOAD_BYTES;
+}
+
+export const MAX_STAGED_UPLOAD_BYTES = configuredUploadCap();
 
 // Turn an arbitrary client filename into a safe, unique, bare name confined to
 // the uploads dir (timestamp prefix avoids collisions; only [A-Za-z0-9._-]).
@@ -268,13 +305,13 @@ function safeUploadName(name) {
 // Remove staged files left behind by uploads that were never published (e.g. the
 // user closed the tab mid-flow). Defensive: the normal path deletes right after
 // publishing. Best-effort, never throws.
-async function sweepStaleUploads(maxAgeMs = 2 * 60 * 60 * 1000) {
+async function sweepStaleUploads(dir, maxAgeMs = 2 * 60 * 60 * 1000) {
   try {
     const now = Date.now();
-    const entries = await readdir(uploadsDir, { withFileTypes: true });
+    const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isFile()) continue;
-      const full = join(uploadsDir, entry.name);
+      const full = join(dir, entry.name);
       const info = await stat(full).catch(() => null);
       if (info && now - info.mtimeMs > maxAgeMs) {
         await unlink(full).catch(() => {});
@@ -285,17 +322,18 @@ async function sweepStaleUploads(maxAgeMs = 2 * 60 * 60 * 1000) {
   }
 }
 
-export async function stageUpload(originalName, source) {
-  await ensureUploadsDir();
-  await sweepStaleUploads();
+export async function stageUpload(originalName, source, ownerId) {
+  const dir = uploadsDirForOwner(ownerId);
+  await mkdir(dir, { recursive: true });
+  await sweepStaleUploads(dir);
   const name = safeUploadName(originalName);
-  const dest = resolveUploadPath(name); // validates confinement
+  const dest = resolveUploadPath(name, ownerId); // validates confinement
 
   let size = 0;
   const counter = new Transform({
     transform(chunk, _enc, cb) {
       size += chunk.length;
-      if (size > MAX_UPLOAD_BYTES) {
+      if (size > MAX_STAGED_UPLOAD_BYTES) {
         cb(new Error("file_too_large"));
         return;
       }
@@ -337,13 +375,18 @@ async function appendHistory(record) {
 }
 
 // Most recent uploads first (metadata only — never the video itself).
-export async function listUploadHistory() {
-  return readHistory();
+export async function listUploadHistory(ownerId) {
+  const safeOwnerId = safeStorageKey(ownerId);
+  const items = await readHistory();
+  return items.filter((item) => item.ownerId === safeOwnerId);
 }
 
-async function removeFromHistory(videoId) {
+async function removeFromHistory(videoId, ownerId) {
+  const safeOwnerId = safeStorageKey(ownerId);
   const items = await readHistory();
-  const filtered = items.filter((item) => item.videoId !== videoId);
+  const filtered = items.filter(
+    (item) => item.videoId !== videoId || item.ownerId !== safeOwnerId,
+  );
   await mkdir(storageDir, { recursive: true });
   await writeFile(
     historyFile,
@@ -352,11 +395,11 @@ async function removeFromHistory(videoId) {
   );
 }
 
-export async function deleteVideo(channelId, videoId) {
-  const auth = await clientForChannel(channelId);
+export async function deleteVideo(channelId, videoId, ownerId) {
+  const auth = await clientForChannel(channelId, ownerId);
   const youtube = google.youtube({ version: "v3", auth });
   await youtube.videos.delete({ id: videoId });
-  await removeFromHistory(videoId);
+  await removeFromHistory(videoId, ownerId);
 }
 
 // ISO 8601 duration ("PT1M30S") -> seconds. Null if unparseable.
@@ -375,7 +418,128 @@ function parseIsoDuration(iso) {
 // and YouTube flips it to public automatically at that time.
 const PRIVACY_STATUSES = new Set(["public", "unlisted", "private"]);
 
+const YOUTUBE_REASON_EXPLANATIONS = {
+  uploadLimitExceeded:
+    "O canal atingiu o limite de uploads permitido pelo YouTube no momento. Aguarde e tente de novo mais tarde.",
+  quotaExceeded:
+    "A cota da API do YouTube acabou para este projeto. Tente depois do reset da cota ou revise a cota no Google Cloud.",
+  insufficientPermissions:
+    "A conexao com o YouTube nao tem permissao suficiente para publicar. Conecte o canal novamente.",
+  authenticatedUserNotChannel:
+    "A conta Google conectada nao possui um canal do YouTube valido para receber o upload.",
+  authenticatedUserAccountClosed:
+    "A conta do YouTube conectada esta encerrada.",
+  authenticatedUserAccountSuspended:
+    "A conta do YouTube conectada esta suspensa.",
+  channelClosed: "O canal do YouTube foi encerrado.",
+  channelSuspended: "O canal do YouTube esta suspenso.",
+  forbiddenPrivacySetting:
+    "O YouTube nao aceitou a configuracao de privacidade escolhida para este canal.",
+  forbiddenLicenseSetting:
+    "O YouTube nao aceitou a configuracao de licenca deste video.",
+  invalidTitle:
+    "O titulo foi recusado pelo YouTube. Verifique se ele nao esta vazio e se respeita o limite do YouTube.",
+  invalidDescription:
+    "A descricao foi recusada pelo YouTube. Reduza ou ajuste o texto e tente novamente.",
+  invalidTags:
+    "As tags foram recusadas pelo YouTube. Remova tags muito longas ou invalidas e tente novamente.",
+  invalidPublishAt:
+    "A data de agendamento foi recusada pelo YouTube. Escolha uma data futura valida.",
+  invalidFilename:
+    "O nome do arquivo foi recusado pelo YouTube. Renomeie o video e tente novamente.",
+  mediaBodyRequired:
+    "O YouTube nao recebeu o arquivo de video. Escolha o arquivo novamente e tente publicar.",
+};
+
+function cleanErrorText(value, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  return cleaned ? cleaned.slice(0, 1000) : fallback;
+}
+
+function explainYouTubeError({ source, status, reason }) {
+  if (reason && YOUTUBE_REASON_EXPLANATIONS[reason]) {
+    return YOUTUBE_REASON_EXPLANATIONS[reason];
+  }
+  if (source === "network") {
+    return "Nao consegui concluir a comunicacao com o YouTube. Confira a conexao e tente novamente.";
+  }
+  if (status === 401) {
+    return "A conexao com o YouTube expirou ou foi revogada. Conecte o canal novamente.";
+  }
+  if (status === 403) {
+    return "O YouTube negou a publicacao. Pode ser permissao, limite do canal, cota ou alguma restricao da conta.";
+  }
+  if (status === 400) {
+    return "O YouTube recusou algum dado do video. Confira titulo, descricao, tags, agendamento e arquivo.";
+  }
+  if (status >= 500) {
+    return "O YouTube ficou instavel durante o upload. Tente novamente em alguns minutos.";
+  }
+  return "O YouTube recusou o upload. Veja a mensagem oficial retornada abaixo.";
+}
+
+export class YouTubeUploadError extends Error {
+  constructor(details) {
+    super(details.message);
+    this.name = "YouTubeUploadError";
+    this.details = details;
+  }
+}
+
+export function isYouTubeUploadError(error) {
+  return error instanceof YouTubeUploadError;
+}
+
+function toYouTubeUploadError(error) {
+  const responseData = error?.response?.data;
+  const apiError =
+    responseData?.error && typeof responseData.error === "object"
+      ? responseData.error
+      : null;
+  const rawErrors = Array.isArray(apiError?.errors)
+    ? apiError.errors
+    : Array.isArray(error?.errors)
+      ? error.errors
+      : [];
+  const errors = rawErrors
+    .filter((item) => item && typeof item === "object")
+    .slice(0, 3)
+    .map((item) => ({
+      reason: cleanErrorText(item.reason),
+      domain: cleanErrorText(item.domain),
+      message: cleanErrorText(item.message),
+    }));
+  const first = errors[0] ?? {};
+  const status = Number(
+    apiError?.code ?? error?.response?.status ?? error?.status ?? error?.code,
+  );
+  const hasYoutubeResponse = Boolean(apiError || error?.response?.status);
+  const source = hasYoutubeResponse ? "youtube" : "network";
+  const details = {
+    source,
+    status: Number.isFinite(status) ? status : 0,
+    reason: first.reason || cleanErrorText(error?.reason),
+    domain: first.domain,
+    message: cleanErrorText(
+      apiError?.message ?? first.message ?? error?.message,
+      source === "youtube"
+        ? "O YouTube recusou o upload."
+        : "Falha de comunicacao com o YouTube.",
+    ),
+    errors,
+  };
+  return new YouTubeUploadError({
+    ...details,
+    userMessage: explainYouTubeError(details),
+    retryable:
+      details.source === "network" ||
+      [500, 502, 503, 504].includes(details.status),
+  });
+}
+
 export async function uploadVideo({
+  ownerId,
   channelId,
   file,
   title,
@@ -384,14 +548,22 @@ export async function uploadVideo({
   publishAt,
   privacyStatus = "private",
 }) {
-  const filePath = resolveUploadPath(file);
+  const safeOwnerId = safeStorageKey(ownerId);
+  const filePath = resolveUploadPath(file, safeOwnerId);
+  let fileInfo;
   try {
-    await stat(filePath);
+    fileInfo = await stat(filePath);
   } catch {
     throw new Error("file_not_found");
   }
+  if (fileInfo.size <= 0) {
+    throw new Error("empty_file");
+  }
+  if (fileInfo.size > YOUTUBE_MAX_UPLOAD_BYTES) {
+    throw new Error("youtube_file_too_large");
+  }
 
-  const auth = await clientForChannel(channelId);
+  const auth = await clientForChannel(channelId, safeOwnerId);
   const youtube = google.youtube({ version: "v3", auth });
 
   // A scheduled video MUST start private; YouTube flips it public at publishAt.
@@ -405,14 +577,19 @@ export async function uploadVideo({
       };
 
   try {
-    const response = await youtube.videos.insert({
-      part: ["snippet", "status"],
-      requestBody: {
-        snippet: { title, description, tags },
-        status,
-      },
-      media: { body: createReadStream(filePath) },
-    });
+    let response;
+    try {
+      response = await youtube.videos.insert({
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: { title, description, tags },
+          status,
+        },
+        media: { body: createReadStream(filePath) },
+      });
+    } catch (error) {
+      throw toYouTubeUploadError(error);
+    }
 
     const videoId = response.data.id ?? null;
 
@@ -448,6 +625,7 @@ export async function uploadVideo({
 
     // Histórico: só metadados, nunca o arquivo.
     await appendHistory({
+      ownerId: safeOwnerId,
       videoId,
       channelId,
       title: result.title,
