@@ -201,9 +201,19 @@ CREATE TABLE IF NOT EXISTS youtube_uploads (
   video_id VARCHAR(16) NOT NULL,
   title VARCHAR(255),
   description TEXT,
+  tags TEXT,
   privacy_status VARCHAR(16),
+  publish_at TIMESTAMPTZ,
+  duration_seconds INTEGER,
+  thumbnail_url TEXT,
   uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add columns missing from earlier schema versions (idempotent)
+ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS tags TEXT;
+ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS publish_at TIMESTAMPTZ;
+ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;
+ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_owner ON youtube_uploads(owner_id);
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_channel ON youtube_uploads(channel_id);
