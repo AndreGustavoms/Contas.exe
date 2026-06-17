@@ -27,7 +27,14 @@ const TAG_BYTES = 16;
 // than silently writing plaintext.
 function loadKey() {
   const raw = process.env.CONTAS_FLOW_ENC_KEY;
-  if (!raw) return null;
+  if (!raw) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "FATAL: A variavel CONTAS_FLOW_ENC_KEY nao esta configurada! Criptografia em repouso e obrigatoria em producao."
+      );
+    }
+    return null;
+  }
 
   let key;
   if (/^[0-9a-fA-F]{64}$/.test(raw)) {

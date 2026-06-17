@@ -9,7 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createUser,
-  ensureFixedSuperadmin,
+  ensureSeedAdmin,
+  ensureSuperadmin,
   findByUsernameOrEmail,
   hashPassword,
   keepOnlySuperadmin,
@@ -211,58 +212,50 @@ describe("resetSuperadminPasswordFromEnv", () => {
   });
 });
 
-describe("ensureFixedSuperadmin (sem credencial hardcoded)", () => {
-  it("sem env e sem conta: semeia o dono SEM senha utilizável", async () => {
+describe("ensureSeedAdmin", () => {
+  it("semeia admin inicial quando banco está vazio", async () => {
     const dir = await mkdtemp(join(tmpdir(), "contas-users-"));
-    const previous = process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-    delete process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
+    const prevUser = process.env.APP_AUTH_USER;
+    const prevPass = process.env.APP_AUTH_PASSWORD;
+    process.env.APP_AUTH_USER = "seedadmin";
+    process.env.APP_AUTH_PASSWORD = "SeedPassword@123";
     try {
-      const [owner] = await ensureFixedSuperadmin(dir);
-      assert.equal(owner.role, "superadmin");
-      // Hash aleatório: nenhuma senha conhecida entra (nada embutido no código).
-      assert.equal(
-        await verifyPassword("Qualquer@123", owner.passwordHash),
-        false,
-      );
+      const users = await ensureSeedAdmin(dir);
+      assert.equal(users.length, 1);
+      assert.equal(users[0].username, "seedadmin");
+      assert.equal(users[0].role, "admin");
+      assert.equal(await verifyPassword("SeedPassword@123", users[0].passwordHash), true);
     } finally {
-      if (previous == null) delete process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-      else process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD = previous;
+      if (prevUser == null) delete process.env.APP_AUTH_USER;
+      else process.env.APP_AUTH_USER = prevUser;
+      if (prevPass == null) delete process.env.APP_AUTH_PASSWORD;
+      else process.env.APP_AUTH_PASSWORD = prevPass;
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it("define a senha a partir de CONTAS_FLOW_SUPERADMIN_PASSWORD", async () => {
+  it("não faz nada se o banco já possui usuários", async () => {
     const dir = await mkdtemp(join(tmpdir(), "contas-users-"));
-    const previous = process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-    process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD = "Forte@12345";
+    const prevUser = process.env.APP_AUTH_USER;
+    const prevPass = process.env.APP_AUTH_PASSWORD;
+    process.env.APP_AUTH_USER = "seedadmin";
+    process.env.APP_AUTH_PASSWORD = "SeedPassword@123";
     try {
-      const [owner] = await ensureFixedSuperadmin(dir);
-      assert.equal(
-        await verifyPassword("Forte@12345", owner.passwordHash),
-        true,
-      );
-    } finally {
-      if (previous == null) delete process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-      else process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD = previous;
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
+      await createUser(dir, {
+        username: "existente",
+        email: "existente@example.com",
+        password: "Existente@123",
+        role: "member",
+      });
 
-  it("sem env, preserva o hash existente (sem lockout no boot)", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "contas-users-"));
-    const previous = process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-    try {
-      process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD = "Inicial@123";
-      await ensureFixedSuperadmin(dir);
-      delete process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-      const [owner] = await ensureFixedSuperadmin(dir);
-      assert.equal(
-        await verifyPassword("Inicial@123", owner.passwordHash),
-        true,
-      );
+      const users = await ensureSeedAdmin(dir);
+      assert.equal(users.length, 1);
+      assert.equal(users[0].username, "existente");
     } finally {
-      if (previous == null) delete process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD;
-      else process.env.CONTAS_FLOW_SUPERADMIN_PASSWORD = previous;
+      if (prevUser == null) delete process.env.APP_AUTH_USER;
+      else process.env.APP_AUTH_USER = prevUser;
+      if (prevPass == null) delete process.env.APP_AUTH_PASSWORD;
+      else process.env.APP_AUTH_PASSWORD = prevPass;
       await rm(dir, { recursive: true, force: true });
     }
   });

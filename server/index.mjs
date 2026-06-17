@@ -37,7 +37,6 @@ import {
   deleteUser,
   disableTwoFactor,
   enableTwoFactor,
-  ensureFixedSuperadmin,
   ensureSeedAdmin,
   ensureSuperadmin,
   findOrCreateGoogleUser,
@@ -47,7 +46,6 @@ import {
   findByEmail,
   findById,
   findByUsernameOrEmail,
-  isFixedSuperadmin,
   listUsers,
   keepOnlySuperadmin,
   recoveryCodesRemaining,
@@ -1372,7 +1370,7 @@ async function handleApi(request, response, url, user, session) {
   // Rate-limited (same window as login) to prevent account-spam and brute-force
   // enumeration of existing usernames/emails via repeated register attempts.
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
-    if (process.env.CONTAS_FLOW_REGISTRATIONS_OPEN === "false") {
+    if (process.env.CONTAS_FLOW_REGISTRATIONS_OPEN !== "true") {
       await drainBody(request);
       sendJson(response, 403, { error: "registrations_closed" });
       return;
@@ -1616,10 +1614,6 @@ async function handleApi(request, response, url, user, session) {
     const full = await findById(storageDir, user.id);
     if (!full) {
       notFound(response);
-      return;
-    }
-    if (isFixedSuperadmin(full)) {
-      badRequest(response, "fixed_superadmin");
       return;
     }
     const valid = await verifyPassword(current, full.passwordHash);
@@ -2218,7 +2212,7 @@ async function handleApi(request, response, url, user, session) {
         system: {
           encryptionEnabled,
           registrationsOpen:
-            process.env.CONTAS_FLOW_REGISTRATIONS_OPEN !== "false",
+            process.env.CONTAS_FLOW_REGISTRATIONS_OPEN === "true",
           providers: {
             google: googleAuthConfigured(),
             github: githubAuthConfigured(),
@@ -2907,10 +2901,9 @@ const server = createServer(async (request, response) => {
 // Startup: seed the bootstrap admin from APP_AUTH_* if the user store is empty,
 // then migrate any legacy groups.json into per-user vault files. On subsequent
 // boots the migration is a fast no-op (vault files already exist).
-const fixedSuperadminUsers = await ensureFixedSuperadmin(storageDir);
 const seededUsers = await ensureSeedAdmin(storageDir);
-const seedAdmin = seededUsers.find((item) => item.role === "admin");
-await migrateGroupsToVaults(seedAdmin?.id ?? fixedSuperadminUsers[0]?.id);
+const seedAdmin = seededUsers.find((item) => item.role === "admin" || item.role === "superadmin");
+await migrateGroupsToVaults(seedAdmin?.id);
 
 // Make sure the YouTube uploads staging directory exists so the user has a
 // place to drop videos before calling POST /api/youtube/upload.
