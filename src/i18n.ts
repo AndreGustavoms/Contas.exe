@@ -32,9 +32,8 @@ i18n
     fallbackLng: "pt",
     supportedLngs: ["pt", "en", "es", "fr", "zh"],
     detection: {
-      order: ["localStorage"],
-      caches: ["localStorage"],
-      lookupLocalStorage: "contas_lang",
+      order: ["navigator"],
+      caches: [],
     },
     interpolation: { escapeValue: false },
   });

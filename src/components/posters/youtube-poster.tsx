@@ -243,6 +243,17 @@ function validateVideoBeforeUpload(
   }
   if (videoType === "short") {
     if (
+      metadata?.durationSeconds == null ||
+      metadata.width == null ||
+      metadata.height == null
+    ) {
+      return localUploadIssue(
+        t,
+        t("post.youtube.error_short_metadata"),
+        t("post.youtube.error_short_metadata_hint"),
+      );
+    }
+    if (
       metadata?.durationSeconds &&
       metadata.durationSeconds > YOUTUBE_SHORT_MAX_SECONDS
     ) {
@@ -296,10 +307,6 @@ function issueFromError(error: unknown, t: Translate): UploadIssue {
 
 type Tab = "post" | "history";
 type FieldKey = "channel" | "file" | "title" | "schedule";
-
-// YouTube classifica como Short todo vídeo vertical/quadrado com até 3 minutos
-// (180 s), desde 15/10/2024. Acima disso vira vídeo comum.
-const SHORT_MAX_SECONDS = 180;
 
 // Re-add the shake class after a forced reflow so the animation replays even
 // when the same field fails twice in a row.
@@ -453,19 +460,6 @@ export function YouTubePoster() {
     if (!channelId)
       return failField("channel", t("post.youtube.error_no_channel"));
     if (!file) return failField("file", t("post.youtube.error_no_file"));
-    // A Short só é classificada como tal pelo YouTube se o ARQUIVO for vertical/
-    // quadrado e tiver até 3 min. O tipo escolhido aqui não muda isso — então,
-    // quando "Short" estiver selecionado, validamos o arquivo de verdade (dados
-    // lidos do <video> do preview) em vez de deixar subir como vídeo comum.
-    if (videoType === "short") {
-      if (videoDim && videoDim.w > videoDim.h)
-        return failField("file", t("post.youtube.error_short_vertical"));
-      if (
-        videoDuration != null &&
-        Math.round(videoDuration) > SHORT_MAX_SECONDS
-      )
-        return failField("file", t("post.youtube.error_short_too_long"));
-    }
     if (!title.trim())
       return failField("title", t("post.youtube.error_no_title"));
 

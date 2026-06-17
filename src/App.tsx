@@ -10,6 +10,7 @@ import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "./theme";
 // The logged-in user, as reported by /api/auth. role drives admin-only UI.
 // "superadmin" é o dono (acesso ao painel /admin); herda tudo de admin no app.
 export type SessionUser = {
+  id: string;
   username: string;
   role: "superadmin" | "admin" | "member";
 };
@@ -25,6 +26,10 @@ function getInitialView(): { view: View; resetToken: string } {
   return { view: "login", resetToken: "" };
 }
 
+function themeStorageKey(userId?: string) {
+  return userId ? `${THEME_STORAGE_KEY}:${userId}` : THEME_STORAGE_KEY;
+}
+
 export default function App() {
   // null = still checking the server for an existing session.
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
@@ -37,7 +42,7 @@ export default function App() {
       return "white";
     }
 
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const storedTheme = window.localStorage.getItem(themeStorageKey());
 
     return isAppTheme(storedTheme) ? storedTheme : "white";
   });
@@ -54,6 +59,12 @@ export default function App() {
         if (!active) return;
         setUnlocked(Boolean(data.authenticated));
         setUser(data.user ?? null);
+        if (data.user?.id) {
+          const storedTheme = window.localStorage.getItem(
+            themeStorageKey(data.user.id),
+          );
+          if (isAppTheme(storedTheme)) setTheme(storedTheme);
+        }
       })
       .catch(() => {
         if (active) setUnlocked(false);
@@ -101,12 +112,16 @@ export default function App() {
   }, [unlocked]);
 
   function changeTheme(nextTheme: AppTheme) {
-    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    window.localStorage.setItem(themeStorageKey(user?.id), nextTheme);
     setTheme(nextTheme);
   }
 
   function unlock(loggedIn: SessionUser) {
     setUser(loggedIn);
+    const storedTheme = window.localStorage.getItem(
+      themeStorageKey(loggedIn.id),
+    );
+    if (isAppTheme(storedTheme)) setTheme(storedTheme);
     setUnlocked(true);
   }
 

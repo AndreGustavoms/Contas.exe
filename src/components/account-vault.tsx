@@ -78,8 +78,8 @@ import { Input } from "./ui/input";
 // is fetched fresh on each mount. We only remember the (non-secret) selected
 // group id, namespaced per user so a shared browser doesn't bleed one teammate's
 // choice into the next. "anon" is only used before login resolves.
-function activeGroupKey(username: string | undefined) {
-  return `contas_exe.activeGroup.v1:${username || "anon"}`;
+function activeGroupKey(userId: string | undefined) {
+  return `contas_exe.activeGroup.v1:${userId || "anon"}`;
 }
 const API_GROUPS = "/api/groups";
 const ALL = "all";
@@ -394,11 +394,10 @@ export function AccountVault({
 }: AccountVaultProps) {
   const { t } = useTranslation();
   // O superadmin (dono) herda todos os recursos de admin no app, além do painel.
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isSuperadmin = user?.role === "superadmin";
   // Per-user key for the (non-secret) selected group. Stable for this mount; a
   // different user means a different AccountVault mount with a different key.
-  const activeGroupStorageKey = activeGroupKey(user?.username);
+  const activeGroupStorageKey = activeGroupKey(user?.id);
   // Accounts start empty and are loaded from the API on mount — they are never
   // read from or written to localStorage (they carry secrets; see activeGroupKey).
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
@@ -789,7 +788,7 @@ export function AccountVault({
             setConfigurationOpen(false);
             setUsersDialogOpen(true);
           },
-          visible: isAdmin,
+          visible: isSuperadmin,
         },
         {
           href: "/admin",
@@ -801,7 +800,7 @@ export function AccountVault({
       ]
         .filter((item) => item.visible)
         .sort((a, b) => textCollator.compare(a.label, b.label)),
-    [isAdmin, isSuperadmin, t],
+    [isSuperadmin, t],
   );
 
   useEffect(() => {
@@ -1625,7 +1624,7 @@ export function AccountVault({
         />
       ) : null}
 
-      {usersDialogOpen && isAdmin ? (
+      {usersDialogOpen && isSuperadmin ? (
         <UsersDialog
           currentUsername={user?.username ?? ""}
           onClose={() => setUsersDialogOpen(false)}

@@ -114,7 +114,11 @@ export function LocalLogin({
           setStep("totp");
           return;
         }
-        onUnlock(data.user ?? { username: name.trim(), role: "member" });
+        if (!data.user?.id) {
+          setError(t("login.error_failed"));
+          return;
+        }
+        onUnlock(data.user);
         return;
       }
 
@@ -148,7 +152,11 @@ export function LocalLogin({
 
       if (response.ok) {
         const data: { user?: SessionUser } = await response.json();
-        onUnlock(data.user ?? { username: name.trim(), role: "member" });
+        if (!data.user?.id) {
+          setError(t("login.error_failed"));
+          return;
+        }
+        onUnlock(data.user);
         return;
       }
 

@@ -38,6 +38,10 @@ import { AuditTab } from "./tabs/audit-tab";
 type Phase = "checking" | "login" | "denied" | "reauth" | "ready";
 type TabKey = "overview" | "users" | "sessions" | "security" | "audit" | "data";
 
+function themeStorageKey(userId?: string) {
+  return userId ? `${THEME_STORAGE_KEY}:${userId}:admin` : THEME_STORAGE_KEY;
+}
+
 const TABS: { key: TabKey; labelKey: string; icon: typeof LayoutDashboard }[] =
   [
     { key: "overview", labelKey: "admin.tabs.overview", icon: LayoutDashboard },
@@ -54,10 +58,11 @@ export default function AdminApp() {
   const { t } = useTranslation();
   const [theme, setTheme] = useState<AppTheme>(() => {
     if (typeof window === "undefined") return "white";
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const stored = window.localStorage.getItem(themeStorageKey());
     return isAppTheme(stored) ? stored : "white";
   });
   const [phase, setPhase] = useState<Phase>("checking");
+  const [userId, setUserId] = useState("");
   const [username, setUsername] = useState("");
   const [tab, setTab] = useState<TabKey>("overview");
 
@@ -68,7 +73,7 @@ export default function AdminApp() {
   const reauthPromiseRef = useRef<Promise<boolean> | null>(null);
 
   function changeTheme(next: AppTheme) {
-    window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    window.localStorage.setItem(themeStorageKey(userId), next);
     setTheme(next);
   }
 
@@ -78,13 +83,16 @@ export default function AdminApp() {
       const res = await fetch("/api/auth/status");
       const data = (await res.json()) as {
         authenticated?: boolean;
-        user?: { username: string; role: string } | null;
+        user?: { id: string; username: string; role: string } | null;
       };
       if (!data.authenticated || !data.user) {
         setPhase("login");
         return;
       }
+      setUserId(data.user.id);
       setUsername(data.user.username);
+      const stored = window.localStorage.getItem(themeStorageKey(data.user.id));
+      if (isAppTheme(stored)) setTheme(stored);
       if (data.user.role !== "superadmin") {
         setPhase("denied");
         return;
