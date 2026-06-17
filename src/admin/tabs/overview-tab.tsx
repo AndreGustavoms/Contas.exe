@@ -67,14 +67,14 @@ function Stat({
   detail: string;
 }) {
   return (
-    <div className="admin-card p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="admin-card p-3 sm:p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
           {label}
         </p>
         <Icon className="h-4 w-4 shrink-0 text-[color:var(--accent)]" />
       </div>
-      <p className="text-2xl font-semibold tabular-nums text-[color:var(--text)]">
+      <p className="text-xl font-semibold tabular-nums text-[color:var(--text)] sm:text-2xl">
         {value}
       </p>
       <p className="mt-1 truncate text-xs text-[color:var(--muted)]">
@@ -198,12 +198,12 @@ export function OverviewTab({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[color:var(--text)]">
             {t("admin.overview.title")}
           </h1>
-          <p className="text-sm text-[color:var(--muted)]">
+          <p className="text-sm text-[color:var(--muted)] sm:block">
             {t("admin.overview.subtitle")}
           </p>
         </div>
@@ -217,7 +217,7 @@ export function OverviewTab({
         </button>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <Stat
           icon={Users}
           label={t("admin.overview.stats.users")}
@@ -251,8 +251,8 @@ export function OverviewTab({
         />
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="admin-card p-4">
+      <div className="grid gap-2 sm:gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="admin-card p-3 sm:p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-[color:var(--text)]">
@@ -270,7 +270,7 @@ export function OverviewTab({
                 key={tab}
                 type="button"
                 onClick={() => onOpenTab(tab)}
-                className="group flex min-h-[84px] items-start gap-3 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-3 text-left transition hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)]"
+                className="group flex min-h-[64px] items-start gap-2 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-2.5 text-left transition hover:border-[color:var(--accent-border)] hover:bg-[color:var(--field-hover)] sm:min-h-[84px] sm:gap-3 sm:p-3"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[color:var(--accent-surface)] text-[color:var(--accent)]">
                   <Icon className="h-4 w-4" />
@@ -280,7 +280,7 @@ export function OverviewTab({
                     {title}
                     <ExternalLink className="h-3.5 w-3.5 opacity-0 transition group-hover:opacity-100" />
                   </span>
-                  <span className="mt-1 block text-xs leading-5 text-[color:var(--muted)]">
+                  <span className="mt-1 hidden text-xs leading-5 text-[color:var(--muted)] sm:block">
                     {desc}
                   </span>
                 </span>
@@ -289,7 +289,7 @@ export function OverviewTab({
           </div>
         </section>
 
-        <section className="admin-card p-4">
+        <section className="admin-card p-3 sm:p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-[color:var(--text)]">
@@ -327,7 +327,7 @@ export function OverviewTab({
               label={t("admin.overview.public_registration")}
             />
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+          <div className="mt-4 grid grid-cols-3 gap-1.5 text-xs sm:gap-2">
             <div className="rounded-[6px] border border-[color:var(--border)] p-2">
               <p className="text-[color:var(--muted)]">
                 {t("admin.overview.uptime")}
@@ -354,7 +354,7 @@ export function OverviewTab({
         </section>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className="grid gap-2 sm:gap-3 xl:grid-cols-3">
         <section className="admin-card overflow-hidden">
           <PanelHeader
             title={t("admin.overview.recent_users")}

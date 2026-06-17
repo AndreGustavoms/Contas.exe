@@ -260,7 +260,7 @@ export default function AdminApp() {
           </div>
         </div>
 
-        <nav className="flex gap-1 lg:flex-col">
+        <nav className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
           {TABS.map(({ key, labelKey, icon: Icon }) => (
             <button
               key={key}
@@ -288,7 +288,7 @@ export default function AdminApp() {
       </aside>
 
       {/* Conteúdo */}
-      <main className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:h-screen lg:px-8">
+      <main className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:h-screen lg:px-8 lg:py-5">
         <div className="mx-auto w-full max-w-7xl">
           {tab === "overview" && <OverviewTab onOpenTab={setTab} />}
           {tab === "users" && (
@@ -337,7 +337,7 @@ function ReauthGate({
   }
 
   return (
-    <form onSubmit={submit} className="admin-card w-full max-w-sm p-6">
+    <form onSubmit={submit} className="admin-card w-full max-w-sm p-5 sm:p-6">
       <div className="mb-4 flex items-center gap-2 text-[color:var(--accent)]">
         <Lock className="h-5 w-5" />
         <h1 className="text-lg font-semibold text-[color:var(--text)]">
@@ -407,7 +407,7 @@ function ReauthOverlay({
           e.preventDefault();
           onSubmit(password);
         }}
-        className={`admin-card w-full max-w-sm p-6 ${
+        className={`admin-card w-full max-w-sm p-5 sm:p-6 ${
           closing ? "animate-pop-out" : "animate-pop-in"
         }`}
       >

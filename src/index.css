@@ -3317,3 +3317,482 @@ td {
   background: var(--field-hover);
   color: var(--text);
 }
+
+/* ============================================================================
+   Mobile premium audit pass
+   ========================================================================= */
+
+@media (max-width: 767px) {
+  :root {
+    --page-padding-x: 16px;
+    --page-padding-y: 16px;
+    --layout-gap: 12px;
+    --element-gap: 8px;
+    --card-gap: 8px;
+    --card-padding: 12px;
+    --font-app: 14px;
+    --font-title: 22px;
+    --font-subtitle: 13px;
+    --header-min-height: 58px;
+    --header-padding-y: 8px;
+    --radius-card: 12px;
+    --radius-button: 10px;
+    --radius-modal: 16px;
+    --tap-target: 40px;
+    --button-min-height: 42px;
+    --input-height: 44px;
+    --bottom-nav-height: 58px;
+  }
+
+  .app-shell p,
+  .app-shell span,
+  .app-shell button,
+  .app-shell label,
+  .app-shell input,
+  .login-shell p,
+  .login-shell span,
+  .login-shell button,
+  .login-shell label,
+  .login-shell input {
+    font-weight: 500;
+  }
+
+  .app-shell h1,
+  .app-shell h2,
+  .app-shell h3 {
+    text-shadow: none;
+  }
+
+  .floating-theme-toggle {
+    right: 12px;
+    top: 12px;
+  }
+
+  .login-shell {
+    --login-page-bg: #f7f8fa;
+    --login-form-bg: #f7f8fa;
+    --login-form-muted: #6b7280;
+    --login-border: rgba(15, 23, 42, 0.14);
+    --login-input-border: rgba(15, 23, 42, 0.16);
+  }
+
+  .theme-dark.login-shell {
+    --login-page-bg: #0b0d12;
+    --login-form-bg: #0b0d12;
+    --login-form-muted: #9ca3af;
+    --login-border: rgba(255, 255, 255, 0.12);
+    --login-input-border: rgba(255, 255, 255, 0.14);
+  }
+
+  .login-layout,
+  .login-form-panel {
+    background: var(--login-page-bg);
+  }
+
+  .login-form-panel {
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: calc(4.25rem + env(safe-area-inset-top, 0px))
+      max(20px, env(safe-area-inset-right, 0px))
+      calc(1.25rem + env(safe-area-inset-bottom, 0px))
+      max(20px, env(safe-area-inset-left, 0px));
+  }
+
+  .login-form-shell {
+    width: 100%;
+    max-width: 350px;
+    min-width: 0;
+    flex: 0 1 auto;
+    margin-inline: 0;
+  }
+
+  .login-mobile-brand {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 24px;
+    font-family: inherit;
+    font-size: 15px;
+    letter-spacing: 0;
+  }
+
+  .login-mobile-mark {
+    height: 32px;
+    width: 32px;
+    border-radius: 8px;
+    background: var(--login-input-bg);
+  }
+
+  .login-brand-circle {
+    display: none;
+  }
+
+  .login-heading {
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  .login-heading h2 {
+    font-size: 22px;
+    font-weight: 650;
+  }
+
+  .login-heading p {
+    margin-top: 6px;
+    max-width: 24ch;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .animated-field {
+    margin-bottom: 20px;
+  }
+
+  .animated-field input {
+    min-height: 44px;
+    border-bottom-width: 1px;
+    padding: 10px 0;
+  }
+
+  .animated-field label {
+    top: 14px;
+  }
+
+  .animated-field label span {
+    font-size: 15px;
+    min-width: 0;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-smooth);
+  }
+
+  .animated-field input:focus + label span,
+  .animated-field input:valid + label span {
+    font-size: 12px;
+    transform: translateY(-30px);
+  }
+
+  .animated-field-toggle {
+    height: 40px;
+    width: 40px;
+    border-radius: 10px;
+  }
+
+  .login-btn-animated,
+  .login-btn-primary,
+  .login-btn-ghost,
+  .login-oauth-btn {
+    min-height: 42px;
+    border-radius: 10px;
+    box-shadow: none;
+    font-size: 14px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .login-btn-primary,
+  .login-btn-animated {
+    border-width: 1px;
+  }
+
+  .login-btn-primary:hover:not(:disabled),
+  .login-btn-animated:hover:not(:disabled),
+  .login-oauth-btn:hover:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .login-btn-ghost {
+    border: 0;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .login-oauth-group {
+    gap: 8px;
+  }
+
+  .login-oauth-btn {
+    border-width: 1px;
+    background: transparent;
+  }
+
+  .login-oauth-btn::before {
+    content: none;
+  }
+
+  .login-divider {
+    margin: 14px 0;
+  }
+
+  .login-error {
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .login-terminal {
+    display: none;
+  }
+
+  .theme-switch-wrap {
+    gap: 0;
+  }
+
+  .theme-switch-icon {
+    display: none;
+  }
+
+  .theme-switch-inner {
+    width: 64px;
+    height: 30px;
+  }
+
+  .theme-switch-inner::before {
+    content: "";
+  }
+
+  .theme-switch-inner::after {
+    width: 26px;
+    height: 24px;
+    overflow: hidden;
+    color: transparent;
+  }
+
+  .theme-switch input[type="checkbox"]:checked + .theme-switch-inner::after {
+    left: calc(100% - 29px);
+    color: transparent;
+  }
+
+  .theme-switch input[type="checkbox"]:checked + .theme-switch-inner::before {
+    content: "";
+  }
+
+  .vault-navbar {
+    min-height: var(--header-min-height);
+    background: color-mix(in srgb, var(--page-bg) 92%, transparent);
+  }
+
+  .vault-navbar .ring-white\/70 {
+    box-shadow: none;
+    ring-width: 0;
+  }
+
+  .vault-sidebar {
+    gap: 10px;
+    padding-block: calc(var(--header-min-height) + 8px) 8px;
+    border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent);
+    background: var(--page-bg);
+  }
+
+  .vault-sidebar-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .vault-menu-row {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    overflow-x: auto;
+    padding: 0 0 2px;
+    scrollbar-width: none;
+  }
+
+  .vault-menu-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vault-menu-row > * {
+    width: auto;
+    min-width: max-content;
+    justify-content: flex-start;
+  }
+
+  .vault-card {
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel) 96%, transparent);
+  }
+
+  .vault-toolbar {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .vault-toolbar .shrink-0 p:first-child {
+    font-size: 14px;
+  }
+
+  .vault-toolbar .shrink-0 p + p {
+    font-size: 12px;
+  }
+
+  .vault-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .vault-filters > .relative {
+    grid-column: 1 / -1;
+  }
+
+  .vault-filters > * {
+    width: auto;
+  }
+
+  .vault-btn-secondary,
+  .vault-btn-primary,
+  .vault-nav-btn,
+  .admin-btn-primary,
+  .admin-chip-btn {
+    min-height: 40px;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .vault-btn-secondary {
+    padding-inline: 12px;
+    background: var(--text);
+    color: var(--page-bg);
+  }
+
+  .status-tabs {
+    width: 100%;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .status-tabs button {
+    height: 34px;
+    border-radius: 8px;
+    padding-inline: 10px;
+  }
+
+  .vault-list {
+    display: block;
+    padding: 0;
+  }
+
+  .account-row-card {
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0;
+    background: transparent;
+    padding: 12px;
+  }
+
+  .account-row-card .glass-glyph {
+    height: 32px;
+    width: 32px;
+    border-radius: 8px;
+    box-shadow: none !important;
+  }
+
+  .account-row-card .glass-glyph svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .account-row-card p {
+    line-height: 1.25;
+  }
+
+  .account-row-card p:nth-child(n + 3) {
+    display: none;
+  }
+
+  .badge-status {
+    box-shadow: none;
+  }
+
+  .modal-viewport {
+    padding: max(10px, env(safe-area-inset-top, 0px))
+      max(10px, env(safe-area-inset-right, 0px))
+      max(10px, env(safe-area-inset-bottom, 0px))
+      max(10px, env(safe-area-inset-left, 0px));
+  }
+
+  .modal-panel {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: none;
+  }
+
+  .modal-panel h2,
+  #account-wizard-title,
+  #account-quickview-title {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .modal-panel .pointer-events-none,
+  .modal-panel + .pointer-events-none {
+    display: none;
+  }
+
+  .mobile-bottom-actions {
+    margin-top: 20px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .icon-soft,
+  .admin-icon-btn,
+  [class*="h-11"][class*="w-11"] {
+    border-radius: 10px;
+  }
+
+  .app-panel,
+  .accent-pill,
+  .glass-glyph {
+    box-shadow: none;
+  }
+
+  .spotlight-card::before,
+  .btn-neon::before,
+  .btn-neon::after {
+    content: none;
+  }
+
+  .animate-pop-in,
+  .animate-rise,
+  .vault-row-animate {
+    animation-duration: 140ms;
+  }
+
+  .admin-root {
+    --sidebar: color-mix(in srgb, var(--page-bg) 94%, var(--field));
+  }
+
+  .admin-root aside {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .admin-root aside > div:first-child {
+    margin-bottom: 0;
+  }
+
+  .admin-tab {
+    flex: 0 0 auto;
+    height: 36px;
+    border-radius: 8px;
+    padding: 0 10px;
+  }
+
+  .admin-card {
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--field) 96%, transparent);
+  }
+
+  .admin-input {
+    height: 40px;
+    border-radius: 8px;
+  }
+}
