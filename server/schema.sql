@@ -178,16 +178,27 @@ CREATE INDEX IF NOT EXISTS idx_reset_expires ON password_reset_tokens(expires_at
 CREATE TABLE IF NOT EXISTS youtube_channels (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  channel_id VARCHAR(64) UNIQUE NOT NULL,
+  channel_id VARCHAR(64) NOT NULL,
   title VARCHAR(255),
-  
+
   -- OAuth tokens (encrypted at rest)
   access_token_enc TEXT,
   refresh_token_enc TEXT,
   token_expires_at BIGINT,
-  
-  connected_at TIMESTAMPTZ DEFAULT NOW()
+
+  connected_at TIMESTAMPTZ DEFAULT NOW(),
+
+  CONSTRAINT youtube_channels_owner_channel_unique UNIQUE (owner_id, channel_id)
 );
+
+-- Migrate: drop old global unique constraint if it exists (idempotent)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'youtube_channels_channel_id_key'
+  ) THEN
+    ALTER TABLE youtube_channels DROP CONSTRAINT youtube_channels_channel_id_key;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_youtube_owner ON youtube_channels(owner_id);
 

@@ -127,7 +127,7 @@ async function saveChannel(channel) {
     await query(
       `INSERT INTO youtube_channels (owner_id, channel_id, title, refresh_token_enc, connected_at)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (channel_id) DO UPDATE SET
+       ON CONFLICT (owner_id, channel_id) DO UPDATE SET
          title = EXCLUDED.title,
          refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, youtube_channels.refresh_token_enc),
          connected_at = EXCLUDED.connected_at`,

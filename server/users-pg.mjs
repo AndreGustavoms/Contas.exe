@@ -589,18 +589,19 @@ export async function findOrCreateGithubUser(storageDir, profile) {
 
   result = await query(
     `INSERT INTO users (
-      username, email, password_hash, role,
+      username, email, full_name, password_hash, role,
       github_id, github_login, github_avatar
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING id, username, role`,
     [
       finalUsername,
       profile.email || null,
+      profile.fullName || null,
       passwordHash,
       "member",
       profile.id,
       profile.login,
-      profile.avatar_url || null,
+      profile.avatar || null,
     ]
   );
 
@@ -621,7 +622,7 @@ export async function linkGithubProvider(storageDir, userId, profile) {
 
   await query(
     "UPDATE users SET github_id = $1, github_login = $2, github_avatar = $3 WHERE id = $4",
-    [profile.id, profile.login, profile.avatar_url || null, userId]
+    [profile.id, profile.login, profile.avatar || null, userId]
   );
 
   return true;
