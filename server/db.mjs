@@ -38,13 +38,23 @@ export async function initDb() {
   }
 
   try {
+    // SSL: Railway/Heroku use self-signed certs so rejectUnauthorized must be
+    // false by default in cloud deployments. Set PGSSLMODE=disable to turn SSL
+    // off entirely (local dev), or PGSSLMODE=verify-full with PGSSLROOTCERT to
+    // enforce full certificate verification when a CA cert is available.
+    const sslMode = process.env.PGSSLMODE ?? (process.env.NODE_ENV === "production" ? "require" : "disable");
+    let sslConfig;
+    if (sslMode === "disable") {
+      sslConfig = false;
+    } else if (sslMode === "verify-full") {
+      sslConfig = { rejectUnauthorized: true };
+    } else {
+      sslConfig = { rejectUnauthorized: false };
+    }
+
     pool = new Pool({
       connectionString,
-      // Railway/cloud deployments often require SSL; NODE_ENV=production enables it.
-      ssl:
-        process.env.NODE_ENV === "production"
-          ? { rejectUnauthorized: false }
-          : false,
+      ssl: sslConfig,
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,

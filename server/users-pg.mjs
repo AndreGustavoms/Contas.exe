@@ -175,7 +175,7 @@ export async function findById(storageDir, userId) {
   if (user.twoFactorSecret) {
     user.twoFactorSecret = decryptField(user.twoFactorSecret);
   }
-  if (user.recoveryCodes) {
+  if (Array.isArray(user.recoveryCodes)) {
     user.recoveryCodes = user.recoveryCodes.map(decryptField);
   }
 
@@ -211,12 +211,14 @@ export async function findByUsernameOrEmail(storageDir, nameOrEmail) {
 
   const trimmed = nameOrEmail.trim();
   const result = await query(
-    `SELECT 
-      id, username, email, password_hash AS "passwordHash", role,
+    `SELECT
+      id, username, email, full_name AS "fullName", role,
+      avatar_url AS "avatarUrl", avatar_removed AS "avatarRemoved",
+      password_hash AS "passwordHash",
       two_factor_enabled AS "twoFactorEnabled",
       two_factor_secret AS "twoFactorSecret",
       recovery_codes AS "recoveryCodes"
-    FROM users 
+    FROM users
     WHERE username = $1 OR email = $1`,
     [trimmed]
   );
@@ -228,7 +230,7 @@ export async function findByUsernameOrEmail(storageDir, nameOrEmail) {
   if (user.twoFactorSecret) {
     user.twoFactorSecret = decryptField(user.twoFactorSecret);
   }
-  if (user.recoveryCodes) {
+  if (Array.isArray(user.recoveryCodes)) {
     user.recoveryCodes = user.recoveryCodes.map(decryptField);
   }
 

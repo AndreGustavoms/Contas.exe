@@ -314,7 +314,7 @@ async function sweepStaleUploads(dir, maxAgeMs = 2 * 60 * 60 * 1000) {
       const full = join(dir, entry.name);
       const info = await stat(full).catch(() => null);
       if (info && now - info.mtimeMs > maxAgeMs) {
-        await unlink(full).catch(() => {});
+        await unlink(full).catch((e) => console.warn("cleanup: falha ao remover arquivo expirado", full, e.message));
       }
     }
   } catch {

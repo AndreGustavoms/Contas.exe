@@ -356,7 +356,8 @@ function clientIp(request) {
   // real client IP is that many entries from the RIGHT (proxies append, so the
   // rightmost are added by infrastructure we trust). Taking the first/left entry
   // would let an attacker rotate XFF per request and bypass the limit.
-  const trusted = Number(process.env.CONTAS_FLOW_TRUSTED_PROXIES ?? 0);
+  const trustedRaw = Number(process.env.CONTAS_FLOW_TRUSTED_PROXIES ?? 0);
+  const trusted = Number.isInteger(trustedRaw) && trustedRaw > 0 ? trustedRaw : 0;
   if (trusted > 0) {
     const xff = request.headers["x-forwarded-for"];
     if (typeof xff === "string" && xff.length > 0) {
@@ -766,6 +767,12 @@ function applySecurityHeaders(request, response) {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-DNS-Prefetch-Control", "off");
+  response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  response.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=()",
+  );
   response.setHeader(
     "Content-Security-Policy",
     [
@@ -777,6 +784,7 @@ function applySecurityHeaders(request, response) {
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
+      "upgrade-insecure-requests",
     ].join("; "),
   );
   // HSTS only makes sense over HTTPS; gate it on the same signal as Secure
