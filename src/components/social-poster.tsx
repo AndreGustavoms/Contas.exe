@@ -4,7 +4,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { BarChart2, Lock, Send, X } from "lucide-react";
+import { CalendarDays, Lock, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import {
@@ -67,8 +67,8 @@ const NETWORKS: Network[] = [
   },
   {
     id: "reports",
-    label: "Relatórios",
-    Icon: BarChart2,
+    label: "Programação",
+    Icon: CalendarDays,
     accent: "var(--accent)",
     Panel: ReportsPanel,
     dividerBefore: true,
