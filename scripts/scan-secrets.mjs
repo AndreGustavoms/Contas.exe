@@ -65,10 +65,15 @@ const SKIP_FILES = new Set([
 const skipPiiEmail = (file) => file.endsWith(".md") || file.startsWith("docs/");
 
 function trackedFiles() {
-  return execSync("git ls-files", { encoding: "utf8" })
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  try {
+    return execSync("git ls-files", { encoding: "utf8" })
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    // git not available (e.g. Railway build container) — skip scan
+    return [];
+  }
 }
 
 const findings = [];
