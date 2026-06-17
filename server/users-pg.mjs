@@ -31,11 +31,14 @@ function useLegacy() {
 
 // ==================== PASSWORD HASHING ====================
 
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+
 async function hashPassword(password, salt) {
   const derived = await scryptAsync(password, salt, SCRYPT_KEY_LEN, {
     N: SCRYPT_N,
     r: SCRYPT_R,
     p: SCRYPT_P,
+    maxmem: SCRYPT_MAXMEM,
   });
   return derived.toString("hex");
 }
