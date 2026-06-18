@@ -142,6 +142,8 @@ function uploadVideoFile(
           error: "network",
           source: "network",
           message: "Falha de rede.",
+          userMessage:
+            "Não foi possível enviar o arquivo ao servidor. Verifique sua conexão e tente com um arquivo menor.",
         }),
       );
     xhr.send(file);
@@ -290,7 +292,7 @@ function issueFromError(error: unknown, t: Translate): UploadIssue {
           ? t("post.youtube.error_modal_youtube_title")
           : t("post.youtube.error_modal_local_title"),
       source,
-      status: payload.status ?? error.status,
+      status: payload.status ?? (error.status > 0 ? error.status : undefined),
       reason: payload.reason,
       retryable: payload.retryable,
       message:
@@ -1250,7 +1252,7 @@ function UploadIssueModal({
           <p className="mt-2 break-words text-sm font-semibold leading-relaxed text-[color:var(--text)]">
             {issue.message}
           </p>
-          {(issue.reason || issue.status) && (
+          {!!(issue.reason || issue.status) && (
             <p className="mt-3 text-[11px] text-[color:var(--muted)]">
               {[
                 issue.status
