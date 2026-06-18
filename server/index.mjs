@@ -2750,6 +2750,42 @@ async function handleApi(request, response, url, user, session) {
     return { db, index, vaultUserId: user.id };
   }
 
+  // Global search across all groups. Returns up to 40 masked accounts with
+  // their groupId and groupName so the client can navigate directly.
+  if (url.pathname === "/api/search" && request.method === "GET") {
+    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    if (!q) {
+      sendJson(response, 200, { results: [] });
+      return;
+    }
+    const db = await readVault(user.id);
+    const results = [];
+    for (const group of db.groups) {
+      for (const account of group.accounts) {
+        const hay = [
+          account.name,
+          account.username,
+          account.email,
+          account.url,
+          account.role,
+          account.notes,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (hay.includes(q)) {
+          results.push({
+            ...maskAccount(account),
+            groupId: group.id,
+            groupName: group.name,
+          });
+        }
+      }
+    }
+    sendJson(response, 200, { results: results.slice(0, 40) });
+    return;
+  }
+
   if (url.pathname === "/api/groups" && request.method === "GET") {
     const db = await readVault(user.id);
     // Primeiro acesso: cria grupo padrão automaticamente.

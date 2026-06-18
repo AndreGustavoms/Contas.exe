@@ -68,6 +68,7 @@ import { Toast } from "./ui/toast";
 import { UsersDialog } from "./users-dialog";
 import { AccountSettings } from "./account-settings";
 import { SocialPoster } from "./social-poster";
+import { GlobalSearch } from "./global-search";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { Input } from "./ui/input";
@@ -531,6 +532,7 @@ export function AccountVault({
   // only in memory, only while revealed; never persisted.
   const [quickViewSecret, setQuickViewSecret] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [exportProgress, setExportProgress] = useState<{
     done: number;
@@ -1083,11 +1085,8 @@ export function AccountVault({
         Boolean(quickViewAccount);
 
       if ((event.ctrlKey || event.metaKey) && key === "k") {
-        if (modalOpen) return;
         event.preventDefault();
-        setPosterOpen(false);
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        if (!globalSearchOpen) setGlobalSearchOpen(true);
         return;
       }
 
@@ -1104,6 +1103,7 @@ export function AccountVault({
     accountSettingsOpen,
     confirmDeleteGroup,
     deleteAccountId,
+    globalSearchOpen,
     groupDialog,
     isAccountModalOpen,
     quickViewAccount,
@@ -1649,13 +1649,30 @@ export function AccountVault({
               style={{ animationDelay: "60ms" }}
             >
               <div className="vault-toolbar flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="shrink-0">
-                  <p className="text-base font-semibold text-[color:var(--text)]">
-                    {t("vault.records")}
-                  </p>
-                  <p className="mt-0.5 text-sm text-[color:var(--muted)]">
-                    {filteredAccounts.length} / {accounts.length}
-                  </p>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div>
+                    <p className="text-base font-semibold text-[color:var(--text)]">
+                      {t("vault.records")}
+                    </p>
+                    <p className="mt-0.5 text-sm text-[color:var(--muted)]">
+                      {filteredAccounts.length} / {accounts.length}
+                    </p>
+                  </div>
+                  <button
+                    title={t("vault.global_search_title")}
+                    onClick={() => setGlobalSearchOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:bg-[color:var(--surface)]"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{t("vault.global_search_title")}</span>
+                    <kbd
+                      className="ml-1 hidden rounded px-1 py-0.5 text-[9px] sm:inline-block"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                    >
+                      ⌘K
+                    </kbd>
+                  </button>
                 </div>
                 <div className="vault-filters flex flex-wrap items-center gap-2 sm:gap-3">
                   {message && !isAccountModalOpen ? (
@@ -1929,6 +1946,13 @@ export function AccountVault({
           message={toast.text}
           tone={toast.tone}
           onDismiss={dismissToast}
+        />
+      ) : null}
+
+      {globalSearchOpen ? (
+        <GlobalSearch
+          onClose={() => setGlobalSearchOpen(false)}
+          onNavigate={(groupId) => setActiveGroupId(groupId)}
         />
       ) : null}
 
