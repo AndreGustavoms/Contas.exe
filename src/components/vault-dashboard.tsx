@@ -2,11 +2,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
-  ShieldOff,
   KeyRound,
   AlertTriangle,
-  Archive,
-  Activity,
   Users,
   Layers,
   TrendingUp,
@@ -37,6 +34,139 @@ function PlatformIcon({ platform, className }: { platform: string; className?: s
     case "kwai":      return <KwaiIcon      className={cls} />;
     default:          return <Layers        className={cls} />;
   }
+}
+
+// Paleta de cores do gráfico (sem vermelho — fora da identidade da marca).
+const PLATFORM_PALETTE = [
+  "var(--accent)",
+  "#60a5fa",
+  "#f59e0b",
+  "#a78bfa",
+  "#34d399",
+  "#22d3ee",
+  "#94a3b8",
+];
+
+type Segment = {
+  label: string;
+  value: number;
+  color: string;
+  icon?: React.ReactNode;
+};
+
+function DonutChart({
+  segments,
+  total,
+  size = 128,
+  thickness = 16,
+}: {
+  segments: Segment[];
+  total: number;
+  size?: number;
+  thickness?: number;
+}) {
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="var(--surface)"
+        strokeWidth={thickness}
+      />
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        {segments
+          .filter((s) => s.value > 0)
+          .map((s) => {
+            const len = (s.value / total) * c;
+            const node = (
+              <circle
+                key={s.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={thickness}
+                strokeDasharray={`${len} ${c - len}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += len;
+            return node;
+          })}
+      </g>
+      <text
+        x="50%"
+        y="46%"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        style={{ fill: "var(--text)", fontSize: 24, fontWeight: 700 }}
+      >
+        {total}
+      </text>
+      <text
+        x="50%"
+        y="60%"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        style={{ fill: "var(--muted)", fontSize: 9, letterSpacing: "0.15em" }}
+      >
+        TOTAL
+      </text>
+    </svg>
+  );
+}
+
+function ChartWithLegend({
+  segments,
+  emptyLabel,
+}: {
+  segments: Segment[];
+  emptyLabel: string;
+}) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  if (total === 0) {
+    return (
+      <p className="text-sm opacity-40" style={{ color: "var(--text)" }}>
+        {emptyLabel}
+      </p>
+    );
+  }
+  const pct = (v: number) => Math.round((v / total) * 100);
+  return (
+    <div className="flex items-center gap-5">
+      <DonutChart segments={segments} total={total} />
+      <ul className="flex-1 space-y-2">
+        {segments.map((s) => (
+          <li key={s.label} className="flex items-center gap-2 text-xs">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: s.color }}
+            />
+            {s.icon && (
+              <span className="shrink-0" style={{ color: "var(--muted)" }}>
+                {s.icon}
+              </span>
+            )}
+            <span className="flex-1 truncate capitalize" style={{ color: "var(--muted)" }}>
+              {s.label}
+            </span>
+            <span className="tabular-nums font-semibold" style={{ color: "var(--text)" }}>
+              {pct(s.value)}%
+            </span>
+            <span className="w-6 text-right tabular-nums opacity-50" style={{ color: "var(--text)" }}>
+              {s.value}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 interface StatCardProps {
@@ -177,34 +307,15 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
           <p className="mb-4 text-sm font-semibold" style={{ color: "var(--text)" }}>
             {t("vault.dashboard_by_status")}
           </p>
-          <div className="space-y-3">
-            {[
-              { label: t("vault.tab_active"),   value: stats.active,   icon: <Activity className="h-3.5 w-3.5" />, color: "var(--accent)" },
-              { label: t("vault.tab_archived"),  value: stats.archived, icon: <Archive  className="h-3.5 w-3.5" />, color: "var(--muted)" },
-              { label: t("vault.tab_review"),    value: stats.review,   icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "rgb(234,179,8)" },
-              { label: t("vault.tab_disabled"),  value: stats.inactive, icon: <ShieldOff className="h-3.5 w-3.5" />, color: "var(--muted)" },
-            ].map(({ label, value, icon, color }) => (
-              <div key={label} className="flex items-center gap-3">
-                <span style={{ color }} className="shrink-0">{icon}</span>
-                <div className="flex flex-1 items-center gap-2">
-                  <span className="w-24 shrink-0 text-xs" style={{ color: "var(--muted)" }}>{label}</span>
-                  <div className="flex-1 overflow-hidden rounded-full" style={{ background: "var(--surface)", height: 6 }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: stats.total > 0 ? `${(value / stats.total) * 100}%` : "0%",
-                        background: color,
-                        opacity: 0.8,
-                      }}
-                    />
-                  </div>
-                  <span className="w-7 text-right text-xs tabular-nums font-medium" style={{ color: "var(--text)" }}>
-                    {value}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ChartWithLegend
+            segments={[
+              { label: t("vault.tab_active"), value: stats.active, color: "var(--accent)" },
+              { label: t("vault.tab_archived"), value: stats.archived, color: "#60a5fa" },
+              { label: t("vault.tab_review"), value: stats.review, color: "#f59e0b" },
+              { label: t("vault.tab_disabled"), value: stats.inactive, color: "#94a3b8" },
+            ]}
+            emptyLabel={t("vault.dashboard_empty")}
+          />
         </div>
 
         {/* platforms */}
@@ -215,37 +326,15 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
           <p className="mb-4 text-sm font-semibold" style={{ color: "var(--text)" }}>
             {t("vault.dashboard_by_platform")}
           </p>
-          {stats.topPlatforms.length === 0 ? (
-            <p className="text-sm opacity-40" style={{ color: "var(--text)" }}>
-              {t("vault.dashboard_empty")}
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {stats.topPlatforms.map(([platform, count]) => (
-                <div key={platform} className="flex items-center gap-3">
-                  <span style={{ color: "var(--muted)" }} className="shrink-0">
-                    <PlatformIcon platform={platform} className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="flex flex-1 items-center gap-2">
-                    <span className="w-24 shrink-0 truncate text-xs" style={{ color: "var(--muted)" }}>{platform}</span>
-                    <div className="flex-1 overflow-hidden rounded-full" style={{ background: "var(--surface)", height: 6 }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: stats.total > 0 ? `${(count / stats.total) * 100}%` : "0%",
-                          background: "var(--accent)",
-                          opacity: 0.7,
-                        }}
-                      />
-                    </div>
-                    <span className="w-7 text-right text-xs tabular-nums font-medium" style={{ color: "var(--text)" }}>
-                      {count}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <ChartWithLegend
+            segments={stats.topPlatforms.map(([platform, count], i) => ({
+              label: platform,
+              value: count,
+              color: PLATFORM_PALETTE[i % PLATFORM_PALETTE.length],
+              icon: <PlatformIcon platform={platform} className="h-3 w-3" />,
+            }))}
+            emptyLabel={t("vault.dashboard_empty")}
+          />
         </div>
       </div>
 
