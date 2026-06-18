@@ -380,12 +380,6 @@ export function ReportsPanel() {
         </div>
       )}
 
-      {!loading && weekItems.length === 0 && (
-        <p className="text-center text-[12px] text-[color:var(--muted)]">
-          Nenhuma postagem nesta semana. Verde = postado · cor de destaque = agendado.
-        </p>
-      )}
-
       {/* Fila de agendados (próximos dias e meses) */}
       {!loading && upcoming.length > 0 && (
         <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--field)]">
