@@ -21,6 +21,7 @@ import {
   Filter,
   FolderPlus,
   Globe,
+  LayoutDashboard,
   Layers,
   Copy,
   KeyRound,
@@ -69,6 +70,7 @@ import { UsersDialog } from "./users-dialog";
 import { AccountSettings } from "./account-settings";
 import { SocialPoster } from "./social-poster";
 import { GlobalSearch } from "./global-search";
+import { VaultDashboard } from "./vault-dashboard";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { Input } from "./ui/input";
@@ -533,6 +535,7 @@ export function AccountVault({
   const [quickViewSecret, setQuickViewSecret] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [exportProgress, setExportProgress] = useState<{
     done: number;
@@ -1533,11 +1536,21 @@ export function AccountVault({
             label={t("vault.networks_section")}
           >
             <SidebarButton
-              active={!posterOpen && platformFilter === ALL}
+              active={dashboardOpen}
+              icon={LayoutDashboard}
+              label={t("vault.dashboard_nav")}
+              onClick={() => {
+                setDashboardOpen(true);
+                setPosterOpen(false);
+              }}
+            />
+            <SidebarButton
+              active={!posterOpen && !dashboardOpen && platformFilter === ALL}
               count={accounts.length}
               icon={Layers}
               label={t("vault.all_filter")}
               onClick={() => {
+                setDashboardOpen(false);
                 setPosterOpen(false);
                 setPlatformFilter(ALL);
               }}
@@ -1545,12 +1558,13 @@ export function AccountVault({
             {sidebarPlatforms.map((platform) => (
               <SidebarButton
                 key={platform}
-                active={!posterOpen && platformFilter === platform}
+                active={!posterOpen && !dashboardOpen && platformFilter === platform}
                 count={platformCounts[platform] ?? 0}
                 icon={platformIconFor(platform)}
                 label={platform}
                 platform={platform}
                 onClick={() => {
+                  setDashboardOpen(false);
                   setPosterOpen(false);
                   setPlatformFilter(platform);
                 }}
@@ -1566,7 +1580,7 @@ export function AccountVault({
               active={posterOpen}
               icon={Send}
               label={t("vault.post")}
-              onClick={() => setPosterOpen(true)}
+              onClick={() => { setDashboardOpen(false); setPosterOpen(true); }}
             />
           </SidebarSection>
 
@@ -1641,7 +1655,16 @@ export function AccountVault({
           ref={contentRef}
           className="vault-content min-w-0 px-0 pb-6 pt-0 lg:pb-8"
         >
-          {posterOpen ? (
+          {dashboardOpen ? (
+            <VaultDashboard
+              accounts={accounts}
+              groups={groups}
+              onNavigate={(id) => {
+                setDashboardOpen(false);
+                setActiveGroupId(id);
+              }}
+            />
+          ) : posterOpen ? (
             <SocialPoster onClose={() => setPosterOpen(false)} />
           ) : (
             <div
@@ -1649,30 +1672,13 @@ export function AccountVault({
               style={{ animationDelay: "60ms" }}
             >
               <div className="vault-toolbar flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-3 shrink-0">
-                  <div>
-                    <p className="text-base font-semibold text-[color:var(--text)]">
-                      {t("vault.records")}
-                    </p>
-                    <p className="mt-0.5 text-sm text-[color:var(--muted)]">
-                      {filteredAccounts.length} / {accounts.length}
-                    </p>
-                  </div>
-                  <button
-                    title={t("vault.global_search_title")}
-                    onClick={() => setGlobalSearchOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:bg-[color:var(--surface)]"
-                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{t("vault.global_search_title")}</span>
-                    <kbd
-                      className="ml-1 hidden rounded px-1 py-0.5 text-[9px] sm:inline-block"
-                      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-                    >
-                      ⌘K
-                    </kbd>
-                  </button>
+                <div className="shrink-0">
+                  <p className="text-base font-semibold text-[color:var(--text)]">
+                    {t("vault.records")}
+                  </p>
+                  <p className="mt-0.5 text-sm text-[color:var(--muted)]">
+                    {filteredAccounts.length} / {accounts.length}
+                  </p>
                 </div>
                 <div className="vault-filters flex flex-wrap items-center gap-2 sm:gap-3">
                   {message && !isAccountModalOpen ? (
@@ -1686,10 +1692,16 @@ export function AccountVault({
                       ref={searchInputRef}
                       aria-label={t("vault.search_label")}
                       aria-keyshortcuts="Control+K Meta+K"
-                      className={query ? "pl-9 pr-8" : "pl-9 pr-20"}
+                      className={query ? "pl-9 pr-8" : "pl-9 pr-32"}
                       placeholder={t("vault.search_placeholder")}
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
+                      onFocus={() => {
+                        if (!query) {
+                          searchInputRef.current?.blur();
+                          setGlobalSearchOpen(true);
+                        }
+                      }}
                     />
                     {query ? (
                       <button
@@ -1704,9 +1716,15 @@ export function AccountVault({
                         <X className="h-3.5 w-3.5" />
                       </button>
                     ) : (
-                      <kbd className="shortcut-key pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 sm:block">
-                        Ctrl K
-                      </kbd>
+                      <button
+                        type="button"
+                        onClick={() => setGlobalSearchOpen(true)}
+                        className="pointer-events-auto absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-1 sm:flex"
+                        tabIndex={-1}
+                      >
+                        <kbd className="shortcut-key">⌘</kbd>
+                        <kbd className="shortcut-key">K</kbd>
+                      </button>
                     )}
                   </div>
                   {activeFilterCount > 0 ? (
