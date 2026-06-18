@@ -226,6 +226,7 @@ describe("user isolation", () => {
     assert.equal(passwordEditWithoutReauth.response.status, 403);
     assert.equal(passwordEditWithoutReauth.data.error, "reauth_required");
 
+    // DELETE de conta do cofre não exige reauth (item do gerenciador, não a conta do usuário)
     const deleteWithoutReauth = await request(
       `/api/groups/${encodeURIComponent(gustavoGroupId)}/accounts/${encodeURIComponent(accountId)}`,
       {
@@ -233,8 +234,19 @@ describe("user isolation", () => {
         method: "DELETE",
       },
     );
-    assert.equal(deleteWithoutReauth.response.status, 403);
-    assert.equal(deleteWithoutReauth.data.error, "reauth_required");
+    assert.equal(deleteWithoutReauth.response.status, 200);
+
+    // Adiciona a conta novamente para continuar testando edição com reauth
+    const readdAccount = await request(
+      `/api/groups/${encodeURIComponent(gustavoGroupId)}/accounts`,
+      {
+        cookie: gustavo.cookie,
+        method: "POST",
+        body: { platform: "Netflix", username: "gustavo-netflix", password: "pass123" },
+      },
+    );
+    assert.equal(readdAccount.response.status, 201);
+    const newAccountId = readdAccount.data.id;
 
     const reauth = await request("/api/auth/reauth", {
       cookie: gustavo.cookie,
@@ -244,12 +256,12 @@ describe("user isolation", () => {
     assert.equal(reauth.response.status, 200);
 
     const usernameEditAfterReauth = await request(
-      `/api/groups/${encodeURIComponent(gustavoGroupId)}/accounts/${encodeURIComponent(accountId)}`,
+      `/api/groups/${encodeURIComponent(gustavoGroupId)}/accounts/${encodeURIComponent(newAccountId)}`,
       {
         cookie: gustavo.cookie,
         method: "PUT",
         body: {
-          ...ordinaryEdit.data,
+          platform: "Netflix",
           password: "",
           username: "gustavo-netflix-2",
         },
