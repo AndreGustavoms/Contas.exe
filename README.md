@@ -1,199 +1,225 @@
-<div align="center">
+# Contas.exe
 
-# Contas_exe
-
-**Cofre de credenciais para equipes** — organize emails, usuários, senhas e 2FA
-de redes sociais em grupos, com login individual e criptografia em repouso.
+Cofre de credenciais para equipes, com login individual, permissões por papel,
+auditoria, 2FA e criptografia em repouso para dados sensíveis.
 
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
-![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)
+![Node](https://img.shields.io/badge/Node-20+-339933?logo=nodedotjs&logoColor=white)
+![Postgres](https://img.shields.io/badge/PostgreSQL-ready-4169E1?logo=postgresql&logoColor=white)
 
-</div>
+## Visão geral
 
----
+O `Contas.exe` organiza contas de redes sociais em grupos, com isolamento entre
+usuários, sessão server-side, trilha de auditoria e proteção explícita para
+segredos como senhas, e-mails de recuperação e tokens OAuth.
 
-## Sumário
+O projeto roda como um único serviço Node:
 
-- [O que é](#o-que-é)
-- [Funcionalidades](#funcionalidades)
-- [Multiusuário e permissões](#multiusuário-e-permissões)
-- [Segurança](#segurança)
-- [Uso local](#uso-local)
-- [Deploy (equipe)](#deploy-equipe)
-- [Stack](#stack)
-- [Estrutura](#estrutura)
-- [Scripts](#scripts)
-- [Documentação](#documentação)
+- a API serve `/api/*`
+- o mesmo servidor entrega o frontend buildado
+- o frontend usa fetch relativo, sem depender de uma URL separada de API
 
----
+Hoje a arquitetura prioriza **PostgreSQL como persistência principal**, com
+fallback legado para JSON em cenários locais ou migrações antigas.
 
-## O que é
+## Preview
 
-Um cofre web para **guardar e organizar credenciais de redes sociais** (YouTube,
-Instagram, TikTok, Facebook, Kwai e outros) de uma equipe. As contas vivem
-dentro de **grupos** (perfis / contextos), cada pessoa entra com seu próprio
-login, e os campos sensíveis são **cifrados em repouso** com AES-256-GCM.
+Visual real do cofre após a última limpeza visual do card:
 
-Roda como **um único serviço Node**: a mesma API que serve os dados também
-entrega o frontend buildado — sem banco externo, sem processo separado. A
-persistência é em arquivos JSON num volume persistente.
+![Card minimalista do Contas.exe](docs/assets/contas-exe-vault-card.png)
 
----
+## Principais capacidades
 
-## Funcionalidades
+- Login por usuário com sessão server-side em cookie `HttpOnly`
+- Papéis `superadmin`, `admin` e `member`
+- Ownership por grupo: membro vê só o que é dele
+- 2FA opcional por TOTP com códigos de recuperação
+- Reautenticação para ações críticas
+- Criptografia em repouso com `AES-256-GCM`
+- Auditoria de ações sensíveis sem gravar segredos
+- Busca, filtros e status das contas
+- Busca global entre grupos
+- Dashboard com visão geral por status e plataforma
+- Painel administrativo dedicado para `superadmin`
+- Gestão de usuários, sessões, segurança, auditoria e dados
+- Configurações da conta com avatar, idioma, tema, sessões e conexões
+- Recuperação e reset de senha
+- Login social com Google e GitHub
+- Fluxo de publicação/social poster com base pronta para YouTube e programação
+- Export e import de grupos
+- Backup completo administrativo
+- Interface multilíngue: `pt`, `en`, `es`, `fr`, `zh`
+- Tema visual próprio e componentes reutilizáveis
+- Integrações OAuth para Google, GitHub e YouTube
 
-- 🔐 **Login por usuário** com sessão server-side (cookie HttpOnly + 2FA opcional TOTP)
-- 👥 **Grupos de contas** — criar, renomear, excluir e alternar entre grupos
-- 🧩 **Cadastro guiado** por plataforma e função (postagem, apoio, conta estrela,
-  nicho, recuperação, financeiro, administrativo), com email, usuário, senha e 2FA
-- 🔎 **Busca, filtros e abas de status** (Ativa, Revisar, Arquivada, Desativada)
-- 📋 **Copiar email/senha** com um clique (atrás de reautenticação)
-- 💾 **Exportar** (grupo atual) e **importar** (cria grupo novo) — backup JSON
-- 🛟 **Backup completo** (admin) de todos os grupos num único arquivo
-- 🌐 **Interface em 5 idiomas** — pt · en · es · fr · zh
-- 🎨 **2 temas** de alto contraste: Dark e White
+## O que já está forte no produto
 
----
-
-## Multiusuário e permissões
-
-Cada pessoa tem **login próprio** (usuário + senha). Dois papéis:
-
-| Papel      | Vê                            | Gerencia                                            |
-| ---------- | ----------------------------- | --------------------------------------------------- |
-| **admin**  | **todos** os grupos           | usuários (criar/remover), backup e tudo dos membros |
-| **member** | **apenas os próprios** grupos | só os próprios grupos e contas                      |
-
-- O **admin inicial** é criado automaticamente a partir de `APP_AUTH_USER` /
-  `APP_AUTH_PASSWORD` no primeiro start. Os demais são criados pela UI (painel
-  **Equipe**, visível só para admin).
-- Cada grupo tem um dono (`ownerId`). Um membro só acessa o que é seu — tentativas
-  fora disso respondem `404` (a existência do recurso não é revelada).
-- Ao remover um usuário, seus grupos são **reatribuídos ao admin** — nada fica órfão.
-
----
-
-## Segurança
-
-- 🔒 **Criptografia em repouso (AES-256-GCM):** senha, email de recuperação,
-  telefone e notas das contas — e os refresh tokens do YouTube — são cifrados no
-  disco com uma chave-mestra (`CONTAS_FLOW_ENC_KEY`). Em memória e na API o
-  servidor trabalha sempre com texto plano; a cifragem vive só na borda de I/O.
-- 🔑 **Senhas dos usuários:** hash **scrypt** com salt por usuário (nunca em texto plano).
-- 🛡️ **Endurecimento:** sessão HttpOnly + `SameSite=Strict` (+ `Secure` em HTTPS),
-  rate limit no login, headers de segurança (CSP, HSTS, X-Frame-Options, nosniff),
-  CORS fechado e limite de tamanho de requisição.
-- 🔏 **Reautenticação** para ações críticas (revelar senha, exportar backup, apagar grupo).
-- 📋 **Trilha de auditoria** de todas as ações sensíveis, sem gravar segredos.
-- 🔐 **2FA (TOTP)** opcional por usuário, ativável em "Minha conta".
-
-> ⚠️ A `CONTAS_FLOW_ENC_KEY` é a **única** forma de decifrar os dados. Se perdida,
-> os campos cifrados ficam irrecuperáveis. Guarde-a num cofre separado do volume.
-> Veja **[docs/DEPLOY.md](docs/DEPLOY.md)**.
-
----
-
-## Uso local
-
-```bash
-npm install
-npm run local
-```
-
-O app abre em `http://127.0.0.1:5175` e a API em `http://127.0.0.1:8787`.
-
-No primeiro acesso, defina o admin inicial via variáveis de ambiente (copie
-`.env.example` para `.env` e preencha `APP_AUTH_USER` / `APP_AUTH_PASSWORD`).
-Depois entre com essas credenciais e crie a equipe pelo painel **Equipe**.
-
----
-
-## Deploy (equipe)
-
-Produção roda no **Railway** como um único serviço Node (API + frontend), via
-Dockerfile multi-stage. O guia completo — variáveis, geração da chave de
-criptografia, volume persistente, backup e checklist de go-live — está em
-**[docs/DEPLOY.md](docs/DEPLOY.md)**.
-
----
+- Cofre multiusuário com isolamento real entre membros
+- Reautenticação para revelar/copiar senha e outras ações sensíveis
+- 2FA por TOTP com recovery codes
+- Auditoria persistente das ações críticas
+- Sessões revogáveis e controles de segurança server-side
+- Base já preparada para operação em produção com Docker e Railway
+- Documentação técnica, operacional e de segurança dentro do repositório
 
 ## Stack
 
-| Camada     | Tecnologia                                                  |
-| ---------- | ----------------------------------------------------------- |
-| Frontend   | React 18 + TypeScript, Vite 6, Tailwind CSS 3, Lucide React |
-| i18n       | react-i18next (pt · en · es · fr · zh)                      |
-| Backend    | Node HTTP nativo, sem framework                             |
-| Cripto     | AES-256-GCM (`crypto` nativo), scrypt, TOTP RFC 6238        |
-| Deploy     | Railway — Dockerfile multi-stage, volume `/data`            |
-| Integração | googleapis (YouTube OAuth/upload — backend funcional)       |
+| Camada | Tecnologia |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite 6, Tailwind CSS 3 |
+| UI | componentes próprios em `src/components/ui`, Lucide React |
+| Backend | Node.js HTTP nativo, sem framework |
+| Persistência | PostgreSQL por padrão, fallback legado em JSON |
+| Segurança | `crypto` nativo, `scrypt`, `AES-256-GCM`, TOTP |
+| Deploy | Docker multi-stage, Railway-ready |
+| Integrações | Google OAuth, GitHub OAuth, YouTube |
 
----
+## Arquitetura
 
-## Estrutura
+```text
+Browser (React SPA)
+  -> /api/*
+Node server
+  -> auth
+  -> sessions
+  -> permissions
+  -> audit
+  -> domain modules
+  -> integrations
+  -> PostgreSQL
+      fallback: JSON storage legado
+```
+
+Decisões centrais:
+
+- Um serviço só para simplificar deploy e operação
+- Regras de acesso no servidor, nunca só no frontend
+- Segredos protegidos na borda de I/O
+- Persistência tratada como parte da arquitetura, não detalhe
+- Documentação operacional junto do código
+
+## Estrutura do repositório
 
 ```text
 src/
-  components/
-    account-vault.tsx       # tela principal do cofre
-    local-login.tsx         # tela de login
-    register.tsx            # tela de criar conta
-    forgot-password.tsx     # recuperação de senha
-    lang-terminal.tsx       # seletor de idioma compartilhado
-    users-dialog.tsx        # painel "Equipe" (admin)
-    platform-icons.tsx      # glyphs de marca
-    theme-toggle.tsx        # seletor de tema
-    ui/                     # button, input, switch, spinner, toast, ...
-  data/credential-records.ts  # tipos e opções de plataformas/funções
-  locales/                  # traduções pt · en · es · fr · zh
-  theme.ts                  # definição dos temas
+  admin/                 # painel administrativo
+  components/            # telas e blocos principais
+  components/ui/         # primitives reutilizáveis
+  data/                  # tipos e catálogos do domínio
+  lib/                   # helpers e hooks
+  locales/               # traduções
+
 server/
-  index.mjs                 # API (auth, usuários, grupos, contas, backup) + estáticos
-  users.mjs                 # store de usuários + scrypt
-  crypto.mjs                # criptografia em repouso (AES-256-GCM)
-  sessions.mjs              # sessões server-side revogáveis
-  audit.mjs                 # trilha de auditoria
-  totp.mjs                  # 2FA TOTP (RFC 6238)
-  youtube.mjs               # OAuth + upload YouTube (funcional)
+  index.mjs              # entrypoint HTTP
+  db.mjs                 # conexão PostgreSQL
+  users-pg.mjs           # usuários e auth em SQL
+  sessions.mjs           # sessões server-side
+  audit.mjs              # trilha de auditoria
+  crypto.mjs             # criptografia em repouso
+  rate-limit.mjs         # proteção de login/reauth
+  schema.sql             # schema principal
+  youtube.mjs            # integração YouTube
+
 scripts/
-  local-dev.mjs             # sobe API + Vite juntos
-storage/                    # JSON gerados em runtime — ignorados pelo git
-  users.json                # usuários (logins) + hashes scrypt
-  groups.json               # grupos + contas (campos sensíveis cifrados)
-  sessions.json             # sessões ativas
-  audit.json                # trilha de auditoria
-  youtube.json              # tokens OAuth dos canais (cifrados)
-docs/                       # ARQUITETURA.md · DEPLOY.md · LGPD.md · YOUTUBE.md
+  local-dev.mjs          # sobe API + frontend
+  scan-secrets.mjs       # varredura de segredos
+  migrate-json-to-pg.mjs # migração legado -> PostgreSQL
+
+tests/
+  *.test.mjs             # testes de isolamento, sessão, rate limit etc.
+
+docs/
+  ARQUITETURA.md
+  DEPLOY.md
+  LGPD.md
+  YOUTUBE.md
+  SYSTEM-DESIGN-BASE.md
 ```
 
----
+## Desenvolvimento local
 
-## Scripts
+Pré-requisitos:
+
+- Node `>=20`
+- PostgreSQL local se quiser rodar no modo principal
+
+Instalação:
 
 ```bash
-npm run local    # app + API local (dev)
-npm run dev      # somente frontend (Vite)
-npm run api      # somente API
-npm run build    # type-check + build de produção
-npm run start    # serve a API + build pronto
-npm run format   # formata com Prettier
+npm install
+cp .env.example .env
+npm run local
 ```
 
----
+Scripts principais:
+
+```bash
+npm run local      # API + Vite
+npm run dev        # só frontend
+npm run api        # só backend
+npm run typecheck  # TypeScript
+npm run test       # testes Node
+npm run build      # build de produção
+npm run format     # Prettier
+```
+
+## Segurança
+
+Pontos que definem o projeto:
+
+- Senhas de usuários com `scrypt`
+- Segredos de negócio cifrados em repouso
+- Sessão revogável no servidor
+- `SameSite=Strict` e `Secure` em HTTPS
+- Rate limit de login e reauth
+- Auditoria para ações críticas
+- Backup tratado como dado sensível
+- `scan-secrets` antes de build
+
+Arquivos e dados sensíveis nunca devem ser commitados:
+
+- `.env`
+- `storage/*`
+- backups exportados
+- credenciais OAuth
+- chaves privadas
+
+Veja [SECURITY.md](SECURITY.md).
+
+## Estado atual da persistência
+
+O projeto está em transição consciente:
+
+- **modo preferido:** PostgreSQL
+- **modo legado:** JSON em `storage/`
+
+Se o banco não estiver configurado, o servidor ainda consegue cair no modo
+legado para manter compatibilidade com bases antigas. Para novos ambientes, o
+padrão recomendado é PostgreSQL desde o início.
 
 ## Documentação
 
-| Documento                                  | Conteúdo                                              |
-| ------------------------------------------ | ----------------------------------------------------- |
-| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como o sistema funciona por dentro                    |
-| [docs/DEPLOY.md](docs/DEPLOY.md)           | Subir em produção no Railway                          |
-| [docs/LGPD.md](docs/LGPD.md)               | Controles operacionais de privacidade e LGPD          |
-| [docs/YOUTUBE.md](docs/YOUTUBE.md)         | Integração YouTube OAuth/upload (backend funcional)   |
-| [SECURITY.md](SECURITY.md)                 | Boas práticas e checklist de segurança do repositório |
-| [IA.md](IA.md)                             | Contexto rápido para quem for trabalhar no projeto    |
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md): desenho técnico do sistema
+- [docs/DEPLOY.md](docs/DEPLOY.md): produção e operação
+- [docs/LGPD.md](docs/LGPD.md): privacidade e governança
+- [docs/YOUTUBE.md](docs/YOUTUBE.md): integração YouTube
+- [docs/SYSTEM-DESIGN-BASE.md](docs/SYSTEM-DESIGN-BASE.md): template pessoal de system design
+- [SECURITY.md](SECURITY.md): segurança do repositório
+- [IA.md](IA.md): contexto rápido para desenvolvimento
 
-> Os dados ficam em `storage/` (git-ignored). Nunca commite `storage/`, `.env`,
-> prints ou backups com credenciais reais.
+## Direção de design do projeto
+
+O `Contas.exe` consolidou um estilo de arquitetura:
+
+- monólito modular
+- frontend forte, backend pragmático
+- segurança séria desde o início
+- deploy simples
+- documentação operacional versionada
+
+Esse padrão foi documentado em
+[docs/SYSTEM-DESIGN-BASE.md](docs/SYSTEM-DESIGN-BASE.md) para reaproveitamento
+em projetos futuros.
