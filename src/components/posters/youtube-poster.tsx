@@ -191,11 +191,12 @@ async function uploadVideoFile(
     } catch (err) {
       // Surface a precise, actionable diagnosis instead of a generic "Falha de rede".
       if (err instanceof UploadRequestError) {
+        const serverDetail = err.payload.message ? ` Detalhe: ${err.payload.message}.` : "";
         err.payload.source = "network";
         err.payload.userMessage =
           err.status === 0
             ? `O envio foi interrompido ao transferir o trecho em ${fmtSize(offset)} (a conexão caiu antes da resposta do servidor). Tente novamente — se persistir, o proxy do servidor está recusando o upload.`
-            : `O servidor recusou o trecho em ${fmtSize(offset)} (código ${err.status}). Tente novamente.`;
+            : `O servidor recusou o trecho em ${fmtSize(offset)} (código ${err.status}).${serverDetail} Tente novamente.`;
       }
       throw err;
     }

@@ -23,6 +23,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
@@ -40,10 +41,15 @@ const tokensFile =
 // upload endpoint accepts only a bare file NAME (never a path), which we resolve
 // here — this confinement is what makes the feature safe to expose: a caller can
 // never point it at an arbitrary absolute path to read files off the server.
-// A request body is capped at 1 MB, so streaming the bytes through the API is a
-// non-starter anyway; staging the file on disk first is the practical design.
+//
+// Staging lives in the OS temp dir, NOT the persistent data volume: a staged
+// video is ephemeral (chunked in, pushed to YouTube, then deleted), so it never
+// needs to persist — and the temp dir is always writable, unlike the volume,
+// which can be full or have restrictive permissions and silently break file
+// writes (everything else runs on Postgres, so a broken volume goes unnoticed).
+// Override with YOUTUBE_UPLOAD_DIR if a dedicated staging path is preferred.
 const uploadsDir =
-  process.env.YOUTUBE_UPLOAD_DIR ?? join(storageDir, "youtube-uploads");
+  process.env.YOUTUBE_UPLOAD_DIR ?? join(tmpdir(), "contas-youtube-uploads");
 
 // Official YouTube upload limits used for deterministic pre-flight checks.
 // Source: YouTube Help / YouTube Data API docs (256 GB or 12 hours).

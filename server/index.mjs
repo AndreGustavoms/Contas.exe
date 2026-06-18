@@ -2530,8 +2530,22 @@ async function handleApi(request, response, url, user, session) {
       } else if (code === "upload_not_found" || code === "offset_gap") {
         sendJson(response, 409, { error: code });
       } else {
-        recordLog("error", `youtube: chunk falhou em offset ${offset} (${code})`);
-        sendJson(response, 500, { error: code });
+        // Surface the real failure: fs errors carry code/path/errno. Log the full
+        // error to Railway stdout AND return a readable detail to the client so we
+        // stop guessing at the cause from a bare "500".
+        const detail = [error?.code, error?.syscall, error?.path]
+          .filter(Boolean)
+          .join(" ");
+        console.error("youtube chunk error:", error);
+        recordLog(
+          "error",
+          `youtube: chunk falhou em offset ${offset}: ${code}${detail ? ` [${detail}]` : ""}`,
+        );
+        sendJson(response, 500, {
+          error: code,
+          source: "local",
+          message: detail ? `${code} (${detail})` : code,
+        });
       }
     }
     return;
