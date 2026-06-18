@@ -1,11 +1,22 @@
-import { useEffect, useState } from "react";
-import { AccountVault } from "./components/account-vault";
-import { ForgotPassword } from "./components/forgot-password";
-import { LocalLogin } from "./components/local-login";
-import { Register } from "./components/register";
-import { ResetPassword } from "./components/reset-password";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ThemeToggle } from "./components/theme-toggle";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "./theme";
+
+const AccountVault = lazy(() =>
+  import("./components/account-vault").then((m) => ({ default: m.AccountVault })),
+);
+const ForgotPassword = lazy(() =>
+  import("./components/forgot-password").then((m) => ({ default: m.ForgotPassword })),
+);
+const LocalLogin = lazy(() =>
+  import("./components/local-login").then((m) => ({ default: m.LocalLogin })),
+);
+const Register = lazy(() =>
+  import("./components/register").then((m) => ({ default: m.Register })),
+);
+const ResetPassword = lazy(() =>
+  import("./components/reset-password").then((m) => ({ default: m.ResetPassword })),
+);
 
 // The logged-in user, as reported by /api/auth. role drives admin-only UI.
 // "superadmin" é o dono (acesso ao painel /admin); herda tudo de admin no app.
@@ -145,48 +156,50 @@ export default function App() {
 
   if (view === "reset") {
     return (
-      <>
+      <Suspense>
         {floatingToggle}
         <ResetPassword
           token={resetToken}
           theme={theme}
           onDone={() => setView("login")}
         />
-      </>
+      </Suspense>
     );
   }
 
   if (view === "forgot") {
     return (
-      <>
+      <Suspense>
         {floatingToggle}
         <ForgotPassword theme={theme} onBack={() => setView("login")} />
-      </>
+      </Suspense>
     );
   }
 
   if (view === "register") {
     return (
-      <>
+      <Suspense>
         {floatingToggle}
         <Register
           theme={theme}
           onBack={() => setView("login")}
           onDone={() => setView("login")}
         />
-      </>
+      </Suspense>
     );
   }
 
   return unlocked ? (
-    <AccountVault
-      theme={theme}
-      user={user}
-      onLock={lock}
-      onThemeChange={changeTheme}
-    />
+    <Suspense>
+      <AccountVault
+        theme={theme}
+        user={user}
+        onLock={lock}
+        onThemeChange={changeTheme}
+      />
+    </Suspense>
   ) : (
-    <>
+    <Suspense>
       {floatingToggle}
       <LocalLogin
         theme={theme}
@@ -194,6 +207,6 @@ export default function App() {
         onForgotPassword={() => setView("forgot")}
         onRegister={() => setView("register")}
       />
-    </>
+    </Suspense>
   );
 }
