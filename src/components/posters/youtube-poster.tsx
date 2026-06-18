@@ -111,30 +111,21 @@ function fmtDuration(seconds: number | null): string {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-function uploadVideoFile(
-  file: File,
-  onProgress: (fraction: number) => void,
-): Promise<{ name: string; size: number }> {
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB — fits comfortably within Railway's ~60 s proxy timeout
+
+function sendChunk(
+  uploadId: string,
+  filename: string,
+  chunk: Blob,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/youtube/uploads");
-    xhr.setRequestHeader(
-      "X-Upload-Filename",
-      encodeURIComponent(file.name || "upload"),
-    );
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(e.loaded / e.total);
-    };
+    xhr.open("POST", "/api/youtube/uploads/chunk");
+    xhr.setRequestHeader("X-Upload-Id", uploadId);
+    xhr.setRequestHeader("X-Upload-Filename", encodeURIComponent(filename));
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          reject(new Error("bad_response"));
-        }
-      } else {
-        reject(new UploadRequestError(xhr.status, parseJson(xhr.responseText)));
-      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new UploadRequestError(xhr.status, parseJson(xhr.responseText)));
     };
     xhr.onerror = () =>
       reject(
@@ -142,12 +133,37 @@ function uploadVideoFile(
           error: "network",
           source: "network",
           message: "Falha de rede.",
-          userMessage:
-            "Não foi possível enviar o arquivo ao servidor. Verifique sua conexão e tente novamente.",
+          userMessage: "Não foi possível enviar o arquivo ao servidor. Verifique sua conexão e tente novamente.",
         }),
       );
-    xhr.send(file);
+    xhr.send(chunk);
   });
+}
+
+async function uploadVideoFile(
+  file: File,
+  onProgress: (fraction: number) => void,
+): Promise<{ name: string; size: number }> {
+  const uploadId = crypto.randomUUID();
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const chunk = file.slice(start, start + CHUNK_SIZE);
+    await sendChunk(uploadId, file.name || "video", chunk);
+    onProgress((i + 1) / totalChunks);
+  }
+
+  const res = await fetch("/api/youtube/uploads/finalize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ uploadId, originalName: file.name || "video" }),
+  });
+  if (!res.ok) {
+    throw new UploadRequestError(res.status, parseJson(await res.text()));
+  }
+  return res.json();
 }
 
 function fmtSize(bytes: number): string {

@@ -26,7 +26,9 @@ import {
   listUploadableFiles,
   MAX_STAGED_UPLOAD_BYTES,
   stageUpload,
+  appendChunk,
   deleteVideo,
+  finalizeChunkedUpload,
   initiateResumableUpload,
   recordUpload,
   updateVideo,
@@ -2502,6 +2504,51 @@ async function handleApi(request, response, url, user, session) {
   // server (bypasses the 1 MB JSON cap — videos are far larger). The original
   // file name comes in the X-Upload-Filename header (sanitized server-side). The
   // returned `name` is then passed to POST /api/youtube/upload to publish.
+  // Chunked upload: POST a single ≤5 MB piece. Body is raw binary; the upload
+  // ID (hex UUID) and original filename come in as headers.
+  if (url.pathname === "/api/youtube/uploads/chunk" && request.method === "POST") {
+    const uploadId = asString(request.headers["x-upload-id"]).replace(/-/g, "");
+    let originalName = asString(request.headers["x-upload-filename"]);
+    try { originalName = decodeURIComponent(originalName); } catch { /* keep raw */ }
+
+    if (!/^[a-f0-9]{32}$/.test(uploadId)) {
+      await drainBody(request);
+      sendJson(response, 400, { error: "invalid_upload_id" });
+      return;
+    }
+    try {
+      const result = await appendChunk(uploadId, request, user.id);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "unknown";
+      if (code === "file_too_large") {
+        sendJson(response, 413, { error: "file_too_large", limitBytes: MAX_STAGED_UPLOAD_BYTES });
+      } else {
+        sendJson(response, 500, { error: code });
+      }
+    }
+    return;
+  }
+
+  // Finalizes a chunked upload: renames tmp → staged file, returns { name, size }.
+  if (url.pathname === "/api/youtube/uploads/finalize" && request.method === "POST") {
+    const body = await readBody(request);
+    const uploadId = asString(body.uploadId).replace(/-/g, "");
+    const originalName = asString(body.originalName);
+    if (!/^[a-f0-9]{32}$/.test(uploadId)) {
+      sendJson(response, 400, { error: "invalid_upload_id" });
+      return;
+    }
+    try {
+      const result = await finalizeChunkedUpload(uploadId, originalName, user.id);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "unknown";
+      sendJson(response, code === "upload_not_found" ? 404 : 500, { error: code });
+    }
+    return;
+  }
+
   // Initiates a YouTube resumable upload session. Returns { uploadUri } so the
   // browser can PUT the file directly to YouTube without routing through Railway.
   if (url.pathname === "/api/youtube/resumable-init" && request.method === "POST") {
