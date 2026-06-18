@@ -994,16 +994,27 @@ export function AccountVault({
   const hasAnyAccounts = accounts.length > 0;
   const hasActiveListFilters = activeFilterCount > 0 || platformFilter !== ALL;
 
-  const activeCount = accounts.filter(
+  // As abas de status contam DENTRO da rede selecionada na barra lateral, pra
+  // a contagem sempre bater com o que a lista mostra (ex.: Facebook = 0 contas
+  // → todas as abas mostram 0, em vez de "Todas 1" com a lista vazia).
+  const scopedAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (account) =>
+          platformFilter === ALL || account.platform === platformFilter,
+      ),
+    [accounts, platformFilter],
+  );
+  const activeCount = scopedAccounts.filter(
     (account) => account.status === "active",
   ).length;
-  const archivedCount = accounts.filter(
+  const archivedCount = scopedAccounts.filter(
     (account) => account.status === "archived",
   ).length;
-  const reviewCount = accounts.filter(
+  const reviewCount = scopedAccounts.filter(
     (account) => account.status === "review",
   ).length;
-  const inactiveCount = accounts.filter(
+  const inactiveCount = scopedAccounts.filter(
     (account) => account.status === "inactive",
   ).length;
   const statusTabs = [
@@ -1011,7 +1022,7 @@ export function AccountVault({
     { value: "active", label: t("vault.tab_active"), count: activeCount },
     { value: "review", label: t("vault.tab_review"), count: reviewCount },
     { value: "inactive", label: t("vault.tab_disabled"), count: inactiveCount },
-    { value: ALL, label: t("vault.tab_all"), count: accounts.length },
+    { value: ALL, label: t("vault.tab_all"), count: scopedAccounts.length },
   ] satisfies Array<{
     count: number;
     label: string;
@@ -1554,6 +1565,7 @@ export function AccountVault({
                 setDashboardOpen(false);
                 setPosterOpen(false);
                 setPlatformFilter(ALL);
+                setStatusFilter(ALL);
               }}
             />
             {sidebarPlatforms.map((platform) => (
@@ -1568,6 +1580,7 @@ export function AccountVault({
                   setDashboardOpen(false);
                   setPosterOpen(false);
                   setPlatformFilter(platform);
+                  setStatusFilter(ALL);
                 }}
               />
             ))}
@@ -1678,7 +1691,7 @@ export function AccountVault({
                     {t("vault.records")}
                   </p>
                   <p className="mt-1 text-sm text-[color:var(--muted)]">
-                    {filteredAccounts.length} / {accounts.length}
+                    {filteredAccounts.length} / {scopedAccounts.length}
                   </p>
                 </div>
                 <div className="vault-filters flex flex-wrap items-center gap-2.5 sm:gap-3">
