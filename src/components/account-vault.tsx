@@ -517,6 +517,7 @@ export function AccountVault({
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [posterOpen, setPosterOpen] = useState(false);
   const configurationMenuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
   const [quickViewAccount, setQuickViewAccount] =
     useState<AccountRecord | null>(null);
@@ -989,6 +990,58 @@ export function AccountVault({
     resetForm();
   }
 
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.isContentEditable
+      );
+    }
+
+    function handleKeyboardShortcuts(event: KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      const modalOpen =
+        isAccountModalOpen ||
+        Boolean(groupDialog) ||
+        confirmDeleteGroup ||
+        Boolean(deleteAccountId) ||
+        reauthOpen ||
+        usersDialogOpen ||
+        accountSettingsOpen ||
+        Boolean(quickViewAccount);
+
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        if (modalOpen) return;
+        event.preventDefault();
+        setPosterOpen(false);
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      if (!modalOpen && !isEditableTarget(event.target) && key === "n") {
+        event.preventDefault();
+        openCreateModal();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyboardShortcuts);
+    return () =>
+      document.removeEventListener("keydown", handleKeyboardShortcuts);
+  }, [
+    accountSettingsOpen,
+    confirmDeleteGroup,
+    deleteAccountId,
+    groupDialog,
+    isAccountModalOpen,
+    quickViewAccount,
+    reauthOpen,
+    usersDialogOpen,
+  ]);
+
   function selectAccount(account: AccountRecord) {
     setQuickViewAccount(account);
   }
@@ -1000,6 +1053,28 @@ export function AccountVault({
     setShowPassword(false);
     setMessage("");
     setIsAccountModalOpen(true);
+  }
+
+  async function saveQuickViewEdit(draft: AccountDraft) {
+    if (!quickViewAccount) return;
+    const cleaned = normalizeDraft(draft);
+    try {
+      const updated = await withReauth(() =>
+        requestJson<AccountRecord>(
+          `${accountsBase}/${encodeURIComponent(quickViewAccount.id)}`,
+          { method: "PUT", body: JSON.stringify(cleaned) },
+        ),
+      );
+      setAccountList(
+        accounts.map((a) => (a.id === quickViewAccount.id ? updated : a)),
+      );
+      setQuickViewAccount(updated);
+      notify(t("vault.toast_account_updated"));
+    } catch (error) {
+      if (isReauthRequired(error)) throw error;
+      notify(t("vault.toast_account_save_error"), "error");
+      throw error;
+    }
   }
 
   async function saveAccount() {
@@ -1518,12 +1593,17 @@ export function AccountVault({
                   <div className="relative min-w-0 flex-1 basis-full sm:w-56 sm:flex-none sm:basis-auto">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--muted)]" />
                     <Input
+                      ref={searchInputRef}
                       aria-label={t("vault.search_label")}
-                      className="pl-9"
+                      aria-keyshortcuts="Control+K Meta+K"
+                      className="pl-9 pr-20"
                       placeholder={t("vault.search_placeholder")}
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                     />
+                    <kbd className="shortcut-key pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 sm:block">
+                      Ctrl K
+                    </kbd>
                   </div>
                   <FilterSelect
                     icon={Filter}
@@ -1536,12 +1616,17 @@ export function AccountVault({
                     onChange={setRoleFilter}
                   />
                   <button
+                    aria-keyshortcuts="N"
                     className="vault-btn-secondary"
+                    title={t("vault.new_account_shortcut")}
                     type="button"
                     onClick={openCreateModal}
                   >
                     <Plus className="h-4 w-4" />
                     {t("vault.new_account")}
+                    <kbd className="shortcut-key ml-1 hidden sm:inline-flex">
+                      N
+                    </kbd>
                   </button>
                 </div>
               </div>
@@ -1556,7 +1641,11 @@ export function AccountVault({
 
               <div className="border-t border-[color:var(--border)]">
                 {filteredAccounts.length ? (
-                  <div className="vault-list">
+                  <div
+                    aria-label={t("vault.accounts_list_label")}
+                    className="vault-list"
+                    role="list"
+                  >
                     {filteredAccounts
                       .slice(0, visibleCount)
                       .map((account, index) => (
@@ -1577,7 +1666,10 @@ export function AccountVault({
                   </div>
                 ) : (
                   <div className="vault-empty">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent)]">
+                    <div
+                      aria-hidden
+                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent)]"
+                    >
                       <KeyRound className="h-5 w-5" />
                     </div>
                     <div className="grid gap-1 text-center">
@@ -1628,7 +1720,7 @@ export function AccountVault({
           onCopy={copyValue}
           onCopyPassword={() => copyQuickViewSecret(quickViewAccount.id)}
           onDelete={() => deleteAccount(quickViewAccount.id)}
-          onEdit={() => editAccount(quickViewAccount)}
+          onSave={saveQuickViewEdit}
           passwordRevealed={quickViewReveal}
           revealedPassword={quickViewSecret}
           onTogglePassword={() => revealQuickViewSecret(quickViewAccount.id)}
@@ -2266,6 +2358,7 @@ type ChoiceButtonProps = {
 function ChoiceButton({ children, onClick, selected }: ChoiceButtonProps) {
   return (
     <button
+      aria-pressed={selected}
       className={cn(
         "flex min-h-12 items-center gap-2 rounded-xl border px-3 text-left text-sm font-semibold transition duration-200",
         selected
@@ -3019,10 +3112,18 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
           ? "bg-[color:var(--surface-soft)] shadow-[inset_3px_0_0_var(--accent)]"
           : "hover:bg-[color:var(--surface-soft)]",
       )}
+      role="listitem"
       style={{ animationDelay: `${Math.min(index, 12) * 28}ms` }}
       onMouseMove={handleMouseMove}
     >
-      <button className="min-w-0 text-left" type="button" onClick={onSelect}>
+      <button
+        aria-label={t("vault.open_account_label", {
+          name: titleFor(account),
+        })}
+        className="min-w-0 text-left"
+        type="button"
+        onClick={onSelect}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <PlatformGlyph platform={account.platform} />
           <div className="min-w-0">
@@ -3042,11 +3143,16 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
 
       <div className="flex flex-wrap items-center gap-2 sm:justify-end md:pr-1">
         <span
-          className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold",
+          aria-label={
             account.hasPassword
-              ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent-soft)]"
-              : "border-amber-400/35 bg-amber-400/10 text-amber-200",
+              ? t("vault.password_saved")
+              : t("vault.password_missing")
+          }
+          className={cn(
+            "security-chip",
+            account.hasPassword
+              ? "security-chip-secure"
+              : "security-chip-warning",
           )}
           title={
             account.hasPassword
@@ -3054,23 +3160,28 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
               : t("vault.password_missing")
           }
         >
-          <KeyRound className="h-3.5 w-3.5" />
+          <KeyRound aria-hidden className="h-3.5 w-3.5" />
           {account.hasPassword
             ? t("vault.password_saved_short")
             : t("vault.password_missing_short")}
         </span>
         <span
-          className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold",
+          aria-label={
             account.twoFactor
-              ? "border-sky-300/35 bg-sky-400/10 text-sky-200"
-              : "border-[color:var(--border)] bg-[color:var(--surface-soft)] text-[color:var(--muted)]",
+              ? t("vault.two_factor_on")
+              : t("vault.two_factor_off")
+          }
+          className={cn(
+            "security-chip",
+            account.twoFactor
+              ? "security-chip-info"
+              : "security-chip-neutral",
           )}
           title={
             account.twoFactor ? t("vault.two_factor_on") : t("vault.two_factor_off")
           }
         >
-          <ShieldCheck className="h-3.5 w-3.5" />
+          <ShieldCheck aria-hidden className="h-3.5 w-3.5" />
           {account.twoFactor
             ? t("vault.two_factor_on_short")
             : t("vault.two_factor_off_short")}
@@ -3154,7 +3265,7 @@ type QuickViewModalProps = {
   onCopy: (value: string, key: string) => void;
   onCopyPassword: () => void;
   onDelete: () => void;
-  onEdit: () => void;
+  onSave: (draft: AccountDraft) => Promise<void>;
   passwordRevealed: boolean;
   // The password fetched on demand; only meaningful while passwordRevealed.
   revealedPassword: string;
@@ -3168,28 +3279,61 @@ function QuickViewModal({
   onCopy,
   onCopyPassword,
   onDelete,
-  onEdit,
+  onSave,
   passwordRevealed,
   revealedPassword,
   onTogglePassword,
 }: QuickViewModalProps) {
   const { t } = useTranslation();
   const { closing, close } = useClosing(onClose);
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [editDraft, setEditDraft] = useState<AccountDraft>(() => toDraft(account));
+  const [editSaving, setEditSaving] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        close();
+        if (mode === "edit") {
+          setMode("view");
+          setEditDraft(toDraft(account));
+        } else {
+          close();
+        }
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
 
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [close]);
+  }, [close, mode, account]);
+
+  function enterEdit() {
+    setEditDraft(toDraft(account));
+    setShowEditPassword(false);
+    setMode("edit");
+  }
+
+  function cancelEdit() {
+    setEditDraft(toDraft(account));
+    setMode("view");
+  }
+
+  async function handleSave() {
+    setEditSaving(true);
+    try {
+      await onSave(editDraft);
+      setMode("view");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   // O painel inteiro é tematizado pela cor da plataforma desta conta.
   const accent = accentForPlatform(account.platform);
+
+  const inputClass =
+    "w-full rounded-xl border border-[color:var(--qv-line)] bg-[color:var(--qv-surface)] px-4 py-2.5 font-mono text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] outline-none transition-all duration-150 focus:border-[color:var(--qv-accent)] focus:shadow-[0_0_0_2px_var(--qv-surface-strong)]";
 
   return (
     <div className="modal-viewport fixed inset-0 z-50 flex overflow-y-auto overscroll-contain px-4 py-6">
@@ -3246,56 +3390,150 @@ function QuickViewModal({
           </span>
         </div>
 
-        {/* campos */}
-        <div className="grid gap-3 px-6 py-7 sm:px-10">
-          <QuickField
-            copied={copiedKey === `${account.id}:email`}
-            icon={Mail}
-            label={t("vault.field_email")}
-            copyLabel={t("vault.copy_email")}
-            value={account.email}
-            onCopy={() => onCopy(account.email, `${account.id}:email`)}
-          />
-          <QuickField
-            copied={copiedKey === `${account.id}:password`}
-            icon={KeyRound}
-            value={
-              passwordRevealed
-                ? revealedPassword
-                : account.hasPassword
-                  ? "set"
-                  : ""
-            }
-            label={t("vault.field_password")}
-            copyLabel={t("vault.copy_password")}
-            showLabel={t("vault.show_password")}
-            hideLabel={t("vault.hide_password")}
-            secret
-            revealed={passwordRevealed}
-            onToggleReveal={onTogglePassword}
-            onCopy={onCopyPassword}
-          />
-        </div>
+        {mode === "view" ? (
+          <>
+            {/* campos — modo leitura */}
+            <div className="grid gap-3 px-6 py-7 sm:px-10">
+              <QuickField
+                copied={copiedKey === `${account.id}:email`}
+                icon={Mail}
+                label={t("vault.field_email")}
+                copyLabel={t("vault.copy_email")}
+                value={account.email}
+                onCopy={() => onCopy(account.email, `${account.id}:email`)}
+              />
+              <QuickField
+                copied={copiedKey === `${account.id}:password`}
+                icon={KeyRound}
+                value={
+                  passwordRevealed
+                    ? revealedPassword
+                    : account.hasPassword
+                      ? "set"
+                      : ""
+                }
+                label={t("vault.field_password")}
+                copyLabel={t("vault.copy_password")}
+                showLabel={t("vault.show_password")}
+                hideLabel={t("vault.hide_password")}
+                secret
+                revealed={passwordRevealed}
+                onToggleReveal={onTogglePassword}
+                onCopy={onCopyPassword}
+              />
+            </div>
 
-        {/* ações */}
-        <footer className="flex items-center justify-between gap-3 px-6 pb-7 sm:px-10">
-          <button
-            className="group inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-500/10 hover:text-red-300"
-            type="button"
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-            {t("vault.delete")}
-          </button>
-          <button
-            className="group inline-flex items-center gap-2 rounded-xl bg-[color:var(--qv-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_var(--qv-glow),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-10px_var(--qv-glow),inset_0_1px_0_rgba(255,255,255,0.4)] active:translate-y-0"
-            type="button"
-            onClick={onEdit}
-          >
-            <Pencil className="h-4 w-4 transition-transform duration-200 group-hover:-rotate-6" />
-            {t("vault.edit")}
-          </button>
-        </footer>
+            {/* ações — modo leitura */}
+            <footer className="flex items-center justify-between gap-3 px-6 pb-7 sm:px-10">
+              <button
+                className="group inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-500/10 hover:text-red-300"
+                type="button"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                {t("vault.delete")}
+              </button>
+              <button
+                className="group inline-flex items-center gap-2 rounded-xl bg-[color:var(--qv-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_var(--qv-glow),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-10px_var(--qv-glow),inset_0_1px_0_rgba(255,255,255,0.4)] active:translate-y-0"
+                type="button"
+                onClick={enterEdit}
+              >
+                <Pencil className="h-4 w-4 transition-transform duration-200 group-hover:-rotate-6" />
+                {t("vault.edit")}
+              </button>
+            </footer>
+          </>
+        ) : (
+          <>
+            {/* campos — modo edição */}
+            <div className="grid gap-4 px-6 py-7 sm:px-10">
+              <div className="grid gap-1.5">
+                <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--qv-label)]">
+                  <Mail className="h-3 w-3" />
+                  {t("vault.field_email")}
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder="—"
+                  type="email"
+                  value={editDraft.email}
+                  onChange={(e) =>
+                    setEditDraft((d) => ({ ...d, email: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--qv-label)]">
+                  <UserRound className="h-3 w-3" />
+                  {t("vault.field_username")}
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder="—"
+                  type="text"
+                  value={editDraft.username}
+                  onChange={(e) =>
+                    setEditDraft((d) => ({ ...d, username: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--qv-label)]">
+                  <KeyRound className="h-3 w-3" />
+                  {t("vault.field_password")}
+                </label>
+                <div className="relative">
+                  <input
+                    className={cn(inputClass, "pr-11")}
+                    placeholder="—"
+                    type={showEditPassword ? "text" : "password"}
+                    value={editDraft.password}
+                    onChange={(e) =>
+                      setEditDraft((d) => ({ ...d, password: e.target.value }))
+                    }
+                  />
+                  <button
+                    aria-label={showEditPassword ? t("vault.hide_password") : t("vault.show_password")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
+                    type="button"
+                    onClick={() => setShowEditPassword((v) => !v)}
+                  >
+                    {showEditPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ações — modo edição */}
+            <footer className="flex items-center justify-end gap-3 px-6 pb-7 sm:px-10">
+              <button
+                className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--qv-line)] px-5 py-2.5 text-sm font-medium text-[color:var(--muted)] transition-all duration-200 hover:border-[color:var(--qv-accent)] hover:text-[color:var(--text)]"
+                disabled={editSaving}
+                type="button"
+                onClick={cancelEdit}
+              >
+                {t("vault.cancel")}
+              </button>
+              <button
+                className="inline-flex items-center gap-2 rounded-xl bg-[color:var(--qv-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_var(--qv-glow),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-10px_var(--qv-glow)] active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+                disabled={editSaving}
+                type="button"
+                onClick={handleSave}
+              >
+                {editSaving ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {t("vault.save")}
+              </button>
+            </footer>
+          </>
+        )}
       </section>
     </div>
   );
