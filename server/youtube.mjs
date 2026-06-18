@@ -561,6 +561,55 @@ export async function listUploadHistory(ownerId) {
   return items.filter((item) => item.ownerId === safeOwnerId);
 }
 
+// Cross-checks the stored history against YouTube and removes any item whose
+// video no longer exists there (e.g. the user deleted it directly on YouTube).
+// videos.list only returns ids that still exist, so anything missing from the
+// response was deleted. Best-effort and conservative: if a channel can't be
+// reached (disconnected, quota, network), its items are left untouched — we
+// never purge on uncertainty. Returns the cleaned list.
+export async function reconcileHistory(ownerId) {
+  const safeOwnerId = safeStorageKey(ownerId);
+  const items = await listUploadHistory(safeOwnerId);
+  if (!items.length) return items;
+
+  // Group the (existing) video ids by channel so we can verify them in batches.
+  const byChannel = new Map();
+  for (const item of items) {
+    if (!item.videoId || !item.channelId) continue;
+    if (!byChannel.has(item.channelId)) byChannel.set(item.channelId, new Set());
+    byChannel.get(item.channelId).add(item.videoId);
+  }
+
+  const missing = new Set(); // videoIds confirmed gone from YouTube
+  for (const [channelId, idSet] of byChannel) {
+    let auth;
+    try {
+      auth = await clientForChannel(channelId, safeOwnerId);
+    } catch {
+      continue; // channel disconnected — leave its items alone
+    }
+    const youtube = google.youtube({ version: "v3", auth });
+    const ids = [...idSet];
+    const existing = new Set();
+    try {
+      for (let i = 0; i < ids.length; i += 50) {
+        const res = await youtube.videos.list({
+          part: ["id"],
+          id: ids.slice(i, i + 50),
+        });
+        for (const v of res.data.items ?? []) existing.add(v.id);
+      }
+    } catch {
+      continue; // API error — don't purge on uncertainty
+    }
+    for (const id of ids) if (!existing.has(id)) missing.add(id);
+  }
+
+  if (!missing.size) return items;
+  for (const id of missing) await removeFromHistory(id, safeOwnerId);
+  return items.filter((item) => !(item.videoId && missing.has(item.videoId)));
+}
+
 // Aplica um patch (título/descrição/privacidade) ao item do histórico, para a
 // lista refletir a edição na hora.
 async function updateHistory(videoId, ownerId, patch) {

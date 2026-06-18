@@ -30,6 +30,7 @@ import {
   deleteVideo,
   finalizeChunkedUpload,
   initiateResumableUpload,
+  reconcileHistory,
   recordUpload,
   updateVideo,
   uploadVideo,
@@ -2487,7 +2488,13 @@ async function handleApi(request, response, url, user, session) {
 
   // Upload history (metadata only — the video itself is never stored).
   if (url.pathname === "/api/youtube/history" && request.method === "GET") {
-    sendJson(response, 200, { items: await listUploadHistory(user.id) });
+    // ?reconcile=1 cross-checks against YouTube and drops videos deleted there;
+    // the bare call returns the cached list instantly (used for first paint).
+    const items =
+      url.searchParams.get("reconcile") === "1"
+        ? await reconcileHistory(user.id)
+        : await listUploadHistory(user.id);
+    sendJson(response, 200, { items });
     return;
   }
 

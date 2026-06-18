@@ -487,8 +487,10 @@ export function YouTubePoster() {
     setSchedule("");
   }
 
-  const loadHistory = useCallback(() => {
-    fetch("/api/youtube/history")
+  // reconcile=true cross-checks YouTube and drops videos deleted there. The bare
+  // call is instant (cached) — used for first paint; reconcile runs after / on poll.
+  const loadHistory = useCallback((reconcile = false) => {
+    fetch(`/api/youtube/history${reconcile ? "?reconcile=1" : ""}`)
       .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((d: { items?: HistoryItem[] }) => setHistory(d.items ?? []))
       .catch(() => setHistory([]));
@@ -499,8 +501,24 @@ export function YouTubePoster() {
       .then((r) => (r.ok ? r.json() : { channels: [] }))
       .then((d: { channels?: Channel[] }) => setChannels(d.channels ?? []))
       .catch(() => setChannels([]));
-    loadHistory();
+    loadHistory(); // instant cached paint
+    loadHistory(true); // then reconcile in the background
   }, [loadHistory]);
+
+  // Keep the history live: while it's on screen, re-check against YouTube on a
+  // light interval and whenever the tab/window regains focus, so a video deleted
+  // directly on YouTube disappears here on its own.
+  useEffect(() => {
+    if (tab !== "history") return;
+    loadHistory(true);
+    const onFocus = () => loadHistory(true);
+    window.addEventListener("focus", onFocus);
+    const id = window.setInterval(() => loadHistory(true), 25_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(id);
+    };
+  }, [tab, loadHistory]);
 
   function pickFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
