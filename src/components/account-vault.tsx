@@ -349,15 +349,6 @@ function hasSensitiveDraftChanges(current: AccountDraft, baseline: AccountDraft)
   );
 }
 
-function formatUpdatedAtLabel(value: string, locale: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "short",
-  }).format(date);
-}
-
 function migrateAccount(account: AccountRecord): AccountRecord {
   return {
     ...account,
@@ -2437,6 +2428,22 @@ function AccountForm({
             ))}
           </ChoiceGrid>
         </Field>
+
+        <Field label={t("vault.field_status")}>
+          <ChoiceGrid>
+            {(["active", "review", "archived", "inactive"] as AccountStatus[]).map(
+              (status) => (
+                <ChoiceButton
+                  key={status}
+                  selected={draft.status === status}
+                  onClick={() => onUpdate("status", status)}
+                >
+                  {statusLabel[status]}
+                </ChoiceButton>
+              ),
+            )}
+          </ChoiceGrid>
+        </Field>
       </FormSection>
 
       <FormSection title={t("vault.form_access")}>
@@ -3297,8 +3304,7 @@ type AccountRowProps = {
 };
 
 function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
-  const { i18n, t } = useTranslation();
-  const updatedAtLabel = formatUpdatedAtLabel(account.updatedAt, i18n.language);
+  const { t } = useTranslation();
   const hasAccess = Boolean(account.email || account.username);
   // Move a CSS variable to follow the cursor so the .spotlight-card highlight
   // tracks the mouse over the row.
@@ -3333,22 +3339,11 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
         <div className="flex min-w-0 items-start gap-3">
           <PlatformGlyph platform={account.platform} />
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p className="truncate text-sm font-semibold text-[color:var(--text)]">
-                {titleFor(account)}
-              </p>
-              {updatedAtLabel ? (
-                <span className="hidden shrink-0 text-[11px] font-medium text-[color:var(--muted-soft)] sm:inline">
-                  {t("vault.updated_short", { date: updatedAtLabel })}
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[color:var(--muted)]">
-              <span>{account.platform}</span>
-              <span aria-hidden className="text-[color:var(--muted-soft)]">
-                /
-              </span>
-              <span>{account.role}</span>
+            <p className="truncate text-sm font-semibold text-[color:var(--text)]">
+              {titleFor(account)}
+            </p>
+            <div className="mt-1 text-xs text-[color:var(--muted)]">
+              {account.role}
             </div>
             <div className="mt-2 grid gap-1.5 text-xs text-[color:var(--muted-soft)] sm:grid-cols-2">
               <span className="flex min-w-0 items-center gap-1.5">
@@ -3393,9 +3388,6 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
           }
         >
           <KeyRound aria-hidden className="h-3.5 w-3.5" />
-          {account.hasPassword
-            ? t("vault.password_saved_short")
-            : t("vault.password_missing_short")}
         </span>
         <span
           aria-label={
@@ -3414,20 +3406,7 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
           }
         >
           <ShieldCheck aria-hidden className="h-3.5 w-3.5" />
-          {account.twoFactor
-            ? t("vault.two_factor_on_short")
-            : t("vault.two_factor_off_short")}
         </span>
-        {updatedAtLabel ? (
-          <span
-            aria-label={t("vault.updated_full", { date: updatedAtLabel })}
-            className="security-chip security-chip-neutral hidden md:inline-flex"
-            title={t("vault.updated_full", { date: updatedAtLabel })}
-          >
-            <Pencil aria-hidden className="h-3.5 w-3.5" />
-            {t("vault.updated_label", { date: updatedAtLabel })}
-          </span>
-        ) : null}
         <Badge variant={account.status}>{statusLabel[account.status]}</Badge>
       </div>
     </div>

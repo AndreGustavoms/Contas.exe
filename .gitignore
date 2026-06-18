@@ -47,3 +47,4 @@ gitignore.md
 
 # --- Ferramentas locais (config da maquina, nao do repo) ---
 .claude/
+.codex-run/

@@ -297,6 +297,7 @@
     "field_email": "邮箱",
     "field_username": "用户名",
     "field_password": "密码",
+    "field_status": "状态",
     "field_2fa": "2FA",
     "email_missing": "无邮箱",
     "username_missing": "无用户名",

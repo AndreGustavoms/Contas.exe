@@ -313,6 +313,7 @@
     "field_email": "Email",
     "field_username": "Username",
     "field_password": "Password",
+    "field_status": "Status",
     "field_2fa": "2FA",
     "email_missing": "No email",
     "username_missing": "No username",

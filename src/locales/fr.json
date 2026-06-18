@@ -311,6 +311,7 @@
     "field_email": "E-mail",
     "field_username": "Identifiant",
     "field_password": "Mot de passe",
+    "field_status": "Statut",
     "field_2fa": "2FA",
     "email_missing": "Sans e-mail",
     "username_missing": "Sans identifiant",

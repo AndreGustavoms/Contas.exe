@@ -1,5 +1,7 @@
 import {
   type FormEvent,
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useRef,
@@ -17,7 +19,6 @@ import {
   Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LocalLogin } from "../components/local-login";
 import { ThemeToggle } from "../components/theme-toggle";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "../theme";
 import { adminRequest, isReauthRequired } from "./api";
@@ -28,6 +29,10 @@ import { UsersTab } from "./tabs/users-tab";
 import { SessionsTab } from "./tabs/sessions-tab";
 import { SecurityTab } from "./tabs/security-tab";
 import { AuditTab } from "./tabs/audit-tab";
+
+const LocalLogin = lazy(() =>
+  import("../components/local-login").then((m) => ({ default: m.LocalLogin })),
+);
 
 // Painel superadmin, montado SOMENTE na rota /admin (ver main.tsx). É um app
 // separado do principal: tem seu próprio gate. A barreira real é o servidor —
@@ -174,19 +179,21 @@ export default function AdminApp() {
         <div className="fixed right-4 top-4 z-[100]">
           <ThemeToggle value={theme} onChange={changeTheme} />
         </div>
-        <LocalLogin
-          theme={theme}
-          onUnlock={() => {
-            setPhase("checking");
-            void resolveAccess();
-          }}
-          onForgotPassword={() => {
-            window.location.href = "/";
-          }}
-          onRegister={() => {
-            window.location.href = "/";
-          }}
-        />
+        <Suspense>
+          <LocalLogin
+            theme={theme}
+            onUnlock={() => {
+              setPhase("checking");
+              void resolveAccess();
+            }}
+            onForgotPassword={() => {
+              window.location.href = "/";
+            }}
+            onRegister={() => {
+              window.location.href = "/";
+            }}
+          />
+        </Suspense>
       </div>
     );
   }
