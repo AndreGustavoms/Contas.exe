@@ -900,6 +900,15 @@ function applySecurityHeaders(request, response) {
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader("X-DNS-Prefetch-Control", "off");
   response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  // Secure default: never let a browser or proxy cache a response. Every API
+  // payload can carry session/PII (account lists, masked secrets, auth state),
+  // and the HTML shell must not survive in bfcache after logout (Back button
+  // would otherwise show an authenticated screen). Content-hashed static assets
+  // override this with an immutable cache in serveStatic. Pragma/Expires cover
+  // legacy HTTP/1.0 proxies.
+  response.setHeader("Cache-Control", "no-store, max-age=0");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("Expires", "0");
   response.setHeader(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=(), payment=()",
@@ -3157,10 +3166,20 @@ async function serveStatic(request, response, url) {
 
   try {
     await stat(filePath);
-    response.writeHead(200, {
+    // Vite emits content-hashed files under /assets/ (the name changes whenever
+    // the content does), so they're safe to cache forever. Everything else (the
+    // HTML shell, favicon, etc.) keeps the no-store default from
+    // applySecurityHeaders so a stale shell never lingers after a deploy/logout.
+    const headers = {
       "Content-Type":
         contentTypes[extname(filePath)] ?? "application/octet-stream",
-    });
+    };
+    if (url.pathname.startsWith("/assets/")) {
+      response.removeHeader("Pragma");
+      response.removeHeader("Expires");
+      headers["Cache-Control"] = "public, max-age=31536000, immutable";
+    }
+    response.writeHead(200, headers);
     createReadStream(filePath).pipe(response);
   } catch {
     const indexPath = join(distDir, "index.html");
