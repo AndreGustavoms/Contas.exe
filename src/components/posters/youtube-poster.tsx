@@ -40,6 +40,7 @@ type VideoType = "video" | "short" | "community";
 
 type HistoryItem = {
   videoId: string | null;
+  channelId?: string;
   title: string;
   description?: string;
   durationSeconds: number | null;
@@ -1480,13 +1481,13 @@ function HistoryList({
 
   if (items.length === 0) return null;
 
-  async function handleDelete(videoId: string) {
+  async function handleDelete(videoId: string, itemChannelId?: string) {
     setDeleting(videoId);
     try {
       const res = await fetch("/api/youtube/video", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelId, videoId }),
+        body: JSON.stringify({ channelId: itemChannelId || channelId, videoId }),
       });
       if (res.ok) {
         onDelete(videoId);
@@ -1591,7 +1592,7 @@ function HistoryList({
                     <button
                       type="button"
                       disabled={isDeleting}
-                      onClick={() => handleDelete(item.videoId!)}
+                      onClick={() => handleDelete(item.videoId!, item.channelId)}
                       className="flex h-7 items-center gap-1 rounded-lg bg-red-500/15 px-2 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/25 disabled:opacity-50"
                     >
                       {isDeleting ? (
@@ -1617,7 +1618,7 @@ function HistoryList({
       </ul>
       {editing?.videoId && (
         <EditHistoryModal
-          channelId={channelId}
+          channelId={editing.channelId || channelId}
           item={editing}
           onClose={() => setEditing(null)}
           onSaved={(patch) => {
@@ -1679,10 +1680,18 @@ function EditHistoryModal({
           privacyStatus: privacy,
         }),
       });
-      if (!res.ok) throw new Error("update_failed");
+      if (!res.ok) {
+        const payload = parseJson(await res.text());
+        throw new Error(payload.message || payload.error || "update_failed");
+      }
       onSaved({ title: title.trim(), description, privacyStatus: privacy });
-    } catch {
-      setError(t("post.youtube.edit_error"));
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "";
+      setError(
+        detail && detail !== "update_failed"
+          ? `${t("post.youtube.edit_error")} (${detail})`
+          : t("post.youtube.edit_error"),
+      );
     } finally {
       setBusy(false);
     }
