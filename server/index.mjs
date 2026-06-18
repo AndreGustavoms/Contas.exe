@@ -27,6 +27,8 @@ import {
   MAX_STAGED_UPLOAD_BYTES,
   stageUpload,
   deleteVideo,
+  initiateResumableUpload,
+  recordUpload,
   updateVideo,
   uploadVideo,
   uploadsDirectory,
@@ -2500,6 +2502,36 @@ async function handleApi(request, response, url, user, session) {
   // server (bypasses the 1 MB JSON cap — videos are far larger). The original
   // file name comes in the X-Upload-Filename header (sanitized server-side). The
   // returned `name` is then passed to POST /api/youtube/upload to publish.
+  // Initiates a YouTube resumable upload session. Returns { uploadUri } so the
+  // browser can PUT the file directly to YouTube without routing through Railway.
+  if (url.pathname === "/api/youtube/resumable-init" && request.method === "POST") {
+    const body = await readBody(request);
+    const channelId = asString(body.channelId).trim();
+    const title = asString(body.title).trim();
+    if (!channelId || !title) {
+      sendJson(response, 400, { error: "missing_fields" });
+      return;
+    }
+    try {
+      const result = await initiateResumableUpload({
+        ownerId: user.id,
+        channelId,
+        title,
+        description: asString(body.description),
+        tags: Array.isArray(body.tags) ? body.tags : [],
+        publishAt: body.publishAt ?? null,
+        privacyStatus: asString(body.privacyStatus) || "private",
+        fileSizeBytes: body.fileSizeBytes ? Number(body.fileSizeBytes) : undefined,
+        mimeType: asString(body.mimeType) || "video/*",
+      });
+      sendJson(response, 200, result);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "unknown";
+      sendJson(response, 500, { error: code });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/youtube/uploads" && request.method === "POST") {
     try {
       let originalName = asString(request.headers["x-upload-filename"]);
@@ -2555,6 +2587,27 @@ async function handleApi(request, response, url, user, session) {
   // Upload (optionally scheduled via publishAt). The body carries only a bare
   // file NAME, which youtube.mjs resolves inside the uploads directory — never a
   // caller-supplied absolute path, so this can't be used to read arbitrary
+  // Records a browser-direct upload in history (no file involved).
+  if (url.pathname === "/api/youtube/upload-record" && request.method === "POST") {
+    const body = await readBody(request);
+    try {
+      await recordUpload({
+        ownerId: user.id,
+        channelId: asString(body.channelId),
+        videoId: asString(body.videoId),
+        title: asString(body.title),
+        description: asString(body.description),
+        tags: Array.isArray(body.tags) ? body.tags : [],
+        privacyStatus: asString(body.privacyStatus),
+        publishAt: body.publishAt ?? null,
+      });
+      sendJson(response, 200, { ok: true });
+    } catch {
+      sendJson(response, 500, { error: "record_failed" });
+    }
+    return;
+  }
+
   // files off the server (the reason the endpoint was previously disabled).
   if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
     const body = await readBody(request);

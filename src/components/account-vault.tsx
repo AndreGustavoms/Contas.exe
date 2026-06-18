@@ -989,9 +989,10 @@ export function AccountVault({
   }
 
   const activeFilterCount =
-    (query.trim() ? 1 : 0) +
     (roleFilter !== ALL ? 1 : 0) +
     (statusFilter !== ALL ? 1 : 0);
+  const hasAnyAccounts = accounts.length > 0;
+  const hasActiveListFilters = activeFilterCount > 0 || platformFilter !== ALL;
 
   const activeCount = accounts.filter(
     (account) => account.status === "active",
@@ -1671,29 +1672,32 @@ export function AccountVault({
               className="vault-card animate-rise"
               style={{ animationDelay: "60ms" }}
             >
-              <div className="vault-toolbar flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="shrink-0">
-                  <p className="text-base font-semibold text-[color:var(--text)]">
+              <div className="vault-toolbar flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="vault-toolbar-heading shrink-0">
+                  <p className="text-base font-semibold tracking-[-0.02em] text-[color:var(--text)]">
                     {t("vault.records")}
                   </p>
-                  <p className="mt-0.5 text-sm text-[color:var(--muted)]">
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">
                     {filteredAccounts.length} / {accounts.length}
                   </p>
                 </div>
-                <div className="vault-filters flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="vault-filters flex flex-wrap items-center gap-2.5 sm:gap-3">
                   {message && !isAccountModalOpen ? (
                     <span className="accent-pill rounded-full border px-3 py-1 text-xs font-medium">
                       {message}
                     </span>
                   ) : null}
-                  <div className="relative min-w-0 flex-1 basis-full sm:w-56 sm:flex-none sm:basis-auto">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--muted)]" />
+                  <div className="vault-search-shell relative min-w-0 flex-[1.35] basis-full lg:basis-[20rem]">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--muted-soft)] transition-colors duration-200" />
                     <Input
                       ref={searchInputRef}
                       aria-label={t("vault.search_label")}
                       aria-keyshortcuts="Control+K Meta+K"
-                      className={query ? "pl-9 pr-8" : "pl-9 pr-32"}
-                      placeholder={t("vault.search_placeholder")}
+                      className={cn(
+                        "vault-search-input h-12 rounded-[18px] border-white/55 bg-white/72 shadow-none backdrop-blur-md transition-all duration-200 sm:h-11",
+                        query ? "pl-11 pr-10" : "pl-11 pr-20",
+                      )}
+                      placeholder={t("vault.global_search_placeholder")}
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       onFocus={() => {
@@ -1706,7 +1710,7 @@ export function AccountVault({
                     {query ? (
                       <button
                         aria-label={t("vault.search_clear")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
                         type="button"
                         onClick={() => {
                           setQuery("");
@@ -1729,7 +1733,7 @@ export function AccountVault({
                   </div>
                   {activeFilterCount > 0 ? (
                     <button
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-3 py-1 text-xs font-medium text-[color:var(--accent)] transition-colors hover:bg-[color:var(--accent-surface-hover,var(--accent-surface))] hover:text-[color:var(--accent)]"
+                      className="vault-filter-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-[color:var(--accent)] transition-all duration-200"
                       type="button"
                       onClick={clearFilters}
                     >
@@ -1751,7 +1755,7 @@ export function AccountVault({
                   />
                   <button
                     aria-keyshortcuts="N"
-                    className="vault-btn-secondary"
+                    className="vault-btn-secondary vault-toolbar-cta"
                     title={t("vault.new_account_shortcut")}
                     type="button"
                     onClick={openCreateModal}
@@ -1798,7 +1802,7 @@ export function AccountVault({
                       <div ref={listSentinelRef} aria-hidden className="h-10" />
                     ) : null}
                   </div>
-                ) : activeFilterCount > 0 || platformFilter !== ALL ? (
+                ) : hasAnyAccounts && hasActiveListFilters ? (
                   <div className="vault-empty">
                     <div
                       aria-hidden
@@ -1814,17 +1818,6 @@ export function AccountVault({
                         {t("vault.no_results_body")}
                       </p>
                     </div>
-                    <button
-                      className="vault-btn-secondary mt-2"
-                      type="button"
-                      onClick={() => {
-                        clearFilters();
-                        setPlatformFilter(ALL);
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                      {t("vault.clear_filters")}
-                    </button>
                   </div>
                 ) : (
                   <div className="vault-empty">
@@ -2612,7 +2605,7 @@ function StatusTabs({ onChange, tabs, value }: StatusTabsProps) {
     <div className="flex min-w-0 justify-start">
       <nav
         aria-label="Status"
-        className="status-tabs inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-[color:var(--border)] bg-[color:var(--field)] p-1 shadow-[inset_0_1px_0_var(--inset-light)] backdrop-blur-xl"
+        className="status-tabs inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-[20px] border border-[color:var(--border)] bg-[color:var(--field)] p-1.5 shadow-[inset_0_1px_0_var(--inset-light)] backdrop-blur-xl"
       >
         {tabs.map((tab) => {
           const active = tab.value === value;
@@ -2620,9 +2613,9 @@ function StatusTabs({ onChange, tabs, value }: StatusTabsProps) {
           return (
             <button
               className={cn(
-                "flex h-9 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-xs font-semibold transition-colors duration-200 sm:h-8 sm:px-3.5",
+                "flex h-9 shrink-0 items-center justify-center gap-2 rounded-[16px] px-3.5 text-xs font-semibold transition-all duration-200 sm:h-8 sm:px-4",
                 active
-                  ? "bg-[color:var(--surface-soft)] text-[color:var(--text)]"
+                  ? "status-tab-active text-[color:var(--text)]"
                   : "text-[color:var(--muted)] hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--text)]",
               )}
               key={tab.value}
@@ -2634,7 +2627,7 @@ function StatusTabs({ onChange, tabs, value }: StatusTabsProps) {
                 className={cn(
                   "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] leading-none",
                   active
-                    ? "bg-[color:var(--accent-surface-strong)] text-[color:var(--accent-soft)]"
+                    ? "bg-white/70 text-[color:var(--accent-soft)]"
                     : "bg-[color:var(--surface-soft)] text-[color:var(--muted)]",
                 )}
               >

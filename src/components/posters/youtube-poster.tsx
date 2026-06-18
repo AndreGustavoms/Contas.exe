@@ -111,24 +111,50 @@ function fmtDuration(seconds: number | null): string {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-function uploadVideoFile(
+// Initiates a YouTube resumable session via our server (auth only), then
+// streams the file DIRECTLY from the browser to YouTube — bypassing Railway's
+// proxy timeout that kills uploads longer than ~60 s.
+async function initiateResumableSession(params: {
+  channelId: string;
+  title: string;
+  description: string;
+  tags: string[];
+  publishAt: string | null;
+  privacyStatus: string;
+  fileSizeBytes: number;
+  mimeType: string;
+}): Promise<string> {
+  const res = await fetch("/api/youtube/resumable-init", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    throw new UploadRequestError(res.status, parseJson(await res.text()));
+  }
+  const data = await res.json();
+  if (!data.uploadUri) throw new Error("no_upload_uri");
+  return data.uploadUri as string;
+}
+
+function uploadDirectToYouTube(
+  uploadUri: string,
   file: File,
   onProgress: (fraction: number) => void,
-): Promise<{ name: string; size: number }> {
+): Promise<{ videoId: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/youtube/uploads");
-    xhr.setRequestHeader(
-      "X-Upload-Filename",
-      encodeURIComponent(file.name || "upload"),
-    );
+    xhr.open("PUT", uploadUri);
+    xhr.setRequestHeader("Content-Type", file.type || "video/*");
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          resolve(JSON.parse(xhr.responseText));
+          const data = JSON.parse(xhr.responseText);
+          resolve({ videoId: data.id ?? data.videoId ?? "" });
         } catch {
           reject(new Error("bad_response"));
         }
@@ -143,7 +169,7 @@ function uploadVideoFile(
           source: "network",
           message: "Falha de rede.",
           userMessage:
-            "Não foi possível enviar o arquivo ao servidor. Verifique sua conexão e tente com um arquivo menor.",
+            "Não foi possível enviar o arquivo ao YouTube. Verifique sua conexão e tente novamente.",
         }),
       );
     xhr.send(file);
@@ -493,31 +519,41 @@ export function YouTubePoster() {
     setBusy(true);
     try {
       setProgress(0);
-      const staged = await uploadVideoFile(file, setProgress);
+      const parsedTags = tags.split(",").map((s) => s.trim()).filter(Boolean);
+
+      // Step 1: get a YouTube resumable upload URI (our server handles auth only)
+      const uploadUri = await initiateResumableSession({
+        channelId,
+        title: title.trim(),
+        description,
+        tags: parsedTags,
+        publishAt: publishAt ?? null,
+        privacyStatus: privacy,
+        fileSizeBytes: file.size,
+        mimeType: file.type || "video/*",
+      });
+
+      // Step 2: stream the file directly from browser to YouTube (no Railway proxy)
+      const { videoId } = await uploadDirectToYouTube(uploadUri, file, setProgress);
       setProgress(null);
 
-      const res = await fetch("/api/youtube/upload", {
+      // Step 3: record in history
+      await fetch("/api/youtube/upload-record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           channelId,
-          file: staged.name,
+          videoId,
           title: title.trim(),
           description,
-          tags: tags
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          publishAt,
+          tags: parsedTags,
+          publishAt: publishAt ?? null,
           privacyStatus: privacy,
-          videoType,
         }),
       });
-      if (!res.ok) {
-        throw new UploadRequestError(res.status, parseJson(await res.text()));
-      }
-      const data: { videoId: string } = await res.json();
-      setDone({ videoId: data.videoId });
+
+      setDone({ videoId });
       loadHistory();
       setTab("history");
     } catch (err) {

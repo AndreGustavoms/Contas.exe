@@ -393,6 +393,34 @@ async function readHistoryJson() {
   }
 }
 
+// Records a completed upload in history without re-uploading. Used by the
+// browser-direct upload flow where the video goes straight to YouTube.
+export async function recordUpload({
+  ownerId,
+  channelId,
+  videoId,
+  title,
+  description,
+  tags,
+  privacyStatus,
+  publishAt,
+}) {
+  const safeOwnerId = safeStorageKey(ownerId);
+  await appendHistory({
+    ownerId: safeOwnerId,
+    channelId,
+    videoId,
+    title: title ?? null,
+    description: description ?? null,
+    tags: tags ?? [],
+    privacyStatus: privacyStatus ?? null,
+    publishAt: publishAt ?? null,
+    durationSeconds: null,
+    thumbnailUrl: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null,
+    uploadedAt: new Date().toISOString(),
+  });
+}
+
 async function appendHistory(record) {
   if (isConnected()) {
     await query(
@@ -695,6 +723,61 @@ function toYouTubeUploadError(error) {
       details.source === "network" ||
       [500, 502, 503, 504].includes(details.status),
   });
+}
+
+// Initiates a YouTube resumable upload session and returns the upload URI so
+// the browser can stream the file directly to YouTube — bypassing the Railway
+// proxy timeout that kills large uploads routed through the server.
+export async function initiateResumableUpload({
+  ownerId,
+  channelId,
+  title,
+  description = "",
+  tags = [],
+  publishAt,
+  privacyStatus = "private",
+  fileSizeBytes,
+  mimeType = "video/*",
+}) {
+  const safeOwnerId = safeStorageKey(ownerId);
+  const auth = await clientForChannel(channelId, safeOwnerId);
+  const { token } = await auth.getAccessToken();
+  if (!token) throw new Error("no_access_token");
+
+  const status = publishAt
+    ? { privacyStatus: "private", publishAt }
+    : { privacyStatus: PRIVACY_STATUSES.has(privacyStatus) ? privacyStatus : "private" };
+
+  const metadata = {
+    snippet: { title, description, tags },
+    status,
+  };
+
+  const res = await fetch(
+    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType,
+        ...(fileSizeBytes ? { "X-Upload-Content-Length": String(fileSizeBytes) } : {}),
+      },
+      body: JSON.stringify(metadata),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw Object.assign(new Error("youtube_resumable_init_failed"), {
+      status: res.status,
+      details: text,
+    });
+  }
+
+  const uploadUri = res.headers.get("location");
+  if (!uploadUri) throw new Error("youtube_no_upload_uri");
+  return { uploadUri };
 }
 
 export async function uploadVideo({
