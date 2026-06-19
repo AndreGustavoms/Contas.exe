@@ -5878,13 +5878,52 @@ select:hover {
   font-weight: 650;
 }
 
+.qv-standard-panel .qv-edit-fields .qv-input.pr-11 {
+  padding-right: 48px;
+}
+
 .qv-standard-panel .qv-input:focus {
+  outline: none;
   border-color: var(--qv-accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--qv-accent) 24%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--qv-accent) 34%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--qv-accent) 14%, transparent);
+}
+
+.qv-standard-panel .qv-input:focus-visible {
+  outline: none;
 }
 
 .qv-standard-panel .qv-password-toggle {
-  right: 6px;
+  right: 8px;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--qv-label);
+  padding: 0;
+  line-height: 1;
+  box-shadow: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.qv-standard-panel .qv-password-toggle:hover {
+  border-color: var(--qv-line);
+  background: var(--qv-surface-strong);
+  color: var(--text);
+}
+
+.qv-standard-panel .qv-password-toggle svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 640px) {
@@ -6223,11 +6262,6 @@ select:hover {
   transform: translateY(-1px);
 }
 
-.reports-day-post-pill-example {
-  border-style: dashed;
-  opacity: 0.9;
-}
-
 .reports-day-post-time {
   font-family: "Courier New", Courier, monospace;
   font-size: 9px;
@@ -6337,6 +6371,55 @@ select:hover {
   object-fit: cover;
 }
 
+.reports-event-video-shade {
+  position: absolute;
+  inset: auto 0 0;
+  height: 55%;
+  background: linear-gradient(to top, rgba(2, 6, 23, 0.86), transparent);
+  pointer-events: none;
+}
+
+.reports-event-video-actions {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reports-event-video-actions button,
+.reports-event-video-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+  background: rgba(2, 6, 23, 0.72);
+  padding: 0 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.reports-event-video-actions button:hover,
+.reports-event-video-actions a:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-surface) 58%, rgba(2, 6, 23, 0.78));
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
 .reports-event-video-placeholder {
   position: absolute;
   inset: 0;
@@ -6429,16 +6512,36 @@ select:hover {
   font-weight: 750;
 }
 
-.reports-event-note {
-  margin: 12px 0 0;
+.reports-event-description {
+  margin-top: 10px;
   border-radius: 12px;
-  border: 1px dashed color-mix(in srgb, var(--accent) 38%, transparent);
-  background: color-mix(in srgb, var(--accent-surface) 18%, transparent);
-  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 58%, transparent);
+  padding: 12px;
+}
+
+.reports-event-description span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted-soft);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.reports-event-description p {
+  display: -webkit-box;
+  margin: 0;
+  max-height: 8.4em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .reports-event-actions {

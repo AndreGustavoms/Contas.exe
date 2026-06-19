@@ -3585,7 +3585,7 @@ function QuickViewModal({
                   />
                   <button
                     aria-label={showEditPassword ? t("vault.hide_password") : t("vault.show_password")}
-                    className="qv-password-toggle absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
+                    className="qv-password-toggle absolute top-1/2 -translate-y-1/2"
                     type="button"
                     onClick={() => setShowEditPassword((v) => !v)}
                   >

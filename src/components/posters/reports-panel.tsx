@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  PlayCircle,
   X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -15,11 +16,12 @@ type HistoryItem = {
   videoId: string | null;
   channelTitle?: string;
   title: string;
+  description?: string;
+  durationSeconds?: number | null;
   uploadedAt: string;
   publishAt?: string | null;
   privacyStatus?: string;
   thumbnailUrl?: string | null;
-  example?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -96,13 +98,6 @@ function monthTargetKey(key: string, todayKey: string): string {
 function dayNumber(key: string): number {
   return parseInt(key.slice(8, 10), 10);
 }
-function exampleDayForMonth(monthYm: string, todayKey: string): string {
-  if (monthYm === todayKey.slice(0, 7)) {
-    const next = addDaysKey(todayKey, 2);
-    return next.slice(0, 7) === monthYm ? next : `${monthYm}-15`;
-  }
-  return `${monthYm}-15`;
-}
 function getItemDate(item: HistoryItem): Date {
   return new Date(item.publishAt ?? item.uploadedAt);
 }
@@ -115,6 +110,26 @@ function studioUrl(videoId: string): string {
 function watchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
+function formatDuration(seconds?: number | null): string {
+  if (!Number.isFinite(seconds) || !seconds || seconds < 0) return "Nao informado";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
+}
+function thumbnailCandidates(item: HistoryItem): string[] {
+  const urls = item.thumbnailUrl ? [item.thumbnailUrl] : [];
+  if (item.videoId) {
+    urls.push(
+      `https://i.ytimg.com/vi/${item.videoId}/maxresdefault.jpg`,
+      `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+      `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`,
+    );
+  }
+  return Array.from(new Set(urls));
+}
 
 export function ReportsPanel() {
   const todayKey = spDayKey(new Date());
@@ -125,6 +140,8 @@ export function ReportsPanel() {
   const [, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<HistoryItem | null>(null);
+  const [previewMode, setPreviewMode] = useState<"thumbnail" | "player">("thumbnail");
+  const [thumbIndex, setThumbIndex] = useState(0);
 
   function fetchHistory(silent: boolean) {
     if (silent) setRefreshing(true);
@@ -160,6 +177,11 @@ export function ReportsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setPreviewMode("thumbnail");
+    setThumbIndex(0);
+  }, [selectedEvent]);
+
   // Mês exibido (anchorKey é qualquer dia dele) montado como grade seg→dom
   // com 6 linhas (42 células), incluindo dias "fora do mês" pra completar.
   const monthYm = anchorKey.slice(0, 7);
@@ -172,29 +194,15 @@ export function ReportsPanel() {
   const monthItems = history
     .filter((item) => spDayKey(getItemDate(item)).slice(0, 7) === monthYm)
     .sort((a, b) => getItemDate(a).getTime() - getItemDate(b).getTime());
-  const showExamplePost = monthItems.length === 0;
-  const exampleKey = exampleDayForMonth(monthYm, todayKey);
-  const exampleItem: HistoryItem = {
-    videoId: null,
-    channelTitle: "Canal exemplo",
-    title: "Post agendado de exemplo",
-    uploadedAt: `${exampleKey}T12:00:00-03:00`,
-    publishAt: `${exampleKey}T12:00:00-03:00`,
-    example: true,
-  };
-  const visibleHistory = showExamplePost ? [...history, exampleItem] : history;
-  const visibleMonthItems = showExamplePost ? [exampleItem] : monthItems;
-  const scheduledCount = visibleMonthItems.filter(isScheduled).length;
-  const postedCount = visibleMonthItems.length - scheduledCount;
-  const effectiveSelectedKey =
-    showExamplePost && selectedKey === todayKey ? exampleKey : selectedKey;
+  const scheduledCount = monthItems.filter(isScheduled).length;
+  const postedCount = monthItems.length - scheduledCount;
 
   const monthTitle = monthLabel(keyToNoon(monthFirstKey));
   const isCurrentMonth = monthYm === todayKey.slice(0, 7);
 
   // Posts do dia selecionado (painel de detalhe ao lado da grade).
-  const selectedItems = visibleHistory
-    .filter((item) => spDayKey(getItemDate(item)) === effectiveSelectedKey)
+  const selectedItems = history
+    .filter((item) => spDayKey(getItemDate(item)) === selectedKey)
     .sort((a, b) => getItemDate(a).getTime() - getItemDate(b).getTime());
 
 
@@ -332,7 +340,7 @@ export function ReportsPanel() {
                 const inMonth = dayKey.slice(0, 7) === monthYm;
                 const isToday = dayKey === todayKey;
                 const isSelected = dayKey === selectedKey;
-                const dayItems = visibleHistory
+                const dayItems = history
                   .filter((it) => spDayKey(getItemDate(it)) === dayKey)
                   .sort(
                     (a, b) => getItemDate(a).getTime() - getItemDate(b).getTime(),
@@ -340,8 +348,7 @@ export function ReportsPanel() {
                 const count = dayItems.length;
                 const previewItems = dayItems.slice(0, 2);
                 const extraCount = Math.max(0, count - previewItems.length);
-                const hasExample = dayItems.some((it) => it.example);
-                const countLabel = hasExample ? "ex" : String(count);
+                const countLabel = String(count);
                 return (
                   <button
                     key={dayKey}
@@ -351,8 +358,7 @@ export function ReportsPanel() {
                       "reports-day-cell",
                       !inMonth && "reports-day-cell-out",
                       isToday && "reports-day-cell-today",
-                      (isSelected || dayKey === effectiveSelectedKey) &&
-                        "reports-day-cell-selected",
+                      isSelected && "reports-day-cell-selected",
                     )}
                   >
                     <span className="reports-day-num">{dayNumber(dayKey)}</span>
@@ -375,16 +381,13 @@ export function ReportsPanel() {
                                   setSelectedEvent(item);
                                 }
                               }}
-                              className={cn(
-                                "reports-day-post-pill",
-                                item.example && "reports-day-post-pill-example",
-                              )}
+                              className="reports-day-post-pill"
                             >
                               <span className="reports-day-post-time">
                                 {spTime(getItemDate(item))}
                               </span>
                               <span className="reports-day-post-title">
-                                {item.example ? "Exemplo" : item.title}
+                                {item.title}
                               </span>
                             </span>
                           ))}
@@ -405,10 +408,10 @@ export function ReportsPanel() {
           <aside className="report-neon-card flex flex-col rounded-2xl border">
             <div className="border-b border-[color:var(--accent-border)] px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
-                {effectiveSelectedKey === todayKey ? "Hoje" : "Dia selecionado"}
+                {selectedKey === todayKey ? "Hoje" : "Dia selecionado"}
               </p>
               <p className="mt-1 text-base font-bold capitalize text-[color:var(--text)]">
-                {weekdayDay(keyToNoon(effectiveSelectedKey))}
+                {weekdayDay(keyToNoon(selectedKey))}
               </p>
             </div>
             <div className="flex flex-1 flex-col gap-2 p-3">
@@ -437,7 +440,6 @@ export function ReportsPanel() {
                         </span>
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted-soft)]">
                           {scheduled ? "agendado" : "postado"}
-                          {item.example ? " · exemplo" : ""}
                         </span>
                       </span>
                       <span className="mt-1 block text-[13px] font-medium leading-snug text-[color:var(--text)]">
@@ -583,7 +585,7 @@ export function ReportsPanel() {
             <div className="reports-event-modal-head">
               <div>
                 <p className="reports-event-kicker">
-                  {selectedEvent.example ? "Evento de exemplo" : "Post programado"}
+                  {isScheduled(selectedEvent) ? "Post agendado" : "Post publicado"}
                 </p>
                 <h3>{selectedEvent.title}</h3>
               </div>
@@ -597,22 +599,59 @@ export function ReportsPanel() {
               </button>
             </div>
 
+            {(() => {
+              const thumbs = thumbnailCandidates(selectedEvent);
+              const thumbSrc = thumbs[thumbIndex] ?? null;
+              const canShowPlayer = Boolean(selectedEvent.videoId);
+              return (
             <div className="reports-event-body">
               <div className="reports-event-video">
-                {selectedEvent.videoId ? (
+                {previewMode === "player" && selectedEvent.videoId ? (
                   <iframe
                     title={selectedEvent.title}
                     src={`https://www.youtube.com/embed/${selectedEvent.videoId}`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
-                ) : selectedEvent.thumbnailUrl ? (
-                  <img src={selectedEvent.thumbnailUrl} alt="" />
+                ) : thumbSrc ? (
+                  <>
+                    <img
+                      src={thumbSrc}
+                      alt=""
+                      onError={() => {
+                        setThumbIndex((index) =>
+                          index + 1 < thumbs.length ? index + 1 : index,
+                        );
+                      }}
+                    />
+                    <div className="reports-event-video-shade" />
+                    <div className="reports-event-video-actions">
+                      {canShowPlayer && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("player")}
+                        >
+                          <PlayCircle className="h-5 w-5" />
+                          Tentar reproduzir
+                        </button>
+                      )}
+                      {selectedEvent.videoId && (
+                        <a
+                          href={watchUrl(selectedEvent.videoId)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          YouTube
+                        </a>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <div className="reports-event-video-placeholder">
                     <CalendarClock className="h-8 w-8" />
                     <span>Prévia do vídeo</span>
-                    <strong>{selectedEvent.example ? "Exemplo" : "Sem preview"}</strong>
+                    <strong>Sem preview</strong>
                   </div>
                 )}
               </div>
@@ -645,16 +684,22 @@ export function ReportsPanel() {
                     <span>ID do vídeo</span>
                     <strong>{selectedEvent.videoId ?? "Indisponível"}</strong>
                   </div>
+                  <div>
+                    <span>Duração</span>
+                    <strong>{formatDuration(selectedEvent.durationSeconds)}</strong>
+                  </div>
                 </div>
 
-                {selectedEvent.example && (
-                  <p className="reports-event-note">
-                    Esse item é uma prévia visual. Em um post real, essa área
-                    mostra o player/thumbnail, ID, status e atalhos do vídeo.
-                  </p>
-                )}
+                {selectedEvent.description?.trim() ? (
+                  <div className="reports-event-description">
+                    <span>Descrição</span>
+                    <p>{selectedEvent.description}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
+              );
+            })()}
 
             <div className="reports-event-actions">
               <button type="button" onClick={() => setSelectedEvent(null)}>
