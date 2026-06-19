@@ -290,7 +290,7 @@
     "delete": "Excluir",
     "wizard_edit": "Editar",
     "wizard_new": "Nova conta",
-    "form_identity": "Identidade",
+    "form_identity": "Nova conta",
     "form_access": "Acesso",
     "sensitive_field": "sensível",
     "sensitive_change_requires_confirmation": "Alterações em usuário ou senha vão pedir sua senha para confirmar.",

@@ -2222,8 +2222,8 @@ function AccountWizardModal({
       />
 
       <section
-        aria-labelledby="account-wizard-title"
         aria-modal="true"
+        aria-label={editing ? t("vault.wizard_edit") : t("vault.wizard_new")}
         className={cn(
           "modal-panel modal-panel-xl app-panel relative m-auto w-full max-w-xl overflow-hidden rounded-[28px] border p-5 backdrop-blur-2xl sm:p-6",
           closing ? "animate-pop-out" : "animate-pop-in",
@@ -2232,15 +2232,7 @@ function AccountWizardModal({
       >
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[color:var(--accent)] to-transparent" />
 
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <h2
-              className="text-2xl font-semibold tracking-normal text-[color:var(--text)] sm:text-3xl"
-              id="account-wizard-title"
-            >
-              {editing ? t("vault.wizard_edit") : t("vault.wizard_new")}
-            </h2>
-          </div>
+        <div className="relative flex justify-end">
           <Button
             aria-label={t("vault.close")}
             size="icon"
@@ -2251,7 +2243,7 @@ function AccountWizardModal({
           </Button>
         </div>
 
-        <div className="relative mt-6">
+        <div className="relative mt-3">
           <AccountForm
             draft={draft}
             showPassword={showPassword}
