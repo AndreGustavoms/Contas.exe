@@ -1619,7 +1619,7 @@ export function AccountVault({
               className="vault-card records-card animate-rise"
               style={{ animationDelay: "60ms" }}
             >
-              <div className="vault-toolbar records-toolbar flex flex-col gap-0">
+              <div className="vault-toolbar records-toolbar relative z-30 flex flex-col gap-0">
                 <div className="vault-toolbar-top records-toolbar-top flex flex-col gap-3 lg:flex-row lg:items-center">
                   <div className="vault-toolbar-heading shrink-0">
                     <p className="text-base font-semibold text-[color:var(--text)]">
@@ -2522,18 +2522,11 @@ type FieldProps = {
   sensitive?: boolean;
 };
 
-function Field({ label, children, sensitive }: FieldProps) {
-  const { t } = useTranslation();
+function Field({ label, children }: FieldProps) {
   return (
     <div className="grid gap-1.5">
       <span className="flex items-center gap-2 text-xs font-medium text-[color:var(--muted)]">
         <span>{label}</span>
-        {sensitive ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--accent-muted)]">
-            <KeyRound className="h-3 w-3" />
-            {t("vault.sensitive_field")}
-          </span>
-        ) : null}
       </span>
       {children}
     </div>
