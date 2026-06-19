@@ -1676,7 +1676,7 @@ export function AccountVault({
                     ) : null}
                     <button
                       aria-keyshortcuts="N"
-                      className="vault-btn-secondary vault-toolbar-cta"
+                      className="vault-btn-secondary vault-toolbar-cta account-create-cta"
                       title={t("vault.new_account_shortcut")}
                       type="button"
                       onClick={openCreateModal}
@@ -1785,7 +1785,7 @@ export function AccountVault({
                       </p>
                     </div>
                     <button
-                      className="vault-btn-secondary mt-2"
+                      className="vault-btn-secondary account-create-cta mt-2"
                       type="button"
                       onClick={openCreateModal}
                     >

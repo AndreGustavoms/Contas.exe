@@ -6578,6 +6578,79 @@ select:hover {
   background: color-mix(in srgb, var(--accent-surface) 34%, transparent);
 }
 
+.records-card .account-create-cta,
+.account-create-cta {
+  position: relative;
+  min-height: 44px;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-surface) 26%, var(--panel) 74%) 0%,
+      color-mix(in srgb, var(--accent-surface) 12%, var(--panel) 88%) 100%
+    );
+  color: color-mix(in srgb, var(--text) 88%, var(--accent) 12%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 12px 34px -28px color-mix(in srgb, var(--accent-glow) 76%, transparent);
+  font-weight: 760;
+}
+
+.records-card .account-create-cta::before,
+.account-create-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.records-card .account-create-cta:hover:not(:disabled),
+.account-create-cta:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 72%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-surface) 34%, var(--panel) 66%) 0%,
+      color-mix(in srgb, var(--accent-surface) 18%, var(--panel) 82%) 100%
+    );
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 0 28px -12px color-mix(in srgb, var(--accent-glow) 78%, transparent);
+}
+
+.records-card .account-create-cta:hover:not(:disabled)::before,
+.account-create-cta:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.records-card .account-create-cta svg,
+.account-create-cta svg {
+  position: relative;
+  z-index: 1;
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  stroke-width: 2.4;
+}
+
+.records-card .account-create-cta > :not(svg),
+.account-create-cta > :not(svg) {
+  position: relative;
+  z-index: 1;
+}
+
 @media (max-width: 520px) {
   .reports-event-modal {
     overflow-y: auto;
