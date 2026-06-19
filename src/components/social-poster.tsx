@@ -4,7 +4,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { CalendarDays, Lock, Send, X } from "lucide-react";
+import { BarChart3, CalendarDays, Lock, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import {
@@ -16,6 +16,7 @@ import {
 } from "./platform-icons";
 import { YouTubePoster } from "./posters/youtube-poster";
 import { ReportsPanel } from "./posters/reports-panel";
+import { AnalyticsPanel } from "./posters/analytics-panel";
 
 type IconProps = { className?: string; style?: CSSProperties };
 
@@ -72,6 +73,13 @@ const NETWORKS: Network[] = [
     accent: "var(--accent)",
     Panel: ReportsPanel,
     dividerBefore: true,
+  },
+  {
+    id: "analytics",
+    label: "Análises",
+    Icon: BarChart3,
+    accent: "var(--accent)",
+    Panel: AnalyticsPanel,
   },
 ];
 

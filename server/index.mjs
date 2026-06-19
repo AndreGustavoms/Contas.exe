@@ -32,6 +32,7 @@ import {
   finalizeChunkedUpload,
   initiateResumableUpload,
   reconcileHistory,
+  channelAnalytics,
   recordUpload,
   updateVideo,
   uploadVideo,
@@ -2515,6 +2516,19 @@ async function handleApi(request, response, url, user, session) {
         ? await reconcileHistory(user.id)
         : await listUploadHistory(user.id);
     sendJson(response, 200, { items });
+    return;
+  }
+
+  // Analytics reais dos vídeos (views/likes/comentários) direto da API do
+  // YouTube. Pode demorar (consulta a API), então é um endpoint separado do
+  // histórico — o front chama sob demanda ao abrir a aba de análises.
+  if (url.pathname === "/api/youtube/analytics" && request.method === "GET") {
+    try {
+      const videos = await channelAnalytics(user.id);
+      sendJson(response, 200, { videos });
+    } catch {
+      sendJson(response, 500, { error: "analytics_failed" });
+    }
     return;
   }
 

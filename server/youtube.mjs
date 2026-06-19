@@ -644,6 +644,102 @@ export async function reconcileHistory(ownerId) {
   return items.filter((item) => !(item.videoId && missing.has(item.videoId)));
 }
 
+// Analytics REAIS do(s) canal(is) conectado(s): para cada canal, pega a
+// playlist de uploads (todos os vídeos publicados, não só os postados pelo
+// app) e consulta as estatísticas reais (views/likes/comentários) em lotes de
+// 50. Limita aos ~100 vídeos mais recentes por canal pra não estourar quota.
+// Canais desconectados / erros de API são ignorados (pulam aquele canal).
+export async function channelAnalytics(ownerId) {
+  const safeOwnerId = safeStorageKey(ownerId);
+  const channels = await listConnectedChannels(safeOwnerId);
+  if (!channels.length) return [];
+
+  const out = [];
+
+  for (const ch of channels) {
+    let auth;
+    try {
+      auth = await clientForChannel(ch.id, safeOwnerId);
+    } catch {
+      continue; // canal desconectado
+    }
+    const youtube = google.youtube({ version: "v3", auth });
+
+    // Playlist de uploads + título atualizado do canal.
+    let uploadsId = null;
+    let channelTitle = ch.title ?? null;
+    try {
+      const cres = await youtube.channels.list({
+        part: ["contentDetails", "snippet"],
+        id: [ch.id],
+      });
+      const c = cres.data.items?.[0];
+      uploadsId = c?.contentDetails?.relatedPlaylists?.uploads ?? null;
+      channelTitle = c?.snippet?.title ?? channelTitle;
+    } catch {
+      continue;
+    }
+    if (!uploadsId) continue;
+
+    // IDs dos ~100 vídeos mais recentes (2 páginas de 50).
+    const videoIds = [];
+    let pageToken;
+    try {
+      for (let page = 0; page < 2; page++) {
+        const pres = await youtube.playlistItems.list({
+          part: ["contentDetails"],
+          playlistId: uploadsId,
+          maxResults: 50,
+          pageToken,
+        });
+        for (const it of pres.data.items ?? []) {
+          const id = it.contentDetails?.videoId;
+          if (id) videoIds.push(id);
+        }
+        pageToken = pres.data.nextPageToken ?? undefined;
+        if (!pageToken) break;
+      }
+    } catch {
+      // página parcial já serve
+    }
+    if (!videoIds.length) continue;
+
+    // Estatísticas reais em lotes de 50.
+    try {
+      for (let i = 0; i < videoIds.length; i += 50) {
+        const vres = await youtube.videos.list({
+          part: ["statistics", "snippet"],
+          id: videoIds.slice(i, i + 50),
+        });
+        for (const v of vres.data.items ?? []) {
+          const s = v.statistics ?? {};
+          out.push({
+            videoId: v.id,
+            channelId: ch.id,
+            channelTitle: v.snippet?.channelTitle ?? channelTitle,
+            title: v.snippet?.title ?? "",
+            thumbnailUrl:
+              v.snippet?.thumbnails?.medium?.url ??
+              v.snippet?.thumbnails?.default?.url ??
+              null,
+            publishedAt: v.snippet?.publishedAt ?? null,
+            views: Number(s.viewCount ?? 0),
+            likes: Number(s.likeCount ?? 0),
+            comments: Number(s.commentCount ?? 0),
+            // commentCount ausente = comentários desativados.
+            commentsDisabled: s.commentCount === undefined,
+            live: true,
+          });
+        }
+      }
+    } catch {
+      continue; // erro de API — pula o canal
+    }
+  }
+
+  return out.sort((a, b) => (b.views ?? -1) - (a.views ?? -1));
+}
+
 // Aplica um patch (título/descrição/privacidade) ao item do histórico, para a
 // lista refletir a edição na hora.
 async function updateHistory(videoId, ownerId, patch) {
