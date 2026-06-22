@@ -10,7 +10,6 @@ import {
   ExternalLink,
   Globe,
   Lock,
-  PlayCircle,
   Send,
   X,
 } from "lucide-react";
@@ -124,17 +123,6 @@ function formatDuration(seconds?: number | null): string {
   return h > 0
     ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
     : `${m}:${String(s).padStart(2, "0")}`;
-}
-function thumbnailCandidates(item: HistoryItem): string[] {
-  const urls = item.thumbnailUrl ? [item.thumbnailUrl] : [];
-  if (item.videoId) {
-    urls.push(
-      `https://i.ytimg.com/vi/${item.videoId}/maxresdefault.jpg`,
-      `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
-      `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`,
-    );
-  }
-  return Array.from(new Set(urls));
 }
 // Duração legível, ou "—" quando o YouTube não informou (mais limpo que texto).
 function durationLabel(seconds?: number | null): string {
@@ -269,8 +257,6 @@ export function ReportsPanel() {
   const [, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<HistoryItem | null>(null);
-  const [previewMode, setPreviewMode] = useState<"thumbnail" | "player">("thumbnail");
-  const [thumbIndex, setThumbIndex] = useState(0);
 
   function fetchHistory(silent: boolean) {
     if (silent) setRefreshing(true);
@@ -305,11 +291,6 @@ export function ReportsPanel() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    setPreviewMode("thumbnail");
-    setThumbIndex(0);
-  }, [selectedEvent]);
 
   // Mês exibido (anchorKey é qualquer dia dele) montado como grade seg→dom
   // com 6 linhas (42 células), incluindo dias "fora do mês" pra completar.
@@ -736,54 +717,15 @@ export function ReportsPanel() {
               </button>
             </div>
 
-            {(() => {
-              const thumbs = thumbnailCandidates(selectedEvent);
-              const thumbSrc = thumbs[thumbIndex] ?? null;
-              const canShowPlayer = Boolean(selectedEvent.videoId);
-              return (
             <div className="reports-event-body">
               <div className="reports-event-video">
-                {previewMode === "player" && selectedEvent.videoId ? (
+                {selectedEvent.videoId ? (
                   <iframe
                     title={selectedEvent.title}
-                    src={`https://www.youtube.com/embed/${selectedEvent.videoId}`}
+                    src={`https://www.youtube-nocookie.com/embed/${selectedEvent.videoId}?rel=0&modestbranding=1`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
-                ) : thumbSrc ? (
-                  <>
-                    <img
-                      src={thumbSrc}
-                      alt=""
-                      onError={() => {
-                        setThumbIndex((index) =>
-                          index + 1 < thumbs.length ? index + 1 : index,
-                        );
-                      }}
-                    />
-                    <div className="reports-event-video-shade" />
-                    <div className="reports-event-video-actions">
-                      {canShowPlayer && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewMode("player")}
-                        >
-                          <PlayCircle className="h-5 w-5" />
-                          Tentar reproduzir
-                        </button>
-                      )}
-                      {selectedEvent.videoId && (
-                        <a
-                          href={watchUrl(selectedEvent.videoId)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          YouTube
-                        </a>
-                      )}
-                    </div>
-                  </>
                 ) : (
                   <div className="reports-event-video-placeholder">
                     <CalendarClock className="h-8 w-8" />
@@ -827,8 +769,6 @@ export function ReportsPanel() {
                 ) : null}
               </div>
             </div>
-              );
-            })()}
 
             <div className="reports-event-actions">
               <button type="button" onClick={() => setSelectedEvent(null)}>

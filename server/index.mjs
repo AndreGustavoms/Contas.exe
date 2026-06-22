@@ -921,6 +921,9 @@ function applySecurityHeaders(request, response) {
       // bloqueia o <video> (tela preta, 0:00, sem play). blob: libera o preview
       // local; nenhum vídeo é carregado de origem externa.
       "media-src 'self' blob:",
+      // Player do YouTube embutido (mini-preview no modal de detalhes do post).
+      // Sem frame-src o iframe cai no default-src 'self' e é bloqueado.
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self'",
       "connect-src 'self'",
