@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   Eye,
@@ -6,8 +6,10 @@ import {
   MessageCircle,
   RefreshCw,
   ExternalLink,
+  ArrowUpDown,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Select, type SelectOption } from "../ui/select";
 
 // Estatísticas REAIS vindas da API do YouTube (videos.list?part=statistics).
 type VideoStats = {
@@ -23,6 +25,58 @@ type VideoStats = {
   commentsDisabled: boolean;
   live: boolean;
 };
+
+// Ordenações disponíveis na lista de vídeos. Default = mais recentes.
+type SortKey =
+  | "recent"
+  | "oldest"
+  | "most_views"
+  | "least_views"
+  | "most_likes"
+  | "most_comments";
+
+const SORT_OPTIONS: SelectOption<SortKey>[] = [
+  { value: "recent", label: "Mais recentes" },
+  { value: "oldest", label: "Mais antigos" },
+  { value: "most_views", label: "Mais visualizações" },
+  { value: "least_views", label: "Menos visualizações" },
+  { value: "most_likes", label: "Mais curtidas" },
+  { value: "most_comments", label: "Mais comentários" },
+];
+
+const SORT_LABEL: Record<SortKey, string> = {
+  recent: "mais recentes",
+  oldest: "mais antigos",
+  most_views: "visualizações",
+  least_views: "menos visualizações",
+  most_likes: "curtidas",
+  most_comments: "comentários",
+};
+
+function publishedTime(v: VideoStats): number {
+  const t = v.publishedAt ? Date.parse(v.publishedAt) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function sortVideos(videos: VideoStats[], key: SortKey): VideoStats[] {
+  const copy = [...videos];
+  switch (key) {
+    case "recent":
+      return copy.sort((a, b) => publishedTime(b) - publishedTime(a));
+    case "oldest":
+      return copy.sort((a, b) => publishedTime(a) - publishedTime(b));
+    case "most_views":
+      return copy.sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+    case "least_views":
+      return copy.sort((a, b) => (a.views ?? 0) - (b.views ?? 0));
+    case "most_likes":
+      return copy.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
+    case "most_comments":
+      return copy.sort((a, b) => (b.comments ?? 0) - (a.comments ?? 0));
+    default:
+      return copy;
+  }
+}
 
 const numberFmt = new Intl.NumberFormat("pt-BR");
 const dateFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -44,6 +98,12 @@ export function AnalyticsPanel() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [sortBy, setSortBy] = useState<SortKey>("recent");
+
+  const sortedVideos = useMemo(
+    () => sortVideos(videos, sortBy),
+    [videos, sortBy],
+  );
 
   function load(silent: boolean) {
     if (silent) setRefreshing(true);
@@ -137,12 +197,23 @@ export function AnalyticsPanel() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
-            {videos.length} vídeo{videos.length > 1 ? "s" : ""} · ordenado por
-            visualizações
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-soft)]">
+              {videos.length} vídeo{videos.length > 1 ? "s" : ""} · ordenado por{" "}
+              {SORT_LABEL[sortBy]}
+            </p>
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-3.5 w-3.5 text-[color:var(--muted-soft)]" />
+              <Select
+                value={sortBy}
+                options={SORT_OPTIONS}
+                onChange={setSortBy}
+                className="w-52"
+              />
+            </div>
+          </div>
           <div className="grid gap-3 lg:grid-cols-2">
-            {videos.map((v) => (
+            {sortedVideos.map((v) => (
               <VideoCard key={v.videoId} v={v} />
             ))}
           </div>
