@@ -246,16 +246,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- DROP + CREATE em vez de CREATE OR REPLACE TRIGGER (este só existe no PG 14+)
+-- para o schema poder ser re-aplicado no boot sem erro "trigger already exists".
+DROP TRIGGER IF EXISTS trigger_users_updated_at ON users;
 CREATE TRIGGER trigger_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS trigger_groups_updated_at ON groups;
 CREATE TRIGGER trigger_groups_updated_at
   BEFORE UPDATE ON groups
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS trigger_accounts_updated_at ON accounts;
 CREATE TRIGGER trigger_accounts_updated_at
   BEFORE UPDATE ON accounts
   FOR EACH ROW

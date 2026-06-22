@@ -9,8 +9,13 @@
 // existing deployments don't break). New installs default to PostgreSQL.
 
 import pg from "pg";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const { Pool } = pg;
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 let pool = null;
 let connected = false;
@@ -67,6 +72,11 @@ export async function initDb() {
 
     connected = true;
     console.log("✅ PostgreSQL conectado:", connectionString.replace(/:[^:@]+@/, ":***@"));
+
+    // Aplica o schema no boot. Tudo em schema.sql é idempotente (IF NOT EXISTS /
+    // ADD COLUMN IF NOT EXISTS / DROP+CREATE TRIGGER), então re-executar é seguro
+    // e mantém o banco de produção em dia com novas colunas sem migração manual.
+    await applySchema();
     return true;
   } catch (error) {
     console.error("❌ Falha ao conectar PostgreSQL:", error.message);
@@ -74,6 +84,19 @@ export async function initDb() {
     pool = null;
     connected = false;
     return false;
+  }
+}
+
+// Runs server/schema.sql against the connected database. Idempotent: safe to run
+// on every startup. Logs and swallows errors so a schema hiccup never blocks boot
+// (the server still comes up; queries against missing objects surface their own error).
+async function applySchema() {
+  try {
+    const sql = await readFile(join(here, "schema.sql"), "utf8");
+    await pool.query(sql);
+    console.log("✅ Schema aplicado (schema.sql).");
+  } catch (error) {
+    console.error("⚠️  Falha ao aplicar schema.sql:", error.message);
   }
 }
 
