@@ -522,13 +522,23 @@ export async function recordUpload({
 
 async function appendHistory(record) {
   if (isConnected()) {
-    // channel_title é capturado do canal conectado AGORA (subquery), então
-    // o nome fica gravado para sempre — mesmo que o canal seja desconectado.
+    // channel_title é capturado do canal conectado AGORA, então o nome fica
+    // gravado para sempre — mesmo que o canal seja desconectado depois. Buscamos
+    // numa query separada (em vez de subquery correlacionada) para não reusar os
+    // mesmos $1/$2 em colunas distintas — isso fazia o Postgres falhar a inferência
+    // de tipo do parâmetro ("inconsistent types deduced for parameter $2").
+    let channelTitle = record.channelTitle ?? null;
+    if (!channelTitle) {
+      const ch = await query(
+        `SELECT title FROM youtube_channels WHERE owner_id = $1 AND channel_id = $2`,
+        [record.ownerId, record.channelId]
+      );
+      channelTitle = ch.rows[0]?.title ?? null;
+    }
     await query(
       `INSERT INTO youtube_uploads
          (owner_id, channel_id, video_id, title, description, tags, privacy_status, publish_at, duration_seconds, thumbnail_url, uploaded_at, channel_title)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-         (SELECT title FROM youtube_channels WHERE owner_id = $1 AND channel_id = $2))`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         record.ownerId,
         record.channelId,
@@ -541,6 +551,7 @@ async function appendHistory(record) {
         record.durationSeconds ?? null,
         record.thumbnailUrl ?? null,
         record.uploadedAt ?? new Date().toISOString(),
+        channelTitle,
       ]
     );
     return;

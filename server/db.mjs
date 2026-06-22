@@ -87,17 +87,103 @@ export async function initDb() {
   }
 }
 
-// Runs server/schema.sql against the connected database. Idempotent: safe to run
-// on every startup. Logs and swallows errors so a schema hiccup never blocks boot
-// (the server still comes up; queries against missing objects surface their own error).
-async function applySchema() {
-  try {
-    const sql = await readFile(join(here, "schema.sql"), "utf8");
-    await pool.query(sql);
-    console.log("✅ Schema aplicado (schema.sql).");
-  } catch (error) {
-    console.error("⚠️  Falha ao aplicar schema.sql:", error.message);
+// Splits a SQL script into individual statements on top-level semicolons,
+// respecting single-quoted strings, dollar-quoted blocks ($$...$$ / $tag$...$tag$),
+// line comments (--) and block comments (/* */). Needed so we can run each
+// statement on its own — a naive split on ";" would break function/DO bodies.
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = "";
+  let i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    // line comment
+    if (ch === "-" && next === "-") {
+      const nl = sql.indexOf("\n", i);
+      const end = nl === -1 ? n : nl;
+      current += sql.slice(i, end);
+      i = end;
+      continue;
+    }
+    // block comment
+    if (ch === "/" && next === "*") {
+      const close = sql.indexOf("*/", i + 2);
+      const end = close === -1 ? n : close + 2;
+      current += sql.slice(i, end);
+      i = end;
+      continue;
+    }
+    // single-quoted string
+    if (ch === "'") {
+      let j = i + 1;
+      while (j < n) {
+        if (sql[j] === "'" && sql[j + 1] === "'") { j += 2; continue; }
+        if (sql[j] === "'") { j += 1; break; }
+        j += 1;
+      }
+      current += sql.slice(i, j);
+      i = j;
+      continue;
+    }
+    // dollar-quoted block ($$ or $tag$)
+    if (ch === "$") {
+      const tagMatch = /^\$[A-Za-z0-9_]*\$/.exec(sql.slice(i));
+      if (tagMatch) {
+        const tag = tagMatch[0];
+        const close = sql.indexOf(tag, i + tag.length);
+        const end = close === -1 ? n : close + tag.length;
+        current += sql.slice(i, end);
+        i = end;
+        continue;
+      }
+    }
+    // statement terminator
+    if (ch === ";") {
+      const trimmed = current.trim();
+      if (trimmed) statements.push(trimmed);
+      current = "";
+      i += 1;
+      continue;
+    }
+    current += ch;
+    i += 1;
   }
+  const tail = current.trim();
+  if (tail) statements.push(tail);
+  return statements;
+}
+
+// Runs server/schema.sql against the connected database. Idempotent: safe to run
+// on every startup. Each statement runs on its OWN implicit transaction, so a
+// single failure (e.g. an index over a column an older deploy lacks) never blocks
+// the others — the critical ADD COLUMN / CREATE TABLE statements still apply.
+// Failures are logged, never thrown, so a schema hiccup can't block boot.
+async function applySchema() {
+  let sql;
+  try {
+    sql = await readFile(join(here, "schema.sql"), "utf8");
+  } catch (error) {
+    console.error("⚠️  Não foi possível ler schema.sql:", error.message);
+    return;
+  }
+  const statements = splitSqlStatements(sql);
+  let applied = 0;
+  let failed = 0;
+  for (const stmt of statements) {
+    try {
+      await pool.query(stmt);
+      applied += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(
+        `⚠️  Statement do schema falhou (seguindo adiante): ${error.message} | ${stmt.slice(0, 80).replace(/\s+/g, " ")}…`,
+      );
+    }
+  }
+  console.log(`✅ Schema aplicado: ${applied} statements OK${failed ? `, ${failed} com erro (ignorados)` : ""}.`);
 }
 
 // Whether the PostgreSQL connection is live. Other modules check this to decide
