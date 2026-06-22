@@ -11,6 +11,7 @@ import {
   Globe,
   Lock,
   PlayCircle,
+  Send,
   X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -191,6 +192,46 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
       <span className="min-w-0 truncate text-right text-[13px] font-medium text-[color:var(--text)]">
         {children}
       </span>
+    </div>
+  );
+}
+
+function SummaryStat({
+  icon: Icon,
+  label,
+  value,
+  accent = false,
+}: {
+  icon: typeof Send;
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="report-neon-card flex items-center gap-4 rounded-2xl border px-5 py-4">
+      <span
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border",
+          accent
+            ? "border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] text-[color:var(--accent)]"
+            : "border-[color:var(--border)] bg-[color:var(--surface-soft)] text-[color:var(--muted)]",
+        )}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="leading-none">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
+          {label}
+        </p>
+        <p
+          className={cn(
+            "mt-2 text-3xl font-bold tabular-nums leading-none",
+            accent ? "text-[color:var(--accent)]" : "text-[color:var(--text)]",
+          )}
+        >
+          {value}
+        </p>
+      </div>
     </div>
   );
 }
@@ -386,23 +427,18 @@ export function ReportsPanel() {
       </div>
 
       {/* Resumo do mês */}
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div className="report-neon-card rounded-xl border px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-            Agendados no mês
-          </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-[color:var(--text)]">
-            {scheduledCount}
-          </p>
-        </div>
-        <div className="report-neon-card rounded-xl border px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
-            Postados no mês
-          </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-[color:var(--text)]">
-            {postedCount}
-          </p>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SummaryStat
+          icon={CalendarClock}
+          label="Agendados no mês"
+          value={scheduledCount}
+        />
+        <SummaryStat
+          icon={Send}
+          label="Postados no mês"
+          value={postedCount}
+          accent
+        />
       </div>
 
       {loadError && (
