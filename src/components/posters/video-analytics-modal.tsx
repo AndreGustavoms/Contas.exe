@@ -152,15 +152,15 @@ export function VideoAnalyticsModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:p-8"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:p-6"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--page-bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,.8)]"
+        className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--page-bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,.8)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start gap-4 border-b border-[color:var(--border)] p-5">
+        <div className="flex shrink-0 items-start gap-4 border-b border-[color:var(--border)] p-5">
           <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg border border-[color:var(--border)] bg-black">
             {(snap?.thumbnailUrl ?? video.thumbnailUrl) ? (
               <img
@@ -203,7 +203,7 @@ export function VideoAnalyticsModal({
           </button>
         </div>
 
-        <div className="grid max-h-[70vh] gap-6 overflow-y-auto p-5 lg:grid-cols-2">
+        <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto p-6 lg:grid-cols-2">
           {/* ── Coluna esquerda: métricas + gráfico ── */}
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-2">
