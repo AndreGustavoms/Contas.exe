@@ -6193,8 +6193,18 @@ select:hover {
 .reports-day-cell-today {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
+/* "Hoje" vira uma pílula verde no número do dia — marcador inequívoco. */
 .reports-day-cell-today .reports-day-num {
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 800;
 }
 .reports-day-cell-selected {
   border-color: var(--accent);

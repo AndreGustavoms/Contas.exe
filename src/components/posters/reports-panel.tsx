@@ -613,8 +613,15 @@ export function ReportsPanel() {
                 }}
                 className="month-preview-card group flex flex-col items-start gap-1.5 rounded-xl border px-4 py-4 text-left"
               >
-                <span className="text-sm font-semibold capitalize text-[color:var(--text)]">
-                  {m.label}
+                <span className="flex w-full items-start justify-between gap-2">
+                  <span className="text-sm font-semibold capitalize text-[color:var(--text)]">
+                    {m.label}
+                  </span>
+                  {m.count > 0 && (
+                    <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-1.5 text-[11px] font-bold tabular-nums text-[color:var(--accent-soft)]">
+                      {m.count}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[11px] text-[color:var(--muted)]">
                   {m.count > 0
