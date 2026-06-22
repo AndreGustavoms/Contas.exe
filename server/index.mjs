@@ -911,6 +911,11 @@ function applySecurityHeaders(request, response) {
       // YouTube serves video thumbnails from i.ytimg.com and channel avatars
       // from yt3.ggpht.com — allow them so the history/poster panels render.
       "img-src 'self' data: https://i.ytimg.com https://*.ytimg.com https://yt3.ggpht.com",
+      // O preview de vídeo usa URL.createObjectURL(file) -> blob:. Sem media-src
+      // explícito o browser cai no default-src 'self', que NÃO cobre blob:, e
+      // bloqueia o <video> (tela preta, 0:00, sem play). blob: libera o preview
+      // local; nenhum vídeo é carregado de origem externa.
+      "media-src 'self' blob:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self'",
       "connect-src 'self'",
