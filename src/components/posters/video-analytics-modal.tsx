@@ -156,7 +156,13 @@ export function VideoAnalyticsModal({
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--panel-strong)] shadow-[0_28px_76px_-40px_rgba(0,0,0,0.9),0_0_0_1px_rgba(34,197,94,0.14),inset_0_1px_0_rgba(255,255,255,0.06)]"
+        className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[color:var(--accent-border)] shadow-[0_28px_90px_-32px_rgba(0,0,0,0.95),0_0_0_1px_rgba(34,197,94,0.12),inset_0_1px_0_rgba(255,255,255,0.07)]"
+        style={{
+          // 100% opaco (sem alpha) para nada do fundo vazar; superfície elevada
+          // com um leve brilho verde no topo, dentro da identidade.
+          background:
+            "radial-gradient(130% 80% at 50% -6%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 52%), color-mix(in srgb, var(--page-bg) 90%, #ffffff)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
