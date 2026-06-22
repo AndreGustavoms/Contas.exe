@@ -5,11 +5,11 @@ import {
   ThumbsUp,
   MessageCircle,
   RefreshCw,
-  ExternalLink,
   ArrowUpDown,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Select, type SelectOption } from "../ui/select";
+import { VideoAnalyticsModal, type VideoRef } from "./video-analytics-modal";
 
 // Estatísticas REAIS vindas da API do YouTube (videos.list?part=statistics).
 type VideoStats = {
@@ -89,9 +89,6 @@ const dateFmt = new Intl.DateTimeFormat("pt-BR", {
 function fmt(n: number | null): string {
   return n == null ? "—" : numberFmt.format(n);
 }
-function watchUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${videoId}`;
-}
 
 export function AnalyticsPanel() {
   const [videos, setVideos] = useState<VideoStats[]>([]);
@@ -99,6 +96,7 @@ export function AnalyticsPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("recent");
+  const [selected, setSelected] = useState<VideoRef | null>(null);
 
   const sortedVideos = useMemo(
     () => sortVideos(videos, sortBy),
@@ -214,22 +212,38 @@ export function AnalyticsPanel() {
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {sortedVideos.map((v) => (
-              <VideoCard key={v.videoId} v={v} />
+              <VideoCard key={v.videoId} v={v} onOpen={setSelected} />
             ))}
           </div>
         </div>
+      )}
+
+      {selected && (
+        <VideoAnalyticsModal video={selected} onClose={() => setSelected(null)} />
       )}
     </div>
   );
 }
 
-function VideoCard({ v }: { v: VideoStats }) {
+function VideoCard({
+  v,
+  onOpen,
+}: {
+  v: VideoStats;
+  onOpen: (video: VideoRef) => void;
+}) {
   return (
-    <a
-      href={watchUrl(v.videoId)}
-      target="_blank"
-      rel="noreferrer"
-      className="report-neon-card group flex flex-col overflow-hidden rounded-2xl border transition-colors hover:bg-[color:var(--surface-soft)] sm:flex-row"
+    <button
+      type="button"
+      onClick={() =>
+        onOpen({
+          videoId: v.videoId,
+          channelId: v.channelId,
+          title: v.title,
+          thumbnailUrl: v.thumbnailUrl,
+        })
+      }
+      className="report-neon-card group flex flex-col overflow-hidden rounded-2xl border text-left transition-colors hover:bg-[color:var(--surface-soft)] sm:flex-row"
     >
       {/* thumbnail */}
       <span className="relative aspect-video w-full shrink-0 overflow-hidden border-b border-[color:var(--border)] bg-[color:var(--surface-soft)] sm:w-44 sm:border-b-0 sm:border-r">
@@ -249,7 +263,7 @@ function VideoCard({ v }: { v: VideoStats }) {
           <span className="line-clamp-2 min-w-0 flex-1 text-[13px] font-semibold leading-snug text-[color:var(--text)]">
             {v.title || "(sem título)"}
           </span>
-          <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--muted-soft)] opacity-0 transition-opacity group-hover:opacity-100" />
+          <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--muted-soft)] opacity-0 transition-opacity group-hover:opacity-100" />
         </span>
         <span className="mt-1 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
           {v.channelTitle && <span className="truncate">{v.channelTitle}</span>}
@@ -271,7 +285,7 @@ function VideoCard({ v }: { v: VideoStats }) {
           />
         </span>
       </span>
-    </a>
+    </button>
   );
 }
 
