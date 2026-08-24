@@ -37,8 +37,13 @@ function getConnectionString() {
 // Initializes the pool and tests connectivity. Called once at startup.
 export async function initDb() {
   const connectionString = getConnectionString();
-  if (!connectionString || connectionString === "postgresql://:@localhost:5432/contas_flow") {
-    console.log("PostgreSQL não configurado (DATABASE_URL ausente). Usando JSON storage.");
+  if (
+    !connectionString ||
+    connectionString === "postgresql://:@localhost:5432/contas_flow"
+  ) {
+    console.log(
+      "PostgreSQL não configurado (DATABASE_URL ausente). Usando JSON storage.",
+    );
     return false;
   }
 
@@ -47,7 +52,9 @@ export async function initDb() {
     // false by default in cloud deployments. Set PGSSLMODE=disable to turn SSL
     // off entirely (local dev), or PGSSLMODE=verify-full with PGSSLROOTCERT to
     // enforce full certificate verification when a CA cert is available.
-    const sslMode = process.env.PGSSLMODE ?? (process.env.NODE_ENV === "production" ? "require" : "disable");
+    const sslMode =
+      process.env.PGSSLMODE ??
+      (process.env.NODE_ENV === "production" ? "require" : "disable");
     let sslConfig;
     if (sslMode === "disable") {
       sslConfig = false;
@@ -71,7 +78,10 @@ export async function initDb() {
     client.release();
 
     connected = true;
-    console.log("✅ PostgreSQL conectado:", connectionString.replace(/:[^:@]+@/, ":***@"));
+    console.log(
+      "✅ PostgreSQL conectado:",
+      connectionString.replace(/:[^:@]+@/, ":***@"),
+    );
 
     // Aplica o schema no boot. Tudo em schema.sql é idempotente (IF NOT EXISTS /
     // ADD COLUMN IF NOT EXISTS / DROP+CREATE TRIGGER), então re-executar é seguro
@@ -120,8 +130,14 @@ function splitSqlStatements(sql) {
     if (ch === "'") {
       let j = i + 1;
       while (j < n) {
-        if (sql[j] === "'" && sql[j + 1] === "'") { j += 2; continue; }
-        if (sql[j] === "'") { j += 1; break; }
+        if (sql[j] === "'" && sql[j + 1] === "'") {
+          j += 2;
+          continue;
+        }
+        if (sql[j] === "'") {
+          j += 1;
+          break;
+        }
         j += 1;
       }
       current += sql.slice(i, j);
@@ -183,7 +199,9 @@ async function applySchema() {
       );
     }
   }
-  console.log(`✅ Schema aplicado: ${applied} statements OK${failed ? `, ${failed} com erro (ignorados)` : ""}.`);
+  console.log(
+    `✅ Schema aplicado: ${applied} statements OK${failed ? `, ${failed} com erro (ignorados)` : ""}.`,
+  );
 }
 
 // Whether the PostgreSQL connection is live. Other modules check this to decide

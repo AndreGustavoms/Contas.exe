@@ -8,8 +8,14 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family:
-    Inter, "Segoe UI", "SF Pro Text", -apple-system, BlinkMacSystemFont,
-    "Helvetica Neue", Arial, sans-serif;
+    Inter,
+    "Segoe UI",
+    "SF Pro Text",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
 
   /* Curvas de easing da identidade. --ease-fluid (easeOutExpo) dá aquela
      desaceleração suave "premium"; --ease-spring um leve overshoot pra toques
@@ -2702,14 +2708,14 @@ td {
 .vault-search-field {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 42%, var(--border) 58%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 42%, var(--border) 58%);
   border-radius: 18px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 90%, var(--accent-surface) 10%) 0%,
-      color-mix(in srgb, var(--panel) 84%, #07111d 16%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 90%, var(--accent-surface) 10%) 0%,
+    color-mix(in srgb, var(--panel) 84%, #07111d 16%) 100%
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     inset 0 -1px 0 rgba(255, 255, 255, 0.02),
@@ -2745,13 +2751,12 @@ td {
   z-index: 0;
   width: 0;
   border-radius: 17px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--accent-surface) 22%, transparent) 0%,
-      color-mix(in srgb, var(--accent-glow) 20%, transparent) 48%,
-      color-mix(in srgb, white 4%, transparent) 100%
-    );
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-surface) 22%, transparent) 0%,
+    color-mix(in srgb, var(--accent-glow) 20%, transparent) 48%,
+    color-mix(in srgb, white 4%, transparent) 100%
+  );
   opacity: 0.85;
   transition:
     width 220ms ease,
@@ -2766,13 +2771,12 @@ td {
   z-index: 1;
   height: 2px;
   border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--accent-border) 18%, transparent) 0%,
-      color-mix(in srgb, var(--accent-soft) 82%, white 18%) 50%,
-      color-mix(in srgb, var(--accent-border) 18%, transparent) 100%
-    );
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-border) 18%, transparent) 0%,
+    color-mix(in srgb, var(--accent-soft) 82%, white 18%) 50%,
+    color-mix(in srgb, var(--accent-border) 18%, transparent) 100%
+  );
   transform: scaleX(0.22);
   transform-origin: center;
   opacity: 0.44;
@@ -2813,7 +2817,8 @@ td {
 }
 
 .vault-search-shell > button:last-child {
-  border: 1px solid color-mix(in srgb, var(--accent-border) 54%, var(--border) 46%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 54%, var(--border) 46%);
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent-surface) 56%, var(--panel) 44%);
   padding: 4px 6px 4px 10px;
@@ -2839,12 +2844,11 @@ td {
 
 .vault-toolbar-cta {
   border-color: color-mix(in srgb, var(--accent-border) 48%, var(--border) 52%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 84%, var(--accent-surface) 16%) 0%,
-      color-mix(in srgb, var(--panel) 76%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 84%, var(--accent-surface) 16%) 0%,
+    color-mix(in srgb, var(--panel) 76%, transparent) 100%
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 12px 30px -28px rgba(0, 0, 0, 0.46);
@@ -2853,12 +2857,11 @@ td {
 
 .vault-toolbar-cta:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent-border) 76%, white 24%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 88%, var(--accent-surface) 12%) 0%,
-      color-mix(in srgb, var(--panel) 78%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 88%, var(--accent-surface) 12%) 0%,
+    color-mix(in srgb, var(--panel) 78%, transparent) 100%
+  );
 }
 
 @media (min-width: 1024px) {
@@ -2913,12 +2916,11 @@ td {
 .vault-card {
   width: 100%;
   max-width: 100%;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 96%, white 4%) 0%,
-      color-mix(in srgb, var(--panel) 90%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 96%, white 4%) 0%,
+    color-mix(in srgb, var(--panel) 90%, transparent) 100%
+  );
   border: 1px solid color-mix(in srgb, var(--border) 78%, white 22%);
   border-radius: 22px;
   -webkit-backdrop-filter: none;
@@ -3102,13 +3104,13 @@ td {
 }
 
 .toolbar-select-trigger {
-  border: 1px solid color-mix(in srgb, var(--accent-border) 42%, var(--border) 58%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 84%, var(--accent-surface) 16%) 0%,
-      color-mix(in srgb, var(--panel) 76%, transparent) 100%
-    );
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 42%, var(--border) 58%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 84%, var(--accent-surface) 16%) 0%,
+    color-mix(in srgb, var(--panel) 76%, transparent) 100%
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 12px 26px -26px rgba(0, 0, 0, 0.52);
@@ -3117,12 +3119,11 @@ td {
 .toolbar-select-trigger:hover,
 .toolbar-select-trigger:focus-visible {
   border-color: color-mix(in srgb, var(--accent-border) 76%, white 24%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 88%, var(--accent-surface) 12%) 0%,
-      color-mix(in srgb, var(--panel) 78%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 88%, var(--accent-surface) 12%) 0%,
+    color-mix(in srgb, var(--panel) 78%, transparent) 100%
+  );
 }
 
 .global-search-panel {
@@ -3194,7 +3195,8 @@ td {
     var(--accent) 50%,
     transparent 100%
   );
-  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--accent-glow) 80%, transparent);
+  box-shadow: 0 0 14px -2px
+    color-mix(in srgb, var(--accent-glow) 80%, transparent);
   animation: search-underline-pulse 0.42s ease-out;
 }
 
@@ -3245,15 +3247,15 @@ td {
   height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 44%, var(--border) 56%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 44%, var(--border) 56%);
   background: color-mix(in srgb, var(--accent-surface) 48%, var(--panel) 52%);
   color: color-mix(in srgb, var(--accent-soft) 72%, var(--muted) 28%);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .modal-viewport {
@@ -3320,7 +3322,11 @@ td {
 }
 
 .theme-dark .quickview-panel {
-  --qv-edge: color-mix(in srgb, var(--qv-accent) 30%, rgba(255, 255, 255, 0.06));
+  --qv-edge: color-mix(
+    in srgb,
+    var(--qv-accent) 30%,
+    rgba(255, 255, 255, 0.06)
+  );
   --qv-bg:
     radial-gradient(
       95% 65% at 50% -12%,
@@ -3332,8 +3338,7 @@ td {
   --qv-shadow:
     0 44px 130px -30px rgba(0, 0, 0, 0.94),
     0 0 0 1px color-mix(in srgb, var(--qv-accent) 18%, transparent),
-    0 0 110px -24px var(--qv-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 110px -24px var(--qv-glow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .theme-white .quickview-panel {
@@ -3351,8 +3356,7 @@ td {
   --qv-shadow:
     0 40px 110px -34px rgba(15, 23, 42, 0.4),
     0 0 0 1px color-mix(in srgb, var(--qv-accent) 12%, transparent),
-    0 0 70px -30px var(--qv-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    0 0 70px -30px var(--qv-glow), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .account-settings-panel {
@@ -4521,21 +4525,19 @@ select:hover {
 
 /* Registros do vault: integra busca, filtros e lista no mesmo padrão do painel. */
 .vault-toolbar {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 86%, var(--field) 14%) 0%,
-      color-mix(in srgb, var(--panel) 78%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 86%, var(--field) 14%) 0%,
+    color-mix(in srgb, var(--panel) 78%, transparent) 100%
+  );
 }
 
 .vault-toolbar::before {
-  background:
-    radial-gradient(
-      52% 120% at 0% 0%,
-      color-mix(in srgb, var(--accent-surface) 44%, transparent) 0%,
-      transparent 70%
-    );
+  background: radial-gradient(
+    52% 120% at 0% 0%,
+    color-mix(in srgb, var(--accent-surface) 44%, transparent) 0%,
+    transparent 70%
+  );
   opacity: 0.7;
 }
 
@@ -4594,7 +4596,8 @@ select:hover {
 
 .status-tab-active {
   background: color-mix(in srgb, var(--accent-surface) 78%, var(--field) 22%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-border) 72%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-border) 72%, transparent);
 }
 
 .toolbar-select-trigger {
@@ -4773,12 +4776,11 @@ select:hover {
 .records-card {
   border-radius: 16px;
   border-color: color-mix(in srgb, var(--border) 78%, var(--accent-border) 22%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 92%, #050814 8%) 0%,
-      color-mix(in srgb, var(--panel) 88%, #050814 12%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 92%, #050814 8%) 0%,
+    color-mix(in srgb, var(--panel) 88%, #050814 12%) 100%
+  );
   box-shadow:
     0 22px 58px -46px rgba(0, 0, 0, 0.88),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -4788,21 +4790,19 @@ select:hover {
 .records-card .records-toolbar {
   border-radius: 16px 16px 0 0;
   padding: 18px 20px 20px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 96%, #07111d 4%) 0%,
-      color-mix(in srgb, var(--panel) 90%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 96%, #07111d 4%) 0%,
+    color-mix(in srgb, var(--panel) 90%, transparent) 100%
+  );
 }
 
 .records-card .records-toolbar::before {
-  background:
-    radial-gradient(
-      58% 130% at 100% 0%,
-      color-mix(in srgb, var(--accent-surface) 42%, transparent) 0%,
-      transparent 72%
-    );
+  background: radial-gradient(
+    58% 130% at 100% 0%,
+    color-mix(in srgb, var(--accent-surface) 42%, transparent) 0%,
+    transparent 72%
+  );
   opacity: 0.58;
 }
 
@@ -4838,12 +4838,11 @@ select:hover {
   min-height: 48px;
   border-radius: 16px;
   border-color: color-mix(in srgb, var(--accent-border) 42%, var(--border) 58%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--field) 84%, #050814 16%) 0%,
-      color-mix(in srgb, var(--field) 74%, #050814 26%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--field) 84%, #050814 16%) 0%,
+    color-mix(in srgb, var(--field) 74%, #050814 26%) 100%
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 14px 34px -30px rgba(0, 0, 0, 0.82);
@@ -4863,7 +4862,8 @@ select:hover {
 .records-card .vault-search-shortcut {
   height: 42px;
   width: 42px;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 54%, var(--border) 46%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 54%, var(--border) 46%);
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent-surface) 68%, var(--field) 32%);
   box-shadow:
@@ -4955,8 +4955,16 @@ select:hover {
 }
 
 .records-card .status-tab-active {
-  border-color: color-mix(in srgb, var(--accent-border) 76%, transparent) !important;
-  background: color-mix(in srgb, var(--accent-surface) 70%, var(--field) 30%) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--accent-border) 76%,
+    transparent
+  ) !important;
+  background: color-mix(
+    in srgb,
+    var(--accent-surface) 70%,
+    var(--field) 30%
+  ) !important;
   color: var(--text) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
@@ -4976,7 +4984,8 @@ select:hover {
 
 .records-card .toolbar-select-trigger {
   min-height: 44px;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 36%, var(--border) 64%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 36%, var(--border) 64%);
   border-radius: 10px !important;
   background: color-mix(in srgb, var(--field) 78%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -5296,7 +5305,11 @@ select:hover {
 
 .records-card .vault-toolbar-cta:hover:not(:disabled) {
   transform: none;
-  border-color: color-mix(in srgb, var(--accent-border) 60%, var(--records-line) 40%);
+  border-color: color-mix(
+    in srgb,
+    var(--accent-border) 60%,
+    var(--records-line) 40%
+  );
   background: color-mix(in srgb, var(--field-hover) 58%, var(--field) 42%);
 }
 
@@ -5359,8 +5372,16 @@ select:hover {
 }
 
 .records-card .status-tab-active {
-  border-color: color-mix(in srgb, var(--accent-border) 76%, transparent) !important;
-  background: color-mix(in srgb, var(--accent-surface) 68%, transparent) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--accent-border) 76%,
+    transparent
+  ) !important;
+  background: color-mix(
+    in srgb,
+    var(--accent-surface) 68%,
+    transparent
+  ) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
   color: var(--text) !important;
 }
@@ -5375,7 +5396,8 @@ select:hover {
 
 .records-card .toolbar-select-trigger {
   min-height: 42px;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 34%, var(--records-line) 66%);
+  border: 1px solid
+    color-mix(in srgb, var(--accent-border) 34%, var(--records-line) 66%);
   border-radius: 8px !important;
   background: var(--records-fill-soft);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -5384,7 +5406,11 @@ select:hover {
 
 .records-card .toolbar-select-trigger:hover,
 .records-card .toolbar-select-trigger:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-border) 64%, var(--records-line) 36%);
+  border-color: color-mix(
+    in srgb,
+    var(--accent-border) 64%,
+    var(--records-line) 36%
+  );
   background: color-mix(in srgb, var(--field-hover) 56%, var(--field) 44%);
 }
 
@@ -5594,19 +5620,22 @@ select:hover {
   --qv-line: color-mix(in srgb, var(--border) 76%, var(--qv-accent) 24%);
   --qv-line-strong: color-mix(in srgb, var(--border) 58%, var(--text) 16%);
   --qv-surface: color-mix(in srgb, var(--field) 76%, transparent);
-  --qv-surface-strong: color-mix(in srgb, var(--qv-accent) 15%, var(--field) 85%);
+  --qv-surface-strong: color-mix(
+    in srgb,
+    var(--qv-accent) 15%,
+    var(--field) 85%
+  );
   --qv-label: color-mix(in srgb, var(--text) 82%, var(--muted) 18%);
   --qv-glow: color-mix(in srgb, var(--qv-accent) 24%, transparent);
   width: min(100%, 35rem);
   max-width: min(35rem, calc(100vw - 32px));
   border-radius: 10px;
   border-color: var(--qv-line);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 92%, #07111d 8%) 0%,
-      color-mix(in srgb, var(--panel) 88%, #050814 12%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 92%, #07111d 8%) 0%,
+    color-mix(in srgb, var(--panel) 88%, #050814 12%) 100%
+  );
   box-shadow:
     0 22px 58px -44px rgba(0, 0, 0, 0.94),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -5614,12 +5643,11 @@ select:hover {
 
 .theme-dark .qv-standard-panel,
 .theme-white .qv-standard-panel {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--panel) 94%, var(--field) 6%) 0%,
-      color-mix(in srgb, var(--panel) 88%, var(--page-bg) 12%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 94%, var(--field) 6%) 0%,
+    color-mix(in srgb, var(--panel) 88%, var(--page-bg) 12%) 100%
+  );
   box-shadow:
     0 22px 58px -44px rgba(0, 0, 0, 0.72),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -6018,15 +6046,33 @@ select:hover {
   z-index: 1;
 }
 
-.search-loader-letter:nth-child(1) { animation-delay: 0s; }
-.search-loader-letter:nth-child(2) { animation-delay: 0.1s; }
-.search-loader-letter:nth-child(3) { animation-delay: 0.2s; }
-.search-loader-letter:nth-child(4) { animation-delay: 0.3s; }
-.search-loader-letter:nth-child(5) { animation-delay: 0.4s; }
-.search-loader-letter:nth-child(6) { animation-delay: 0.5s; }
-.search-loader-letter:nth-child(7) { animation-delay: 0.6s; }
-.search-loader-letter:nth-child(8) { animation-delay: 0.7s; }
-.search-loader-letter:nth-child(9) { animation-delay: 0.8s; }
+.search-loader-letter:nth-child(1) {
+  animation-delay: 0s;
+}
+.search-loader-letter:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.search-loader-letter:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.search-loader-letter:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.search-loader-letter:nth-child(5) {
+  animation-delay: 0.4s;
+}
+.search-loader-letter:nth-child(6) {
+  animation-delay: 0.5s;
+}
+.search-loader-letter:nth-child(7) {
+  animation-delay: 0.6s;
+}
+.search-loader-letter:nth-child(8) {
+  animation-delay: 0.7s;
+}
+.search-loader-letter:nth-child(9) {
+  animation-delay: 0.8s;
+}
 
 @keyframes search-loader-letter-anim {
   0%,
@@ -6135,7 +6181,8 @@ select:hover {
 .reports-monthnav-arrow:hover {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  box-shadow: 0 0 16px -6px color-mix(in srgb, var(--accent-glow) 55%, transparent);
+  box-shadow: 0 0 16px -6px
+    color-mix(in srgb, var(--accent-glow) 55%, transparent);
 }
 
 /* Cabeçalho dos dias da semana (Seg…Dom) na grade do mês. */
@@ -6324,7 +6371,8 @@ select:hover {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-border) 52%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--accent-border) 52%, transparent);
   padding: 20px;
 }
 
@@ -6360,7 +6408,11 @@ select:hover {
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border) 72%);
   background:
-    radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 38%),
+    radial-gradient(
+      circle at 20% 20%,
+      color-mix(in srgb, var(--accent) 20%, transparent),
+      transparent 38%
+    ),
     color-mix(in srgb, var(--panel) 84%, #000 16%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.055),
@@ -6421,7 +6473,11 @@ select:hover {
 .reports-event-video-actions button:hover,
 .reports-event-video-actions a:hover {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent-surface) 58%, rgba(2, 6, 23, 0.78));
+  background: color-mix(
+    in srgb,
+    var(--accent-surface) 58%,
+    rgba(2, 6, 23, 0.78)
+  );
   color: var(--accent);
   transform: translateY(-1px);
 }
@@ -6440,7 +6496,9 @@ select:hover {
 
 .reports-event-video-placeholder svg {
   color: var(--accent);
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 44%, transparent));
+  filter: drop-shadow(
+    0 0 18px color-mix(in srgb, var(--accent) 44%, transparent)
+  );
 }
 
 .reports-event-video-placeholder span {
@@ -6597,12 +6655,11 @@ select:hover {
   overflow: hidden;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent-surface) 26%, var(--panel) 74%) 0%,
-      color-mix(in srgb, var(--accent-surface) 12%, var(--panel) 88%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-surface) 26%, var(--panel) 74%) 0%,
+    color-mix(in srgb, var(--accent-surface) 12%, var(--panel) 88%) 100%
+  );
   color: color-mix(in srgb, var(--text) 88%, var(--accent) 12%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
@@ -6629,12 +6686,11 @@ select:hover {
 .records-card .account-create-cta:hover:not(:disabled),
 .account-create-cta:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 72%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent-surface) 34%, var(--panel) 66%) 0%,
-      color-mix(in srgb, var(--accent-surface) 18%, var(--panel) 82%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-surface) 34%, var(--panel) 66%) 0%,
+    color-mix(in srgb, var(--accent-surface) 18%, var(--panel) 82%) 100%
+  );
   color: var(--text);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),

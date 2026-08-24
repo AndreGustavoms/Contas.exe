@@ -242,7 +242,11 @@ describe("user isolation", () => {
       {
         cookie: gustavo.cookie,
         method: "POST",
-        body: { platform: "Netflix", username: "gustavo-netflix", password: "pass123" },
+        body: {
+          platform: "Netflix",
+          username: "gustavo-netflix",
+          password: "pass123",
+        },
       },
     );
     assert.equal(readdAccount.response.status, 201);

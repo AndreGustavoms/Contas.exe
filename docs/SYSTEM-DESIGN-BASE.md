@@ -122,12 +122,14 @@ docs/
 # System Design
 
 ## 1. Objetivo
+
 O sistema resolve:
 Usuários:
 Fluxo principal:
 Ação crítica:
 
 ## 2. Arquitetura
+
 - Frontend:
 - Backend:
 - Persistência:
@@ -135,6 +137,7 @@ Ação crítica:
 - Integrações:
 
 ## 3. Módulos
+
 - Auth
 - Users
 - Sessions
@@ -144,12 +147,14 @@ Ação crítica:
 - Integrations
 
 ## 4. Modelo de dados
+
 Entidades:
 Relacionamentos:
 Campos sensíveis:
 Campos auditáveis:
 
 ## 5. Auth e autorização
+
 - Login:
 - Sessão:
 - Papéis:
@@ -157,6 +162,7 @@ Campos auditáveis:
 - Reauth:
 
 ## 6. Segurança
+
 - Hash de senha:
 - Criptografia em repouso:
 - Cookies:
@@ -166,12 +172,14 @@ Campos auditáveis:
 - Backup:
 
 ## 7. API
+
 - Rotas:
 - Contratos:
 - Validação:
 - Erros:
 
 ## 8. Frontend
+
 - Telas:
 - Estado:
 - Componentes reutilizáveis:
@@ -179,6 +187,7 @@ Campos auditáveis:
 - tema/design system:
 
 ## 9. Operação
+
 - Variáveis de ambiente:
 - Como rodar local:
 - Como buildar:
@@ -186,6 +195,7 @@ Campos auditáveis:
 - Como restaurar:
 
 ## 10. Riscos
+
 - Técnicos:
 - Segurança:
 - Escala:

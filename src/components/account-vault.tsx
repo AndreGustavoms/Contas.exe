@@ -342,7 +342,10 @@ function areDraftsEqual(left: AccountDraft, right: AccountDraft) {
   );
 }
 
-function hasSensitiveDraftChanges(current: AccountDraft, baseline: AccountDraft) {
+function hasSensitiveDraftChanges(
+  current: AccountDraft,
+  baseline: AccountDraft,
+) {
   return (
     current.username.trim() !== baseline.username.trim() ||
     current.password !== baseline.password
@@ -577,7 +580,11 @@ export function AccountVault({
         .then((r) => (r.ok ? r.json() : { channels: [] }))
         .then((d: { channels?: { title?: string }[] }) => {
           const ch = d.channels?.[0]?.title;
-          notify(ch ? `Canal "${ch}" conectado com sucesso!` : "Canal do YouTube conectado!");
+          notify(
+            ch
+              ? `Canal "${ch}" conectado com sucesso!`
+              : "Canal do YouTube conectado!",
+          );
         })
         .catch(() => notify("Canal do YouTube conectado!"));
       setPosterOpen(true);
@@ -585,7 +592,7 @@ export function AccountVault({
       window.history.replaceState({}, "", "/");
       notify("Erro ao conectar o canal do YouTube.", "error");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeGroup = useMemo(
@@ -971,8 +978,7 @@ export function AccountVault({
   }
 
   const activeFilterCount =
-    (roleFilter !== ALL ? 1 : 0) +
-    (statusFilter !== ALL ? 1 : 0);
+    (roleFilter !== ALL ? 1 : 0) + (statusFilter !== ALL ? 1 : 0);
   const hasAnyAccounts = accounts.length > 0;
   const hasActiveListFilters = activeFilterCount > 0 || platformFilter !== ALL;
 
@@ -1505,7 +1511,9 @@ export function AccountVault({
             {sidebarPlatforms.map((platform) => (
               <SidebarButton
                 key={platform}
-                active={!posterOpen && !dashboardOpen && platformFilter === platform}
+                active={
+                  !posterOpen && !dashboardOpen && platformFilter === platform
+                }
                 count={platformCounts[platform] ?? 0}
                 icon={platformIconFor(platform)}
                 label={platform}
@@ -1528,7 +1536,10 @@ export function AccountVault({
               active={posterOpen}
               icon={Send}
               label={t("vault.post")}
-              onClick={() => { setDashboardOpen(false); setPosterOpen(true); }}
+              onClick={() => {
+                setDashboardOpen(false);
+                setPosterOpen(true);
+              }}
             />
           </SidebarSection>
 
@@ -1924,7 +1935,8 @@ export function AccountVault({
             <span className="ml-1 min-w-[3ch] text-right text-sm font-semibold tabular-nums text-[color:var(--accent)]">
               {exportProgress.total > 0
                 ? Math.round((exportProgress.done / exportProgress.total) * 100)
-                : 0}%
+                : 0}
+              %
             </span>
           </div>
         </div>
@@ -2260,7 +2272,10 @@ function AccountWizardModal({
 
         {editing && saveRequiresConfirmation ? (
           <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[color:var(--accent-border)] bg-[color:var(--accent-surface)] px-3 py-2.5 text-sm text-[color:var(--accent-soft)]">
-            <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+            <ShieldAlert
+              aria-hidden="true"
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
             <p>{t("vault.sensitive_change_requires_confirmation")}</p>
           </div>
         ) : null}
@@ -2363,17 +2378,17 @@ function AccountForm({
 
         <Field label={t("vault.field_status")}>
           <ChoiceGrid>
-            {(["active", "review", "archived", "inactive"] as AccountStatus[]).map(
-              (status) => (
-                <ChoiceButton
-                  key={status}
-                  selected={draft.status === status}
-                  onClick={() => onUpdate("status", status)}
-                >
-                  {statusLabel[status]}
-                </ChoiceButton>
-              ),
-            )}
+            {(
+              ["active", "review", "archived", "inactive"] as AccountStatus[]
+            ).map((status) => (
+              <ChoiceButton
+                key={status}
+                selected={draft.status === status}
+                onClick={() => onUpdate("status", status)}
+              >
+                {statusLabel[status]}
+              </ChoiceButton>
+            ))}
           </ChoiceGrid>
         </Field>
       </FormSection>
@@ -3321,12 +3336,12 @@ function AccountRow({ account, index, isActive, onSelect }: AccountRowProps) {
           }
           className={cn(
             "security-chip",
-            account.twoFactor
-              ? "security-chip-info"
-              : "security-chip-neutral",
+            account.twoFactor ? "security-chip-info" : "security-chip-neutral",
           )}
           title={
-            account.twoFactor ? t("vault.two_factor_on") : t("vault.two_factor_off")
+            account.twoFactor
+              ? t("vault.two_factor_on")
+              : t("vault.two_factor_off")
           }
         >
           <ShieldCheck aria-hidden className="h-3.5 w-3.5" />
@@ -3366,7 +3381,9 @@ function QuickViewModal({
   const { t } = useTranslation();
   const { closing, close } = useClosing(onClose);
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [editDraft, setEditDraft] = useState<AccountDraft>(() => toDraft(account));
+  const [editDraft, setEditDraft] = useState<AccountDraft>(() =>
+    toDraft(account),
+  );
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
 
@@ -3572,7 +3589,11 @@ function QuickViewModal({
                     }
                   />
                   <button
-                    aria-label={showEditPassword ? t("vault.hide_password") : t("vault.show_password")}
+                    aria-label={
+                      showEditPassword
+                        ? t("vault.hide_password")
+                        : t("vault.show_password")
+                    }
                     className="qv-password-toggle absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent outline-none"
                     type="button"
                     onClick={() => setShowEditPassword((v) => !v)}
@@ -3593,16 +3614,19 @@ function QuickViewModal({
                 </label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {(
-                    ["active", "review", "archived", "inactive"] as AccountStatus[]
+                    [
+                      "active",
+                      "review",
+                      "archived",
+                      "inactive",
+                    ] as AccountStatus[]
                   ).map((status) => {
                     const selected = editDraft.status === status;
                     return (
                       <button
                         key={status}
                         type="button"
-                        onClick={() =>
-                          setEditDraft((d) => ({ ...d, status }))
-                        }
+                        onClick={() => setEditDraft((d) => ({ ...d, status }))}
                         className={cn(
                           "flex h-10 items-center justify-center rounded-xl border px-3 text-[13px] font-semibold transition duration-150",
                           selected
@@ -3689,10 +3713,12 @@ function QuickField({
           {label}
         </div>
         <div className="qv-field-row mt-3 flex items-center gap-2.5">
-          <p className={cn(
-            "qv-field-value min-w-0 flex-1 truncate text-[15px] text-[color:var(--text)]",
-            masked && "tracking-[0.18em] text-[color:var(--muted)]",
-          )}>
+          <p
+            className={cn(
+              "qv-field-value min-w-0 flex-1 truncate text-[15px] text-[color:var(--text)]",
+              masked && "tracking-[0.18em] text-[color:var(--muted)]",
+            )}
+          >
             {value ? (masked ? "••••••••••••" : value) : "—"}
           </p>
           <div className="qv-field-actions flex shrink-0 items-center gap-1.5">

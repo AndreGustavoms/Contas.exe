@@ -55,13 +55,20 @@ function PlatformIcon({
 }) {
   const cls = cn("h-[18px] w-[18px] shrink-0", className);
   switch (platform?.toLowerCase()) {
-    case "instagram": return <InstagramIcon className={cls} />;
-    case "facebook":  return <FacebookIcon  className={cls} />;
-    case "youtube":   return <YouTubeIcon   className={cls} />;
-    case "tiktok":    return <TikTokIcon    className={cls} />;
-    case "kwai":      return <KwaiIcon      className={cls} />;
-    case "email":     return <Mail          className={cls} />;
-    default:          return <Layers        className={cls} />;
+    case "instagram":
+      return <InstagramIcon className={cls} />;
+    case "facebook":
+      return <FacebookIcon className={cls} />;
+    case "youtube":
+      return <YouTubeIcon className={cls} />;
+    case "tiktok":
+      return <TikTokIcon className={cls} />;
+    case "kwai":
+      return <KwaiIcon className={cls} />;
+    case "email":
+      return <Mail className={cls} />;
+    default:
+      return <Layers className={cls} />;
   }
 }
 
@@ -192,7 +199,10 @@ export function GlobalSearch({ onClose, onNavigate }: Props) {
   );
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") { close(); return; }
+    if (e.key === "Escape") {
+      close();
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setCursor((c) => Math.min(c + 1, results.length - 1));
@@ -218,14 +228,14 @@ export function GlobalSearch({ onClose, onNavigate }: Props) {
         background: "color-mix(in srgb, var(--overlay) 86%, transparent)",
         backdropFilter: "blur(10px)",
       }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
     >
       <div
         className={cn(
           "global-search-panel w-full max-w-[960px] overflow-visible transition-[transform,opacity] duration-300",
-          visible
-            ? "translate-y-0 opacity-100"
-            : "-translate-y-2 opacity-0",
+          visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
         )}
       >
         {/* input row */}
@@ -235,10 +245,11 @@ export function GlobalSearch({ onClose, onNavigate }: Props) {
               className="global-search-icon shrink-0 transition-all duration-200"
               style={{ opacity: query ? 0.92 : 0.56 }}
             >
-              {loading
-                ? <Spinner className="h-[18px] w-[18px]" />
-                : <Search className="h-[18px] w-[18px]" />
-              }
+              {loading ? (
+                <Spinner className="h-[18px] w-[18px]" />
+              ) : (
+                <Search className="h-[18px] w-[18px]" />
+              )}
             </span>
 
             <input
@@ -376,12 +387,14 @@ export function GlobalSearch({ onClose, onNavigate }: Props) {
         {/* empty */}
         {showEmpty && (
           <div className="px-5 py-10 text-center">
-            <p className="text-[13px] opacity-35" style={{ color: "var(--text)" }}>
+            <p
+              className="text-[13px] opacity-35"
+              style={{ color: "var(--text)" }}
+            >
               {t("vault.global_search_empty")}
             </p>
           </div>
         )}
-
       </div>
     </div>
   );

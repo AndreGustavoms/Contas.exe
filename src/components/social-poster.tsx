@@ -113,55 +113,61 @@ export function SocialPoster({ onClose }: { onClose: () => void }) {
         <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-[color:var(--muted)]">
           {t("post.networks")}
         </p>
-        {NETWORKS.map(({ id, label, Icon, accent, comingSoon, dividerBefore }) => {
-          const isActive = active === id && !comingSoon;
-          return (
-            <div key={id}>
-            {dividerBefore && <div className="my-2 border-t border-[color:var(--border)]" />}
-            <button
-              key={id}
-              type="button"
-              onClick={() => !comingSoon && setActive(id)}
-              aria-disabled={comingSoon}
-              className={cn(
-                "group relative flex w-full items-center gap-2.5 overflow-hidden rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                comingSoon
-                  ? "cursor-default pr-3 text-[color:var(--muted)] opacity-55 hover:bg-[color:var(--field)] hover:opacity-100 focus-visible:bg-[color:var(--field)]"
-                  : isActive
-                    ? "bg-[color:var(--field)] text-[color:var(--text)]"
-                    : "text-[color:var(--muted)] hover:bg-[color:var(--field)] hover:text-[color:var(--text)]",
-              )}
-            >
-              {isActive && (
-                <span
-                  className="absolute left-0 top-0 h-full w-0.5 rounded-r"
-                  style={{
-                    background: accent,
-                    boxShadow: `0 0 8px ${accent}99`,
-                  }}
-                />
-              )}
-              <span
-                className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all duration-200",
-                  isActive
-                    ? "opacity-100"
-                    : "opacity-60 group-hover:opacity-80",
+        {NETWORKS.map(
+          ({ id, label, Icon, accent, comingSoon, dividerBefore }) => {
+            const isActive = active === id && !comingSoon;
+            return (
+              <div key={id}>
+                {dividerBefore && (
+                  <div className="my-2 border-t border-[color:var(--border)]" />
                 )}
-              >
-                <Icon className="h-4 w-4" style={{ color: accent }} />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-              {comingSoon && (
-                <span className="pointer-events-none absolute right-2 flex items-center gap-1 rounded-md border border-[color:var(--border)] bg-[color:var(--card)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[color:var(--muted)] opacity-0 shadow-sm transition-all duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <Lock className="h-2.5 w-2.5" />
-                  em breve
-                </span>
-              )}
-            </button>
-            </div>
-          );
-        })}
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => !comingSoon && setActive(id)}
+                  aria-disabled={comingSoon}
+                  className={cn(
+                    "group relative flex w-full items-center gap-2.5 overflow-hidden rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    comingSoon
+                      ? "cursor-default pr-3 text-[color:var(--muted)] opacity-55 hover:bg-[color:var(--field)] hover:opacity-100 focus-visible:bg-[color:var(--field)]"
+                      : isActive
+                        ? "bg-[color:var(--field)] text-[color:var(--text)]"
+                        : "text-[color:var(--muted)] hover:bg-[color:var(--field)] hover:text-[color:var(--text)]",
+                  )}
+                >
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-0 h-full w-0.5 rounded-r"
+                      style={{
+                        background: accent,
+                        boxShadow: `0 0 8px ${accent}99`,
+                      }}
+                    />
+                  )}
+                  <span
+                    className={cn(
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all duration-200",
+                      isActive
+                        ? "opacity-100"
+                        : "opacity-60 group-hover:opacity-80",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" style={{ color: accent }} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-left">
+                    {label}
+                  </span>
+                  {comingSoon && (
+                    <span className="pointer-events-none absolute right-2 flex items-center gap-1 rounded-md border border-[color:var(--border)] bg-[color:var(--card)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[color:var(--muted)] opacity-0 shadow-sm transition-all duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                      <Lock className="h-2.5 w-2.5" />
+                      em breve
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          },
+        )}
       </nav>
 
       {/* Painel da rede selecionada */}

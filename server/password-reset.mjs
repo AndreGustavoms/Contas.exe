@@ -42,18 +42,27 @@ export async function createResetToken(storageDir, userId) {
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
 
   if (isConnected()) {
-    await query("DELETE FROM password_reset_tokens WHERE user_id = $1", [userId]);
+    await query("DELETE FROM password_reset_tokens WHERE user_id = $1", [
+      userId,
+    ]);
     await query(
       `INSERT INTO password_reset_tokens (token, user_id, expires_at)
        VALUES ($1, $2, $3)`,
-      [tokenHash(raw), userId, expiresAt]
+      [tokenHash(raw), userId, expiresAt],
     );
     return raw;
   }
 
   const hash = await hashPassword(raw);
-  const tokens = (await readTokens(storageDir)).filter((t) => t.userId !== userId);
-  tokens.push({ userId, hash, expiresAt: expiresAt.toISOString(), used: false });
+  const tokens = (await readTokens(storageDir)).filter(
+    (t) => t.userId !== userId,
+  );
+  tokens.push({
+    userId,
+    hash,
+    expiresAt: expiresAt.toISOString(),
+    used: false,
+  });
   await writeTokens(storageDir, tokens);
   return raw;
 }
@@ -65,7 +74,7 @@ export async function validateResetToken(storageDir, raw) {
     const result = await query(
       `SELECT user_id FROM password_reset_tokens
        WHERE token = $1 AND consumed_at IS NULL AND expires_at > NOW()`,
-      [tokenHash(raw)]
+      [tokenHash(raw)],
     );
     return result.rows.length > 0 ? result.rows[0].user_id : null;
   }
@@ -84,7 +93,7 @@ export async function consumeResetToken(storageDir, raw) {
   if (isConnected()) {
     await query(
       "UPDATE password_reset_tokens SET consumed_at = NOW() WHERE token = $1 AND consumed_at IS NULL",
-      [tokenHash(raw)]
+      [tokenHash(raw)],
     );
     return;
   }
@@ -95,7 +104,11 @@ export async function consumeResetToken(storageDir, raw) {
   for (const entry of tokens) {
     if (entry.used || new Date(entry.expiresAt).getTime() <= now) continue;
     const match = await verifyPassword(raw, entry.hash);
-    if (match) { entry.used = true; changed = true; break; }
+    if (match) {
+      entry.used = true;
+      changed = true;
+      break;
+    }
   }
   if (changed) await writeTokens(storageDir, tokens);
 }
@@ -103,13 +116,15 @@ export async function consumeResetToken(storageDir, raw) {
 export async function pruneResetTokens(storageDir) {
   if (isConnected()) {
     await query(
-      "DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR consumed_at IS NOT NULL"
+      "DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR consumed_at IS NOT NULL",
     );
     return;
   }
 
   const tokens = await readTokens(storageDir);
   const now = Date.now();
-  const fresh = tokens.filter((t) => !t.used && new Date(t.expiresAt).getTime() > now);
+  const fresh = tokens.filter(
+    (t) => !t.used && new Date(t.expiresAt).getTime() > now,
+  );
   if (fresh.length !== tokens.length) await writeTokens(storageDir, fresh);
 }

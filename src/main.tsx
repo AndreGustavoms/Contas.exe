@@ -7,10 +7,14 @@ import "./i18n";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "./theme";
 
 const PrivacyPolicy = lazy(() =>
-  import("./components/privacy-policy").then((m) => ({ default: m.PrivacyPolicy })),
+  import("./components/privacy-policy").then((m) => ({
+    default: m.PrivacyPolicy,
+  })),
 );
 const TermsOfService = lazy(() =>
-  import("./components/terms-of-service").then((m) => ({ default: m.TermsOfService })),
+  import("./components/terms-of-service").then((m) => ({
+    default: m.TermsOfService,
+  })),
 );
 
 function getTheme(): AppTheme {

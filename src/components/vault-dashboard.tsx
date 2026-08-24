@@ -24,15 +24,27 @@ interface Props {
   onNavigate: (groupId: string) => void;
 }
 
-function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
+function PlatformIcon({
+  platform,
+  className,
+}: {
+  platform: string;
+  className?: string;
+}) {
   const cls = cn("h-5 w-5", className);
   switch (platform.toLowerCase()) {
-    case "instagram": return <InstagramIcon className={cls} />;
-    case "facebook":  return <FacebookIcon  className={cls} />;
-    case "youtube":   return <YouTubeIcon   className={cls} />;
-    case "tiktok":    return <TikTokIcon    className={cls} />;
-    case "kwai":      return <KwaiIcon      className={cls} />;
-    default:          return <Layers        className={cls} />;
+    case "instagram":
+      return <InstagramIcon className={cls} />;
+    case "facebook":
+      return <FacebookIcon className={cls} />;
+    case "youtube":
+      return <YouTubeIcon className={cls} />;
+    case "tiktok":
+      return <TikTokIcon className={cls} />;
+    case "kwai":
+      return <KwaiIcon className={cls} />;
+    default:
+      return <Layers className={cls} />;
   }
 }
 
@@ -69,7 +81,12 @@ function DonutChart({
   const c = 2 * Math.PI * r;
   let offset = 0;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+    >
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -153,13 +170,22 @@ function ChartWithLegend({
                 {s.icon}
               </span>
             )}
-            <span className="flex-1 truncate capitalize" style={{ color: "var(--muted)" }}>
+            <span
+              className="flex-1 truncate capitalize"
+              style={{ color: "var(--muted)" }}
+            >
               {s.label}
             </span>
-            <span className="tabular-nums font-semibold" style={{ color: "var(--text)" }}>
+            <span
+              className="tabular-nums font-semibold"
+              style={{ color: "var(--text)" }}
+            >
               {pct(s.value)}%
             </span>
-            <span className="w-6 text-right tabular-nums opacity-50" style={{ color: "var(--text)" }}>
+            <span
+              className="w-6 text-right tabular-nums opacity-50"
+              style={{ color: "var(--text)" }}
+            >
               {s.value}
             </span>
           </li>
@@ -188,25 +214,42 @@ function StatCard({ label, value, sub, icon, accent, warn }: StatCardProps) {
       }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide opacity-50" style={{ color: "var(--text)" }}>
+        <span
+          className="text-xs font-medium uppercase tracking-wide opacity-50"
+          style={{ color: "var(--text)" }}
+        >
           {label}
         </span>
         <span
           className="flex h-8 w-8 items-center justify-center rounded-xl"
           style={{
-            background: accent ? "var(--accent-surface)" : warn ? "rgba(234,179,8,0.1)" : "var(--surface)",
-            color: accent ? "var(--accent)" : warn ? "rgb(234,179,8)" : "var(--muted)",
+            background: accent
+              ? "var(--accent-surface)"
+              : warn
+                ? "rgba(234,179,8,0.1)"
+                : "var(--surface)",
+            color: accent
+              ? "var(--accent)"
+              : warn
+                ? "rgb(234,179,8)"
+                : "var(--muted)",
           }}
         >
           {icon}
         </span>
       </div>
       <div>
-        <p className="text-3xl font-bold tabular-nums" style={{ color: "var(--text)" }}>
+        <p
+          className="text-3xl font-bold tabular-nums"
+          style={{ color: "var(--text)" }}
+        >
           {value}
         </p>
         {sub && (
-          <p className="mt-0.5 text-xs opacity-50" style={{ color: "var(--text)" }}>
+          <p
+            className="mt-0.5 text-xs opacity-50"
+            style={{ color: "var(--text)" }}
+          >
             {sub}
           </p>
         )}
@@ -228,7 +271,9 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
   const stats = useMemo(() => {
     const total = accounts.length;
     const with2fa = accounts.filter((a) => a.twoFactor).length;
-    const noPassword = accounts.filter((a) => !a.hasPassword && !a.password).length;
+    const noPassword = accounts.filter(
+      (a) => !a.hasPassword && !a.password,
+    ).length;
     const inactive = accounts.filter((a) => a.status === "inactive").length;
     const review = accounts.filter((a) => a.status === "review").length;
     const active = accounts.filter((a) => a.status === "active").length;
@@ -243,7 +288,16 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6);
 
-    return { total, with2fa, noPassword, inactive, review, active, archived, topPlatforms };
+    return {
+      total,
+      with2fa,
+      noPassword,
+      inactive,
+      review,
+      active,
+      archived,
+      topPlatforms,
+    };
   }, [accounts, groups]);
 
   const groupStats = useMemo(
@@ -251,7 +305,8 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
     [groups],
   );
 
-  const pct2fa = stats.total > 0 ? Math.round((stats.with2fa / stats.total) * 100) : 0;
+  const pct2fa =
+    stats.total > 0 ? Math.round((stats.with2fa / stats.total) * 100) : 0;
 
   return (
     <div className="animate-rise space-y-6 px-4 pb-8 pt-4 sm:px-5 sm:pt-5">
@@ -277,7 +332,10 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
         <StatCard
           label={t("vault.dashboard_2fa")}
           value={`${pct2fa}%`}
-          sub={t("vault.dashboard_2fa_sub", { done: stats.with2fa, total: stats.total })}
+          sub={t("vault.dashboard_2fa_sub", {
+            done: stats.with2fa,
+            total: stats.total,
+          })}
           icon={<ShieldCheck className="h-4 w-4" />}
           accent={pct2fa >= 80}
         />
@@ -302,17 +360,39 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
         {/* status */}
         <div
           className="rounded-2xl p-5"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+          }}
         >
-          <p className="mb-4 text-sm font-semibold" style={{ color: "var(--text)" }}>
+          <p
+            className="mb-4 text-sm font-semibold"
+            style={{ color: "var(--text)" }}
+          >
             {t("vault.dashboard_by_status")}
           </p>
           <ChartWithLegend
             segments={[
-              { label: t("vault.tab_active"), value: stats.active, color: "var(--accent)" },
-              { label: t("vault.tab_archived"), value: stats.archived, color: "#60a5fa" },
-              { label: t("vault.tab_review"), value: stats.review, color: "#f59e0b" },
-              { label: t("vault.tab_disabled"), value: stats.inactive, color: "#94a3b8" },
+              {
+                label: t("vault.tab_active"),
+                value: stats.active,
+                color: "var(--accent)",
+              },
+              {
+                label: t("vault.tab_archived"),
+                value: stats.archived,
+                color: "#60a5fa",
+              },
+              {
+                label: t("vault.tab_review"),
+                value: stats.review,
+                color: "#f59e0b",
+              },
+              {
+                label: t("vault.tab_disabled"),
+                value: stats.inactive,
+                color: "#94a3b8",
+              },
             ]}
             emptyLabel={t("vault.dashboard_empty")}
           />
@@ -321,9 +401,15 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
         {/* platforms */}
         <div
           className="rounded-2xl p-5"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+          }}
         >
-          <p className="mb-4 text-sm font-semibold" style={{ color: "var(--text)" }}>
+          <p
+            className="mb-4 text-sm font-semibold"
+            style={{ color: "var(--text)" }}
+          >
             {t("vault.dashboard_by_platform")}
           </p>
           <ChartWithLegend
@@ -342,9 +428,15 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
       {groupStats.length > 0 && (
         <div
           className="rounded-2xl p-5"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+          }}
         >
-          <p className="mb-4 text-sm font-semibold" style={{ color: "var(--text)" }}>
+          <p
+            className="mb-4 text-sm font-semibold"
+            style={{ color: "var(--text)" }}
+          >
             {t("vault.dashboard_groups_title")}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -357,19 +449,31 @@ export function VaultDashboard({ accounts, groups, onNavigate }: Props) {
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold uppercase"
-                  style={{ background: "var(--accent-surface)", color: "var(--accent)" }}
+                  style={{
+                    background: "var(--accent-surface)",
+                    color: "var(--accent)",
+                  }}
                 >
                   {g.name.slice(0, 2)}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                  <p
+                    className="truncate text-sm font-medium"
+                    style={{ color: "var(--text)" }}
+                  >
                     {g.name}
                   </p>
-                  <p className="text-xs opacity-50" style={{ color: "var(--text)" }}>
+                  <p
+                    className="text-xs opacity-50"
+                    style={{ color: "var(--text)" }}
+                  >
                     {t("vault.dashboard_group_count", { count: g.count })}
                   </p>
                 </div>
-                <TrendingUp className="ml-auto h-3.5 w-3.5 shrink-0 opacity-20" style={{ color: "var(--text)" }} />
+                <TrendingUp
+                  className="ml-auto h-3.5 w-3.5 shrink-0 opacity-20"
+                  style={{ color: "var(--text)" }}
+                />
               </button>
             ))}
           </div>

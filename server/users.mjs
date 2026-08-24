@@ -490,7 +490,6 @@ export function linkGithubProvider(storageDir, userId, profile) {
 // em users.json (preserva o login atual, sem lockout), 3) um hash aleatório
 // (login por senha fica desabilitado até definir a env — zero credencial no código).
 
-
 export async function ensureSeedAdmin(storageDir) {
   const users = await readUsersFile(storageDir);
   if (users.length > 0) return users;

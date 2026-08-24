@@ -148,12 +148,25 @@ function sendChunk(
     xhr.timeout = 60_000; // 1 MB should take seconds; a stall means retry
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new UploadRequestError(xhr.status, parseJson(xhr.responseText)));
+      else
+        reject(new UploadRequestError(xhr.status, parseJson(xhr.responseText)));
     };
     xhr.onerror = () =>
-      reject(new UploadRequestError(0, { error: "network", source: "network", message: "network" }));
+      reject(
+        new UploadRequestError(0, {
+          error: "network",
+          source: "network",
+          message: "network",
+        }),
+      );
     xhr.ontimeout = () =>
-      reject(new UploadRequestError(0, { error: "timeout", source: "network", message: "timeout" }));
+      reject(
+        new UploadRequestError(0, {
+          error: "timeout",
+          source: "network",
+          message: "timeout",
+        }),
+      );
     xhr.send(chunk);
   });
 }
@@ -197,7 +210,9 @@ async function uploadVideoFile(
     } catch (err) {
       // Surface a precise, actionable diagnosis instead of a generic "Falha de rede".
       if (err instanceof UploadRequestError) {
-        const serverDetail = err.payload.message ? ` Detalhe: ${err.payload.message}.` : "";
+        const serverDetail = err.payload.message
+          ? ` Detalhe: ${err.payload.message}.`
+          : "";
         err.payload.source = "network";
         err.payload.userMessage =
           err.status === 0
@@ -357,7 +372,8 @@ function issueFromError(error: unknown, t: Translate): UploadIssue {
   if (error instanceof UploadRequestError) {
     const payload = error.payload;
     const source = payload.source ?? "local";
-    const status = payload.status ?? (error.status > 0 ? error.status : undefined);
+    const status =
+      payload.status ?? (error.status > 0 ? error.status : undefined);
     if (source === "youtube" && payload.reason === "youtubeSignupRequired") {
       return {
         title: t("post.youtube.error_modal_youtube_channel_title"),
@@ -430,7 +446,8 @@ export function YouTubePoster() {
   const [tab, setTab] = useState<Tab>("post");
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [channelId, setChannelId] = useState("");
-  const [channelToDisconnect, setChannelToDisconnect] = useState<Channel | null>(null);
+  const [channelToDisconnect, setChannelToDisconnect] =
+    useState<Channel | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const [videoType, setVideoType] = useState<VideoType>("video");
 
@@ -663,7 +680,10 @@ export function YouTubePoster() {
           file: staged.name,
           title: title.trim(),
           description,
-          tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
+          tags: tags
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
           publishAt,
           privacyStatus: privacy,
           videoType,
@@ -1038,7 +1058,8 @@ export function YouTubePoster() {
                             vertical ? "max-w-[340px]" : "max-w-[640px]",
                           )}
                           style={{
-                            aspectRatio: ratio ?? (vertical ? "9 / 16" : "16 / 9"),
+                            aspectRatio:
+                              ratio ?? (vertical ? "9 / 16" : "16 / 9"),
                           }}
                         >
                           <video
@@ -1082,7 +1103,9 @@ export function YouTubePoster() {
                                 </span>
                               )}
                               {videoDuration !== null && (
-                                <span>{fmtDuration(Math.round(videoDuration))}</span>
+                                <span>
+                                  {fmtDuration(Math.round(videoDuration))}
+                                </span>
                               )}
                             </span>
                           )}
@@ -1355,64 +1378,68 @@ export function YouTubePoster() {
           onClose={() => setUploadIssue(null)}
         />
       )}
-      {channelToDisconnect && createPortal(
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !disconnecting)
-              setChannelToDisconnect(null);
-          }}
-        >
+      {channelToDisconnect &&
+        createPortal(
           <div
-            className="w-full max-w-sm rounded-2xl p-5"
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
             style={{
-              background: "var(--panel)",
-              border: "1px solid var(--accent-border)",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.45)",
+              background: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(4px)",
+            }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !disconnecting)
+                setChannelToDisconnect(null);
             }}
           >
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
-                <Trash2 className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-[color:var(--text)]">
-                  Desconectar canal
-                </h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--muted)]">
-                  O canal{" "}
-                  <strong className="text-[color:var(--text)]">
-                    {channelToDisconnect.title}
-                  </strong>{" "}
-                  será desconectado. O histórico é mantido; para postar de novo,
-                  basta reconectar.
-                </p>
+            <div
+              className="w-full max-w-sm rounded-2xl p-5"
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--accent-border)",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.45)",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+                  <Trash2 className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-[color:var(--text)]">
+                    Desconectar canal
+                  </h3>
+                  <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--muted)]">
+                    O canal{" "}
+                    <strong className="text-[color:var(--text)]">
+                      {channelToDisconnect.title}
+                    </strong>{" "}
+                    será desconectado. O histórico é mantido; para postar de
+                    novo, basta reconectar.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={() => setChannelToDisconnect(null)}
+                  className="rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--field)] hover:text-[color:var(--text)] disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={confirmDisconnect}
+                  className="flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
+                >
+                  {disconnecting && <Spinner className="h-3.5 w-3.5" />}
+                  Desconectar
+                </button>
               </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={disconnecting}
-                onClick={() => setChannelToDisconnect(null)}
-                className="rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--field)] hover:text-[color:var(--text)] disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={disconnecting}
-                onClick={confirmDisconnect}
-                className="flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {disconnecting && <Spinner className="h-3.5 w-3.5" />}
-                Desconectar
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -1504,7 +1531,9 @@ function UploadIssueModal({
               className="login-btn-primary px-5"
               href={issue.actionHref}
               rel="noreferrer"
-              target={issue.actionHref.startsWith("http") ? "_blank" : undefined}
+              target={
+                issue.actionHref.startsWith("http") ? "_blank" : undefined
+              }
             >
               {issue.actionLabel}
             </a>
@@ -1542,7 +1571,8 @@ function HistoryList({
 
   // Agrupa por canal preservando a ordem (mais recentes primeiro), pra o
   // histórico sempre mostrar de qual conta cada vídeo foi postado.
-  const groups: { channelId: string; title?: string; items: HistoryItem[] }[] = [];
+  const groups: { channelId: string; title?: string; items: HistoryItem[] }[] =
+    [];
   const groupIndex = new Map<string, number>();
   for (const item of items) {
     const cid = item.channelId ?? "—";
@@ -1564,7 +1594,10 @@ function HistoryList({
       const res = await fetch("/api/youtube/video", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelId: itemChannelId || channelId, videoId }),
+        body: JSON.stringify({
+          channelId: itemChannelId || channelId,
+          videoId,
+        }),
       });
       if (res.ok) {
         onDelete(videoId);
@@ -1595,105 +1628,108 @@ function HistoryList({
               </span>
             </p>
             <ul className="grid gap-2">
-        {group.items.map((item, i) => {
-          const key = `${item.videoId ?? "v"}-${i}`;
-          const isConfirming = confirming === item.videoId;
-          const isDeleting = deleting === item.videoId;
-          return (
-            <li
-              key={key}
-              className="flex items-center gap-3 rounded-xl border border-[color:var(--border)] p-2.5"
-            >
-              <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-[color:var(--surface-soft)]">
-                {item.thumbnailUrl ? (
-                  <img
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    src={item.thumbnailUrl}
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[color:var(--muted)]">
-                    <FileVideo2 className="h-5 w-5" />
-                  </div>
-                )}
-                {item.durationSeconds ? (
-                  <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[10px] tabular-nums text-white">
-                    {fmtDuration(item.durationSeconds)}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[color:var(--text)]">
-                  {item.title}
-                </p>
-                {item.publishAt && new Date(item.publishAt) > new Date(item.uploadedAt) ? (
-                  <p className="flex items-center gap-1 text-[11px] text-[color:var(--accent)]">
-                    <Calendar className="h-3 w-3 shrink-0" />
-                    {t("post.youtube.scheduled_for", {
-                      date: new Date(item.publishAt).toLocaleString(),
-                    })}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-[color:var(--muted)]">
-                    {new Date(item.uploadedAt).toLocaleString()}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1">
-                {item.videoId ? (
-                  <a
-                    aria-label={t("post.youtube.view")}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:text-[color:var(--accent)]"
-                    href={`https://studio.youtube.com/video/${item.videoId}/edit`}
-                    target="_blank"
-                    rel="noreferrer"
+              {group.items.map((item, i) => {
+                const key = `${item.videoId ?? "v"}-${i}`;
+                const isConfirming = confirming === item.videoId;
+                const isDeleting = deleting === item.videoId;
+                return (
+                  <li
+                    key={key}
+                    className="flex items-center gap-3 rounded-xl border border-[color:var(--border)] p-2.5"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                ) : null}
-
-                {item.videoId && !isConfirming && (
-                  <button
-                    type="button"
-                    aria-label={t("post.youtube.delete_video")}
-                    onClick={() => setConfirming(item.videoId!)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:bg-red-500/10 hover:text-red-400"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-
-                {item.videoId && isConfirming && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={isDeleting}
-                      onClick={() => handleDelete(item.videoId!, item.channelId)}
-                      className="flex h-7 items-center gap-1 rounded-lg bg-red-500/15 px-2 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/25 disabled:opacity-50"
-                    >
-                      {isDeleting ? (
-                        <Spinner className="h-3 w-3" />
+                    <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-[color:var(--surface-soft)]">
+                      {item.thumbnailUrl ? (
+                        <img
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          src={item.thumbnailUrl}
+                        />
                       ) : (
-                        <Trash2 className="h-3 w-3" />
+                        <div className="flex h-full w-full items-center justify-center text-[color:var(--muted)]">
+                          <FileVideo2 className="h-5 w-5" />
+                        </div>
                       )}
-                      {t("post.youtube.delete_confirm")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirming(null)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </li>
-          );
-        })}
+                      {item.durationSeconds ? (
+                        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[10px] tabular-nums text-white">
+                          {fmtDuration(item.durationSeconds)}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[color:var(--text)]">
+                        {item.title}
+                      </p>
+                      {item.publishAt &&
+                      new Date(item.publishAt) > new Date(item.uploadedAt) ? (
+                        <p className="flex items-center gap-1 text-[11px] text-[color:var(--accent)]">
+                          <Calendar className="h-3 w-3 shrink-0" />
+                          {t("post.youtube.scheduled_for", {
+                            date: new Date(item.publishAt).toLocaleString(),
+                          })}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-[color:var(--muted)]">
+                          {new Date(item.uploadedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      {item.videoId ? (
+                        <a
+                          aria-label={t("post.youtube.view")}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:text-[color:var(--accent)]"
+                          href={`https://studio.youtube.com/video/${item.videoId}/edit`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+
+                      {item.videoId && !isConfirming && (
+                        <button
+                          type="button"
+                          aria-label={t("post.youtube.delete_video")}
+                          onClick={() => setConfirming(item.videoId!)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
+                      {item.videoId && isConfirming && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() =>
+                              handleDelete(item.videoId!, item.channelId)
+                            }
+                            className="flex h-7 items-center gap-1 rounded-lg bg-red-500/15 px-2 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/25 disabled:opacity-50"
+                          >
+                            {isDeleting ? (
+                              <Spinner className="h-3 w-3" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                            {t("post.youtube.delete_confirm")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirming(null)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}

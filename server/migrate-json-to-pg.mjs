@@ -19,7 +19,8 @@ import { randomUUID } from "node:crypto";
 import { closeDb, getClient, initDb } from "./db.mjs";
 import { decryptField } from "./crypto.mjs";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function toUuid(id) {
   return UUID_RE.test(id ?? "") ? id : randomUUID();
 }
@@ -62,7 +63,7 @@ async function migrateUsers(client) {
     try {
       const exists = await client.query(
         "SELECT id FROM users WHERE username = $1",
-        [user.username]
+        [user.username],
       );
       if (exists.rows.length > 0) {
         const row = exists.rows[0];
@@ -102,14 +103,19 @@ async function migrateUsers(client) {
           user.github?.login ?? null,
           user.github?.avatar ?? null,
           user.createdAt ?? new Date().toISOString(),
-        ]
+        ],
       );
       await client.query("RELEASE SAVEPOINT sp_user");
       imported++;
-      console.log(`   ✅ Importado usuário: ${user.username}${pgId !== user.id ? ` (id remapeado)` : ""}`);
+      console.log(
+        `   ✅ Importado usuário: ${user.username}${pgId !== user.id ? ` (id remapeado)` : ""}`,
+      );
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT sp_user");
-      console.error(`   ❌ Erro ao importar usuário ${user.username}:`, error.message);
+      console.error(
+        `   ❌ Erro ao importar usuário ${user.username}:`,
+        error.message,
+      );
     }
   }
   return imported;
@@ -128,19 +134,19 @@ async function migrateGroups(client) {
   for (const group of data.groups) {
     const groupPgId = toUuid(group.id);
     const firstUserId = userIdMap.values().next().value;
-    const ownerPgId = userIdMap.get(group.ownerId) ?? firstUserId ?? toUuid(group.ownerId);
+    const ownerPgId =
+      userIdMap.get(group.ownerId) ?? firstUserId ?? toUuid(group.ownerId);
     try {
-      const exists = await client.query(
-        "SELECT id FROM groups WHERE id = $1",
-        [groupPgId]
-      );
+      const exists = await client.query("SELECT id FROM groups WHERE id = $1", [
+        groupPgId,
+      ]);
       if (exists.rows.length > 0) {
         console.log(`   ⏭️  Grupo já existe: ${group.name}`);
       } else {
         await client.query("SAVEPOINT sp_group");
         await client.query(
           "INSERT INTO groups (id, name, owner_id) VALUES ($1, $2, $3)",
-          [groupPgId, group.name, ownerPgId]
+          [groupPgId, group.name, ownerPgId],
         );
         await client.query("RELEASE SAVEPOINT sp_group");
         importedGroups++;
@@ -152,7 +158,7 @@ async function migrateGroups(client) {
         try {
           const accountExists = await client.query(
             "SELECT id FROM accounts WHERE id = $1",
-            [accountPgId]
+            [accountPgId],
           );
           if (accountExists.rows.length > 0) {
             console.log(`      ⏭️  Conta já existe: ${account.id}`);
@@ -184,19 +190,27 @@ async function migrateGroups(client) {
               account.postDay ?? "",
               account.niche ?? "",
               account.updatedAt ?? new Date().toISOString(),
-            ]
+            ],
           );
           await client.query("RELEASE SAVEPOINT sp_account");
           importedAccounts++;
-          console.log(`      ✅ Importada conta: ${account.label || account.email || account.id}`);
+          console.log(
+            `      ✅ Importada conta: ${account.label || account.email || account.id}`,
+          );
         } catch (error) {
           await client.query("ROLLBACK TO SAVEPOINT sp_account");
-          console.error(`      ❌ Erro ao importar conta ${account.id}:`, error.message);
+          console.error(
+            `      ❌ Erro ao importar conta ${account.id}:`,
+            error.message,
+          );
         }
       }
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT sp_group");
-      console.error(`   ❌ Erro ao importar grupo ${group.name}:`, error.message);
+      console.error(
+        `   ❌ Erro ao importar grupo ${group.name}:`,
+        error.message,
+      );
     }
   }
 
@@ -215,7 +229,7 @@ async function migrateSessions(client) {
     try {
       const exists = await client.query(
         "SELECT session_id FROM sessions WHERE session_id = $1",
-        [session.sessionId]
+        [session.sessionId],
       );
       if (exists.rows.length > 0) {
         continue; // Skip existing sessions
@@ -240,7 +254,7 @@ async function migrateSessions(client) {
           session.ipHash ?? null,
           decryptIfNeeded(session.userAgent) ?? null,
           decryptIfNeeded(session.location) ?? null,
-        ]
+        ],
       );
       await client.query("RELEASE SAVEPOINT sp_session");
       imported++;
@@ -262,7 +276,9 @@ async function migrateAudit(client) {
   let imported = 0;
   for (const event of data.events) {
     try {
-      const userPgId = event.userId ? (userIdMap.get(event.userId) ?? null) : null;
+      const userPgId = event.userId
+        ? (userIdMap.get(event.userId) ?? null)
+        : null;
       await client.query("SAVEPOINT sp_audit");
       await client.query(
         `INSERT INTO audit_events (ts, user_id, username, action, target, ip_hash)
@@ -274,13 +290,16 @@ async function migrateAudit(client) {
           event.action,
           event.target ?? null,
           event.ipHash ?? null,
-        ]
+        ],
       );
       await client.query("RELEASE SAVEPOINT sp_audit");
       imported++;
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT sp_audit");
-      console.error(`   ❌ Erro ao importar evento de auditoria:`, error.message);
+      console.error(
+        `   ❌ Erro ao importar evento de auditoria:`,
+        error.message,
+      );
     }
   }
   return imported;
@@ -298,13 +317,14 @@ async function migrateYouTube(client) {
     try {
       const exists = await client.query(
         "SELECT id FROM youtube_channels WHERE channel_id = $1",
-        [channel.channelId]
+        [channel.channelId],
       );
       if (exists.rows.length > 0) {
         continue;
       }
 
-      const ownerPgId = userIdMap.get(channel.ownerId) ?? toUuid(channel.ownerId);
+      const ownerPgId =
+        userIdMap.get(channel.ownerId) ?? toUuid(channel.ownerId);
       await client.query("SAVEPOINT sp_yt");
       await client.query(
         `INSERT INTO youtube_channels (
@@ -319,7 +339,7 @@ async function migrateYouTube(client) {
           decryptIfNeeded(channel.tokens?.refresh_token) ?? null,
           channel.tokens?.expiry_date ?? null,
           channel.connectedAt ?? new Date().toISOString(),
-        ]
+        ],
       );
       await client.query("RELEASE SAVEPOINT sp_yt");
       imported++;
@@ -337,7 +357,9 @@ async function main() {
 
   const connected = await initDb();
   if (!connected) {
-    console.error("❌ Não foi possível conectar ao PostgreSQL. Configure DATABASE_URL.");
+    console.error(
+      "❌ Não foi possível conectar ao PostgreSQL. Configure DATABASE_URL.",
+    );
     process.exit(1);
   }
 

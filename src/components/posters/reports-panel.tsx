@@ -116,7 +116,8 @@ function watchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 function formatDuration(seconds?: number | null): string {
-  if (!Number.isFinite(seconds) || !seconds || seconds < 0) return "Nao informado";
+  if (!Number.isFinite(seconds) || !seconds || seconds < 0)
+    return "Nao informado";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
@@ -315,7 +316,6 @@ export function ReportsPanel() {
     .filter((item) => spDayKey(getItemDate(item)) === selectedKey)
     .sort((a, b) => getItemDate(a).getTime() - getItemDate(b).getTime());
 
-
   // Todos os agendados futuros, agrupados por mês.
   const upcoming = history
     .filter(isScheduled)
@@ -448,7 +448,8 @@ export function ReportsPanel() {
                 const dayItems = history
                   .filter((it) => spDayKey(getItemDate(it)) === dayKey)
                   .sort(
-                    (a, b) => getItemDate(a).getTime() - getItemDate(b).getTime(),
+                    (a, b) =>
+                      getItemDate(a).getTime() - getItemDate(b).getTime(),
                   );
                 const count = dayItems.length;
                 const previewItems = dayItems.slice(0, 2);
@@ -479,7 +480,10 @@ export function ReportsPanel() {
                                 setSelectedEvent(item);
                               }}
                               onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
+                                if (
+                                  event.key === "Enter" ||
+                                  event.key === " "
+                                ) {
                                   event.preventDefault();
                                   event.stopPropagation();
                                   setSelectedEvent(item);
@@ -639,7 +643,9 @@ export function ReportsPanel() {
                       <>
                         <span className="flex w-[150px] shrink-0 items-center gap-2 text-[12px] text-[color:var(--text)]">
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--accent)]" />
-                          <span className="font-medium capitalize">{weekdayDay(date)}</span>
+                          <span className="font-medium capitalize">
+                            {weekdayDay(date)}
+                          </span>
                           <span className="font-mono tabular-nums text-[color:var(--muted)]">
                             {spTime(date)}
                           </span>
@@ -697,7 +703,9 @@ export function ReportsPanel() {
             <div className="reports-event-modal-head">
               <div>
                 <p className="reports-event-kicker">
-                  {isScheduled(selectedEvent) ? "Post agendado" : "Post publicado"}
+                  {isScheduled(selectedEvent)
+                    ? "Post agendado"
+                    : "Post publicado"}
                 </p>
                 <h3>{selectedEvent.title}</h3>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -739,7 +747,9 @@ export function ReportsPanel() {
                 <div className="flex flex-col divide-y divide-[color:var(--border)]">
                   <InfoRow
                     label={
-                      isScheduled(selectedEvent) ? "Agendado para" : "Publicado em"
+                      isScheduled(selectedEvent)
+                        ? "Agendado para"
+                        : "Publicado em"
                     }
                   >
                     {`${weekdayDay(getItemDate(selectedEvent))} às ${spTime(getItemDate(selectedEvent))}`}

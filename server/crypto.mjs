@@ -30,7 +30,7 @@ function loadKey() {
   if (!raw) {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "FATAL: A variavel CONTAS_FLOW_ENC_KEY nao esta configurada! Criptografia em repouso e obrigatoria em producao."
+        "FATAL: A variavel CONTAS_FLOW_ENC_KEY nao esta configurada! Criptografia em repouso e obrigatoria em producao.",
       );
     }
     return null;

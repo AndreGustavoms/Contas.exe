@@ -134,7 +134,9 @@ async function writeTokensJson(data) {
 
 async function saveChannel(channel) {
   if (isConnected()) {
-    const refreshEnc = channel.refreshToken ? encryptField(channel.refreshToken) : null;
+    const refreshEnc = channel.refreshToken
+      ? encryptField(channel.refreshToken)
+      : null;
     await query(
       `INSERT INTO youtube_channels (owner_id, channel_id, title, refresh_token_enc, connected_at)
        VALUES ($1, $2, $3, $4, $5)
@@ -142,7 +144,13 @@ async function saveChannel(channel) {
          title = EXCLUDED.title,
          refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, youtube_channels.refresh_token_enc),
          connected_at = EXCLUDED.connected_at`,
-      [channel.ownerId, channel.id, channel.title, refreshEnc, channel.connectedAt ?? new Date().toISOString()]
+      [
+        channel.ownerId,
+        channel.id,
+        channel.title,
+        refreshEnc,
+        channel.connectedAt ?? new Date().toISOString(),
+      ],
     );
     return channel;
   }
@@ -212,9 +220,12 @@ export async function listConnectedChannels(ownerId) {
     const res = await query(
       `SELECT channel_id AS id, title, connected_at AS "connectedAt"
        FROM youtube_channels WHERE owner_id = $1 ORDER BY connected_at`,
-      [safeOwnerId]
+      [safeOwnerId],
     );
-    return res.rows.map((r) => ({ ...r, connectedAt: r.connectedAt?.toISOString() ?? null }));
+    return res.rows.map((r) => ({
+      ...r,
+      connectedAt: r.connectedAt?.toISOString() ?? null,
+    }));
   }
 
   const data = await readTokensJson();
@@ -250,7 +261,7 @@ async function clientForChannel(channelId, ownerId) {
     const res = await query(
       `SELECT refresh_token_enc FROM youtube_channels
        WHERE channel_id = $1 AND owner_id = $2`,
-      [channelId, safeOwnerId]
+      [channelId, safeOwnerId],
     );
     if (!res.rows.length || !res.rows[0].refresh_token_enc) {
       throw new Error("channel_not_connected");
@@ -374,7 +385,13 @@ async function sweepStaleUploads(dir, maxAgeMs = 2 * 60 * 60 * 1000) {
       const full = join(dir, entry.name);
       const info = await stat(full).catch(() => null);
       if (info && now - info.mtimeMs > maxAgeMs) {
-        await unlink(full).catch((e) => console.warn("cleanup: falha ao remover arquivo expirado", full, e.message));
+        await unlink(full).catch((e) =>
+          console.warn(
+            "cleanup: falha ao remover arquivo expirado",
+            full,
+            e.message,
+          ),
+        );
       }
     }
   } catch {
@@ -425,7 +442,8 @@ export async function writeChunkAt(uploadId, offset, chunkStream, ownerId) {
   await mkdir(dir, { recursive: true });
 
   if (!/^[a-f0-9]{32}$/.test(uploadId)) throw new Error("invalid_upload_id");
-  if (!Number.isInteger(offset) || offset < 0) throw new Error("invalid_offset");
+  if (!Number.isInteger(offset) || offset < 0)
+    throw new Error("invalid_offset");
 
   const tmpPath = join(dir, `${uploadId}.tmp`);
 
@@ -518,7 +536,9 @@ export async function recordUpload({
     privacyStatus: privacyStatus ?? null,
     publishAt: publishAt ?? null,
     durationSeconds: null,
-    thumbnailUrl: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null,
+    thumbnailUrl: videoId
+      ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+      : null,
     uploadedAt: new Date().toISOString(),
   });
 }
@@ -534,7 +554,7 @@ async function appendHistory(record) {
     if (!channelTitle) {
       const ch = await query(
         `SELECT title FROM youtube_channels WHERE owner_id = $1 AND channel_id = $2`,
-        [record.ownerId, record.channelId]
+        [record.ownerId, record.channelId],
       );
       channelTitle = ch.rows[0]?.title ?? null;
     }
@@ -555,7 +575,7 @@ async function appendHistory(record) {
         record.thumbnailUrl ?? null,
         record.uploadedAt ?? new Date().toISOString(),
         channelTitle,
-      ]
+      ],
     );
     return;
   }
@@ -595,7 +615,7 @@ export async function listUploadHistory(ownerId) {
               channel_title AS "channelTitle"
        FROM youtube_uploads WHERE owner_id = $1
        ORDER BY uploaded_at DESC LIMIT 200`,
-      [safeOwnerId]
+      [safeOwnerId],
     );
     return res.rows.map((r) => ({
       ...r,
@@ -624,7 +644,8 @@ export async function reconcileHistory(ownerId) {
   const byChannel = new Map();
   for (const item of items) {
     if (!item.videoId || !item.channelId) continue;
-    if (!byChannel.has(item.channelId)) byChannel.set(item.channelId, new Set());
+    if (!byChannel.has(item.channelId))
+      byChannel.set(item.channelId, new Set());
     byChannel.get(item.channelId).add(item.videoId);
   }
 
@@ -764,7 +785,9 @@ function ymd(date) {
 // vídeo. `analyticsAvailable=false` quando o canal foi conectado antes do escopo
 // yt-analytics.readonly — o front mostra um aviso pra reconectar.
 export async function videoAnalytics(ownerId, channelId, videoId, opts = {}) {
-  const days = Number.isFinite(opts.days) ? Math.max(1, Math.min(365, opts.days)) : 28;
+  const days = Number.isFinite(opts.days)
+    ? Math.max(1, Math.min(365, opts.days))
+    : 28;
   const safeOwnerId = safeStorageKey(ownerId);
   const auth = await clientForChannel(channelId, safeOwnerId); // throws channel_not_connected
   const youtube = google.youtube({ version: "v3", auth });
@@ -837,7 +860,13 @@ export async function videoAnalytics(ownerId, channelId, videoId, opts = {}) {
         comments: acc.comments + d.comments,
         subscribersGained: acc.subscribersGained + d.subscribersGained,
       }),
-      { views: 0, minutesWatched: 0, likes: 0, comments: 0, subscribersGained: 0 },
+      {
+        views: 0,
+        minutesWatched: 0,
+        likes: 0,
+        comments: 0,
+        subscribersGained: 0,
+      },
     );
   } catch {
     // Provável falta do escopo yt-analytics (canal conectado antes da permissão).
@@ -876,7 +905,12 @@ function mapThread(item) {
 }
 
 // Lista threads de comentários (top-level + respostas carregadas) de um vídeo.
-export async function listVideoComments(ownerId, channelId, videoId, opts = {}) {
+export async function listVideoComments(
+  ownerId,
+  channelId,
+  videoId,
+  opts = {},
+) {
   const safeOwnerId = safeStorageKey(ownerId);
   const auth = await clientForChannel(channelId, safeOwnerId);
   const youtube = google.youtube({ version: "v3", auth });
@@ -914,7 +948,10 @@ export async function addVideoComment(ownerId, channelId, videoId, text) {
   const res = await youtube.commentThreads.insert({
     part: ["snippet"],
     requestBody: {
-      snippet: { videoId, topLevelComment: { snippet: { textOriginal: text } } },
+      snippet: {
+        videoId,
+        topLevelComment: { snippet: { textOriginal: text } },
+      },
     },
   });
   return mapThread(res.data);
@@ -950,14 +987,23 @@ async function updateHistory(videoId, ownerId, patch) {
     const sets = [];
     const params = [];
     let p = 1;
-    if (patch.title !== undefined) { sets.push(`title = $${p++}`); params.push(patch.title); }
-    if (patch.description !== undefined) { sets.push(`description = $${p++}`); params.push(patch.description); }
-    if (patch.privacyStatus !== undefined) { sets.push(`privacy_status = $${p++}`); params.push(patch.privacyStatus); }
+    if (patch.title !== undefined) {
+      sets.push(`title = $${p++}`);
+      params.push(patch.title);
+    }
+    if (patch.description !== undefined) {
+      sets.push(`description = $${p++}`);
+      params.push(patch.description);
+    }
+    if (patch.privacyStatus !== undefined) {
+      sets.push(`privacy_status = $${p++}`);
+      params.push(patch.privacyStatus);
+    }
     if (!sets.length) return;
     params.push(videoId, safeOwnerId);
     await query(
       `UPDATE youtube_uploads SET ${sets.join(", ")} WHERE video_id = $${p} AND owner_id = $${p + 1}`,
-      params
+      params,
     );
     return;
   }
@@ -972,7 +1018,11 @@ async function updateHistory(videoId, ownerId, patch) {
   }
   if (!changed) return;
   await mkdir(storageDir, { recursive: true });
-  await writeFile(historyFile, `${JSON.stringify({ items }, null, 2)}\n`, "utf8");
+  await writeFile(
+    historyFile,
+    `${JSON.stringify({ items }, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 async function removeFromHistory(videoId, ownerId) {
@@ -981,7 +1031,7 @@ async function removeFromHistory(videoId, ownerId) {
   if (isConnected()) {
     await query(
       "DELETE FROM youtube_uploads WHERE video_id = $1 AND owner_id = $2",
-      [videoId, safeOwnerId]
+      [videoId, safeOwnerId],
     );
     return;
   }
@@ -991,7 +1041,11 @@ async function removeFromHistory(videoId, ownerId) {
     (item) => item.videoId !== videoId || item.ownerId !== safeOwnerId,
   );
   await mkdir(storageDir, { recursive: true });
-  await writeFile(historyFile, `${JSON.stringify({ items: filtered }, null, 2)}\n`, "utf8");
+  await writeFile(
+    historyFile,
+    `${JSON.stringify({ items: filtered }, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 export async function deleteVideo(channelId, videoId, ownerId) {
@@ -1209,7 +1263,11 @@ export async function initiateResumableUpload({
 
   const status = publishAt
     ? { privacyStatus: "private", publishAt }
-    : { privacyStatus: PRIVACY_STATUSES.has(privacyStatus) ? privacyStatus : "private" };
+    : {
+        privacyStatus: PRIVACY_STATUSES.has(privacyStatus)
+          ? privacyStatus
+          : "private",
+      };
 
   const metadata = {
     snippet: { title, description, tags },
@@ -1224,7 +1282,9 @@ export async function initiateResumableUpload({
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json; charset=UTF-8",
         "X-Upload-Content-Type": mimeType,
-        ...(fileSizeBytes ? { "X-Upload-Content-Length": String(fileSizeBytes) } : {}),
+        ...(fileSizeBytes
+          ? { "X-Upload-Content-Length": String(fileSizeBytes) }
+          : {}),
       },
       body: JSON.stringify(metadata),
     },

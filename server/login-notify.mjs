@@ -68,7 +68,9 @@ export async function notifyIfNewIp(storageDir, user, ip, userAgent) {
     if (!isNew) return; // familiar IP — no alert needed
 
     const now = formatDate(new Date());
-    const ua = userAgent ? `<br><strong>Dispositivo:</strong> ${escHtml(userAgent.slice(0, 120))}` : "";
+    const ua = userAgent
+      ? `<br><strong>Dispositivo:</strong> ${escHtml(userAgent.slice(0, 120))}`
+      : "";
 
     await sendEmail({
       to: user.email,

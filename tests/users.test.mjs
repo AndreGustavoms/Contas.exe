@@ -224,7 +224,10 @@ describe("ensureSeedAdmin", () => {
       assert.equal(users.length, 1);
       assert.equal(users[0].username, "seedadmin");
       assert.equal(users[0].role, "admin");
-      assert.equal(await verifyPassword("SeedPassword@123", users[0].passwordHash), true);
+      assert.equal(
+        await verifyPassword("SeedPassword@123", users[0].passwordHash),
+        true,
+      );
     } finally {
       if (prevUser == null) delete process.env.APP_AUTH_USER;
       else process.env.APP_AUTH_USER = prevUser;

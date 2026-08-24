@@ -72,7 +72,7 @@ export function logEvent(storageDir, { userId, username, action, target, ip }) {
     return query(
       `INSERT INTO audit_events (ts, user_id, username, action, target, ip_hash)
        VALUES (NOW(), $1, $2, $3, $4, $5)`,
-      [userId ?? null, username ?? null, action, target ?? null, hashIp(ip)]
+      [userId ?? null, username ?? null, action, target ?? null, hashIp(ip)],
     ).catch((error) => console.error("audit_log_failed:", error));
   }
 
@@ -111,26 +111,41 @@ export async function listEvents(
     const params = [];
     let p = 1;
 
-    if (action) { conditions.push(`action = $${p++}`); params.push(action); }
-    if (username) { conditions.push(`username ILIKE $${p++}`); params.push(`%${username}%`); }
-    if (from) { conditions.push(`ts >= $${p++}`); params.push(new Date(from)); }
+    if (action) {
+      conditions.push(`action = $${p++}`);
+      params.push(action);
+    }
+    if (username) {
+      conditions.push(`username ILIKE $${p++}`);
+      params.push(`%${username}%`);
+    }
+    if (from) {
+      conditions.push(`ts >= $${p++}`);
+      params.push(new Date(from));
+    }
     if (to) {
       conditions.push(`ts <= $${p++}`);
       params.push(new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1));
     }
     if (q) {
-      conditions.push(`(username ILIKE $${p} OR action ILIKE $${p} OR target ILIKE $${p})`);
-      params.push(`%${q}%`); p++;
+      conditions.push(
+        `(username ILIKE $${p} OR action ILIKE $${p} OR target ILIKE $${p})`,
+      );
+      params.push(`%${q}%`);
+      p++;
     }
 
     const where = conditions.join(" AND ");
     const [countRes, rowsRes] = await Promise.all([
-      query(`SELECT COUNT(*)::int AS total FROM audit_events WHERE ${where}`, params),
+      query(
+        `SELECT COUNT(*)::int AS total FROM audit_events WHERE ${where}`,
+        params,
+      ),
       query(
         `SELECT id, ts, user_id AS "userId", username, action, target, ip_hash AS "ipHash"
          FROM audit_events WHERE ${where}
          ORDER BY ts DESC LIMIT $${p} OFFSET $${p + 1}`,
-        [...params, limit, offset]
+        [...params, limit, offset],
       ),
     ]);
 
@@ -146,15 +161,19 @@ export async function listEvents(
   if (action) filtered = filtered.filter((e) => e.action === action);
   if (username) {
     const needle = username.toLowerCase();
-    filtered = filtered.filter((e) => (e.username ?? "").toLowerCase().includes(needle));
+    filtered = filtered.filter((e) =>
+      (e.username ?? "").toLowerCase().includes(needle),
+    );
   }
   if (from) {
     const fromTs = new Date(from).getTime();
-    if (Number.isFinite(fromTs)) filtered = filtered.filter((e) => new Date(e.ts).getTime() >= fromTs);
+    if (Number.isFinite(fromTs))
+      filtered = filtered.filter((e) => new Date(e.ts).getTime() >= fromTs);
   }
   if (to) {
     const toTs = new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1;
-    if (Number.isFinite(toTs)) filtered = filtered.filter((e) => new Date(e.ts).getTime() <= toTs);
+    if (Number.isFinite(toTs))
+      filtered = filtered.filter((e) => new Date(e.ts).getTime() <= toTs);
   }
   if (q) {
     const needle = q.toLowerCase();
@@ -167,5 +186,8 @@ export async function listEvents(
   }
 
   const newestFirst = filtered.slice().reverse();
-  return { events: newestFirst.slice(offset, offset + limit), total: newestFirst.length };
+  return {
+    events: newestFirst.slice(offset, offset + limit),
+    total: newestFirst.length,
+  };
 }

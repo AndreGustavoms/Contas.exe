@@ -113,8 +113,7 @@ export function VideoAnalyticsModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [days, setDays] = useState("28");
-  const [metric, setMetric] =
-    useState<keyof Omit<SeriesPoint, "day">>("views");
+  const [metric, setMetric] = useState<keyof Omit<SeriesPoint, "day">>("views");
 
   const channelId = video.channelId ?? "";
 
@@ -323,25 +322,30 @@ function LineChart({
   );
 
   if (!points.length) {
-    return (
-      <ChartNotice text="Ainda não há dados no período selecionado." />
-    );
+    return <ChartNotice text="Ainda não há dados no período selecionado." />;
   }
 
   const max = Math.max(1, ...points.map((p) => p.value));
   const n = points.length;
-  const x = (i: number) => PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const x = (i: number) =>
+    PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
   const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
 
   const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`)
+    .map(
+      (p, i) =>
+        `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`,
+    )
     .join(" ");
   const areaPath =
     `${linePath} L ${x(n - 1).toFixed(1)} ${(PAD.top + innerH).toFixed(1)}` +
     ` L ${x(0).toFixed(1)} ${(PAD.top + innerH).toFixed(1)} Z`;
 
   // 3 marcas no eixo Y
-  const yTicks = [0, 0.5, 1].map((f) => ({ v: Math.round(max * f), fy: y(max * f) }));
+  const yTicks = [0, 0.5, 1].map((f) => ({
+    v: Math.round(max * f),
+    fy: y(max * f),
+  }));
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -669,7 +673,10 @@ function CommentThread({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelId, commentId: thread.id, action }),
       });
-      if (res.ok && (action === "delete" || action === "rejected" || action === "spam"))
+      if (
+        res.ok &&
+        (action === "delete" || action === "rejected" || action === "spam")
+      )
         onRemoved(thread.threadId ?? thread.id!);
     } finally {
       setBusy(false);
@@ -777,7 +784,11 @@ function CommentRow({ c, small }: { c: Comment; small?: boolean }) {
         )}
       >
         {c.authorAvatar ? (
-          <img alt="" src={c.authorAvatar} className="h-full w-full object-cover" />
+          <img
+            alt=""
+            src={c.authorAvatar}
+            className="h-full w-full object-cover"
+          />
         ) : null}
       </span>
       <div className="min-w-0 flex-1">

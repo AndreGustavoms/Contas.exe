@@ -61,16 +61,16 @@ export async function createPasswordHash(password) {
 
 export async function verifyPassword(password, encoded) {
   if (useLegacy()) return jsonUsers.verifyPassword(password, encoded);
-  
+
   const parsed = decodeHash(encoded);
   if (!parsed) return false;
   const { salt, hash: storedHash } = parsed;
   const candidateHash = await hashPassword(password, salt);
-  
+
   const storedBuf = Buffer.from(storedHash, "hex");
   const candidateBuf = Buffer.from(candidateHash, "hex");
   if (storedBuf.length !== candidateBuf.length) return false;
-  
+
   return timingSafeEqual(storedBuf, candidateBuf);
 }
 
@@ -78,7 +78,7 @@ export async function verifyPassword(password, encoded) {
 
 export function validateUsername(username) {
   if (useLegacy()) return jsonUsers.validateUsername(username);
-  
+
   if (typeof username !== "string") return "invalid_username";
   const trimmed = username.trim();
   if (trimmed.length < 3) return "username_too_short";
@@ -89,7 +89,7 @@ export function validateUsername(username) {
 
 export function validatePassword(password, username) {
   if (useLegacy()) return jsonUsers.validatePassword(password, username);
-  
+
   if (typeof password !== "string") return "invalid";
   if (password.length < 8) return "password_too_short";
   if (password.length > 128) return "password_too_long";
@@ -97,25 +97,34 @@ export function validatePassword(password, username) {
   if (!/[a-z]/.test(password)) return "password_no_lowercase";
   if (!/\d/.test(password)) return "password_no_number";
   if (!/[^a-zA-Z0-9]/.test(password)) return "password_no_special";
-  
+
   // Common weak passwords
   const weak = ["password", "12345678", "qwerty", "admin123"];
   if (weak.some((w) => password.toLowerCase().includes(w))) {
     return "password_too_common";
   }
-  
+
   if (username && password.toLowerCase().includes(username.toLowerCase())) {
     return "password_same_as_username";
   }
-  
+
   return null;
 }
 
 // ==================== USER CRUD ====================
 
-export async function createUser(storageDir, { username, password, role, email, fullName }) {
+export async function createUser(
+  storageDir,
+  { username, password, role, email, fullName },
+) {
   if (useLegacy()) {
-    return jsonUsers.createUser(storageDir, { username, password, role, email, fullName });
+    return jsonUsers.createUser(storageDir, {
+      username,
+      password,
+      role,
+      email,
+      fullName,
+    });
   }
 
   const trimmedUsername = username.trim();
@@ -128,7 +137,7 @@ export async function createUser(storageDir, { username, password, role, email, 
   // Check if username or email already exists
   const existing = await query(
     "SELECT id FROM users WHERE username = $1 OR (email IS NOT NULL AND email = $2)",
-    [trimmedUsername, email?.trim() || null]
+    [trimmedUsername, email?.trim() || null],
   );
   if (existing.rows.length > 0) {
     throw new Error("username_taken");
@@ -145,7 +154,7 @@ export async function createUser(storageDir, { username, password, role, email, 
       fullName?.trim() || null,
       passwordHash,
       role,
-    ]
+    ],
   );
 
   return result.rows[0];
@@ -165,7 +174,7 @@ export async function findById(storageDir, userId) {
       github_id AS "githubId", github_login AS "githubLogin", github_avatar AS "githubAvatar",
       created_at AS "createdAt"
     FROM users WHERE id = $1`,
-    [userId]
+    [userId],
   );
 
   if (result.rows.length === 0) return null;
@@ -207,7 +216,8 @@ export async function findById(storageDir, userId) {
 }
 
 export async function findByUsernameOrEmail(storageDir, nameOrEmail) {
-  if (useLegacy()) return jsonUsers.findByUsernameOrEmail(storageDir, nameOrEmail);
+  if (useLegacy())
+    return jsonUsers.findByUsernameOrEmail(storageDir, nameOrEmail);
 
   const trimmed = nameOrEmail.trim();
   const result = await query(
@@ -221,7 +231,7 @@ export async function findByUsernameOrEmail(storageDir, nameOrEmail) {
     FROM users
     WHERE unaccent(lower(username)) = unaccent(lower($1))
        OR lower(email) = lower($1)`,
-    [trimmed]
+    [trimmed],
   );
 
   if (result.rows.length === 0) return null;
@@ -252,7 +262,7 @@ export async function findByEmail(storageDir, email) {
 
   const result = await query(
     "SELECT id, username, email FROM users WHERE email = $1",
-    [email.trim().toLowerCase()]
+    [email.trim().toLowerCase()],
   );
 
   return result.rows.length > 0 ? result.rows[0] : null;
@@ -267,7 +277,7 @@ export async function listUsers(storageDir) {
       two_factor_enabled AS "twoFactorEnabled",
       created_at AS "createdAt"
     FROM users
-    ORDER BY created_at DESC`
+    ORDER BY created_at DESC`,
   );
 
   return result.rows;
@@ -276,28 +286,29 @@ export async function listUsers(storageDir) {
 export async function deleteUser(storageDir, userId) {
   if (useLegacy()) return jsonUsers.deleteUser(storageDir, userId);
 
-  const result = await query(
-    "DELETE FROM users WHERE id = $1 RETURNING id",
-    [userId]
-  );
+  const result = await query("DELETE FROM users WHERE id = $1 RETURNING id", [
+    userId,
+  ]);
 
   return result.rows.length > 0;
 }
 
 export async function setPassword(storageDir, userId, newPassword) {
-  if (useLegacy()) return jsonUsers.setPassword(storageDir, userId, newPassword);
+  if (useLegacy())
+    return jsonUsers.setPassword(storageDir, userId, newPassword);
 
   const passwordHash = await createPasswordHash(newPassword);
   const result = await query(
     "UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id",
-    [passwordHash, userId]
+    [passwordHash, userId],
   );
 
   return result.rows.length > 0;
 }
 
 export async function setUsername(storageDir, userId, newUsername) {
-  if (useLegacy()) return jsonUsers.setUsername(storageDir, userId, newUsername);
+  if (useLegacy())
+    return jsonUsers.setUsername(storageDir, userId, newUsername);
 
   const trimmed = newUsername.trim();
   const error = validateUsername(trimmed);
@@ -306,7 +317,7 @@ export async function setUsername(storageDir, userId, newUsername) {
   // Check if new username is already taken
   const existing = await query(
     "SELECT id FROM users WHERE username = $1 AND id != $2",
-    [trimmed, userId]
+    [trimmed, userId],
   );
   if (existing.rows.length > 0) {
     throw new Error("username_taken");
@@ -314,7 +325,7 @@ export async function setUsername(storageDir, userId, newUsername) {
 
   const result = await query(
     "UPDATE users SET username = $1 WHERE id = $2 RETURNING id",
-    [trimmed, userId]
+    [trimmed, userId],
   );
 
   return result.rows.length > 0;
@@ -324,19 +335,16 @@ export async function setEmail(storageDir, userId, email) {
   if (useLegacy()) return jsonUsers.setEmail(storageDir, userId, email);
 
   const trimmed = email?.trim().toLowerCase() || null;
-  await query(
-    "UPDATE users SET email = $1 WHERE id = $2",
-    [trimmed, userId]
-  );
+  await query("UPDATE users SET email = $1 WHERE id = $2", [trimmed, userId]);
 }
 
 export async function setFullName(storageDir, userId, fullName) {
   if (useLegacy()) return jsonUsers.setFullName(storageDir, userId, fullName);
 
-  await query(
-    "UPDATE users SET full_name = $1 WHERE id = $2",
-    [fullName?.trim() || null, userId]
-  );
+  await query("UPDATE users SET full_name = $1 WHERE id = $2", [
+    fullName?.trim() || null,
+    userId,
+  ]);
 }
 
 export async function setAvatarUrl(storageDir, userId, avatarUrl) {
@@ -344,7 +352,7 @@ export async function setAvatarUrl(storageDir, userId, avatarUrl) {
 
   await query(
     "UPDATE users SET avatar_url = $1, avatar_removed = $2 WHERE id = $3",
-    [avatarUrl, avatarUrl === null, userId]
+    [avatarUrl, avatarUrl === null, userId],
   );
 }
 
@@ -360,7 +368,7 @@ export async function startTwoFactorSetup(storageDir, userId) {
   // Store secret as pending (two_factor_enabled stays false until enableTwoFactor confirms)
   await query(
     "UPDATE users SET two_factor_secret = $1, two_factor_enabled = false WHERE id = $2",
-    [encryptField(secret), userId]
+    [encryptField(secret), userId],
   );
 
   const otpauthUri = `otpauth://totp/Contas:${encodeURIComponent(user.username)}?secret=${secret}&issuer=Contas`;
@@ -373,7 +381,7 @@ export async function enableTwoFactor(storageDir, userId, code) {
   // Read the pending secret stored by startTwoFactorSetup
   const result = await query(
     "SELECT two_factor_secret, two_factor_enabled FROM users WHERE id = $1",
-    [userId]
+    [userId],
   );
   if (result.rows.length === 0) return null;
 
@@ -388,7 +396,7 @@ export async function enableTwoFactor(storageDir, userId, code) {
 
   await query(
     `UPDATE users SET two_factor_enabled = true, recovery_codes = $1 WHERE id = $2`,
-    [hashedCodes.map(encryptField), userId]
+    [hashedCodes.map(encryptField), userId],
   );
 
   return { recoveryCodes: codes };
@@ -401,7 +409,8 @@ export async function disableTwoFactor(storageDir, userId, code) {
   if (!user?.twoFactor?.enabled) return false;
 
   const totpOk = verifyTotp(user.twoFactor.secret, code);
-  const recoveryOk = !totpOk && (await consumeRecoveryCode(storageDir, userId, code));
+  const recoveryOk =
+    !totpOk && (await consumeRecoveryCode(storageDir, userId, code));
 
   if (!totpOk && !recoveryOk) {
     throw new Error("invalid_code");
@@ -411,7 +420,7 @@ export async function disableTwoFactor(storageDir, userId, code) {
     `UPDATE users 
      SET two_factor_enabled = false, two_factor_secret = NULL, recovery_codes = NULL 
      WHERE id = $1`,
-    [userId]
+    [userId],
   );
 
   return true;
@@ -422,7 +431,8 @@ export function verifyUserTotp(user, code) {
 }
 
 export async function consumeRecoveryCode(storageDir, userId, code) {
-  if (useLegacy()) return jsonUsers.consumeRecoveryCode(storageDir, userId, code);
+  if (useLegacy())
+    return jsonUsers.consumeRecoveryCode(storageDir, userId, code);
 
   const user = await findById(storageDir, userId);
   if (!user?.twoFactor?.recoveryCodes) return false;
@@ -434,16 +444,16 @@ export async function consumeRecoveryCode(storageDir, userId, code) {
       // Remove the used code
       const updated = [...user.twoFactor.recoveryCodes];
       updated.splice(i, 1);
-      
-      await query(
-        "UPDATE users SET recovery_codes = $1 WHERE id = $2",
-        [updated.map(encryptField), userId]
-      );
-      
+
+      await query("UPDATE users SET recovery_codes = $1 WHERE id = $2", [
+        updated.map(encryptField),
+        userId,
+      ]);
+
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -460,10 +470,10 @@ export async function regenerateRecoveryCodes(storageDir, userId) {
   const codes = generateRecoveryCodes();
   const hashed = await Promise.all(codes.map(createPasswordHash));
 
-  await query(
-    "UPDATE users SET recovery_codes = $1 WHERE id = $2",
-    [hashed.map(encryptField), userId]
-  );
+  await query("UPDATE users SET recovery_codes = $1 WHERE id = $2", [
+    hashed.map(encryptField),
+    userId,
+  ]);
 
   return { recoveryCodes: codes };
 }
@@ -476,7 +486,7 @@ export async function resetTwoFactor(storageDir, userId) {
      SET two_factor_enabled = false, two_factor_secret = NULL, recovery_codes = NULL 
      WHERE id = $1 
      RETURNING id`,
-    [userId]
+    [userId],
   );
 
   return result.rows.length > 0;
@@ -494,7 +504,7 @@ export async function findOrCreateGoogleUser(storageDir, profile) {
   // Check if Google account already linked
   let result = await query(
     "SELECT id, username, role FROM users WHERE google_id = $1",
-    [sub]
+    [sub],
   );
 
   if (result.rows.length > 0) {
@@ -502,10 +512,7 @@ export async function findOrCreateGoogleUser(storageDir, profile) {
   }
 
   // Check if email already registered (but not linked to Google)
-  result = await query(
-    "SELECT id FROM users WHERE email = $1",
-    [email]
-  );
+  result = await query("SELECT id FROM users WHERE email = $1", [email]);
 
   if (result.rows.length > 0) {
     throw new Error("google_email_already_registered");
@@ -531,14 +538,15 @@ export async function findOrCreateGoogleUser(storageDir, profile) {
       sub,
       email,
       profile.picture || null,
-    ]
+    ],
   );
 
   return { user: result.rows[0], created: true };
 }
 
 export async function linkGoogleProvider(storageDir, userId, profile) {
-  if (useLegacy()) return jsonUsers.linkGoogleProvider(storageDir, userId, profile);
+  if (useLegacy())
+    return jsonUsers.linkGoogleProvider(storageDir, userId, profile);
 
   const sub = profile.sub ?? profile.id;
   if (!sub) throw new Error("invalid_google_profile");
@@ -546,7 +554,7 @@ export async function linkGoogleProvider(storageDir, userId, profile) {
   // Check if Google ID already linked to another user
   const existing = await query(
     "SELECT id FROM users WHERE google_id = $1 AND id != $2",
-    [sub, userId]
+    [sub, userId],
   );
 
   if (existing.rows.length > 0) {
@@ -555,7 +563,7 @@ export async function linkGoogleProvider(storageDir, userId, profile) {
 
   await query(
     "UPDATE users SET google_id = $1, google_email = $2, google_picture = $3 WHERE id = $4",
-    [sub, profile.email, profile.picture || null, userId]
+    [sub, profile.email, profile.picture || null, userId],
   );
 
   return true;
@@ -566,7 +574,7 @@ export async function findOrCreateGithubUser(storageDir, profile) {
 
   let result = await query(
     "SELECT id, username, role FROM users WHERE github_id = $1",
-    [profile.id]
+    [profile.id],
   );
 
   if (result.rows.length > 0) {
@@ -574,10 +582,9 @@ export async function findOrCreateGithubUser(storageDir, profile) {
   }
 
   if (profile.email) {
-    result = await query(
-      "SELECT id FROM users WHERE email = $1",
-      [profile.email]
-    );
+    result = await query("SELECT id FROM users WHERE email = $1", [
+      profile.email,
+    ]);
 
     if (result.rows.length > 0) {
       throw new Error("github_email_already_registered");
@@ -603,18 +610,19 @@ export async function findOrCreateGithubUser(storageDir, profile) {
       profile.id,
       profile.login,
       profile.avatar || null,
-    ]
+    ],
   );
 
   return { user: result.rows[0], created: true };
 }
 
 export async function linkGithubProvider(storageDir, userId, profile) {
-  if (useLegacy()) return jsonUsers.linkGithubProvider(storageDir, userId, profile);
+  if (useLegacy())
+    return jsonUsers.linkGithubProvider(storageDir, userId, profile);
 
   const existing = await query(
     "SELECT id FROM users WHERE github_id = $1 AND id != $2",
-    [profile.id, userId]
+    [profile.id, userId],
   );
 
   if (existing.rows.length > 0) {
@@ -623,7 +631,7 @@ export async function linkGithubProvider(storageDir, userId, profile) {
 
   await query(
     "UPDATE users SET github_id = $1, github_login = $2, github_avatar = $3 WHERE id = $4",
-    [profile.id, profile.login, profile.avatar || null, userId]
+    [profile.id, profile.login, profile.avatar || null, userId],
   );
 
   return true;
@@ -672,7 +680,7 @@ export async function ensureSuperadmin(storageDir) {
      WHERE (lower(email) = lower($1) OR unaccent(lower(username)) = unaccent(lower($2)))
        AND role != 'superadmin'
      RETURNING id, username, role`,
-    [email || null, username || null]
+    [email || null, username || null],
   );
 
   return result.rows.length > 0 ? result.rows[0] : null;
@@ -685,7 +693,7 @@ export async function resetSuperadminPasswordFromEnv(storageDir) {
   if (!password) return { owner: null, error: "no_password_env" };
 
   const result = await query(
-    "SELECT id, username FROM users WHERE role = 'superadmin' LIMIT 1"
+    "SELECT id, username FROM users WHERE role = 'superadmin' LIMIT 1",
   );
 
   if (result.rows.length === 0) {
@@ -707,7 +715,7 @@ export async function keepOnlySuperadmin(storageDir) {
   const result = await query(
     `DELETE FROM users 
      WHERE role != 'superadmin'
-     RETURNING id, username`
+     RETURNING id, username`,
   );
 
   return { removed: result.rows };
@@ -719,13 +727,12 @@ async function ensureUniqueUsername(base) {
   let suffix = 1;
 
   while (true) {
-    const result = await query(
-      "SELECT id FROM users WHERE username = $1",
-      [candidate]
-    );
+    const result = await query("SELECT id FROM users WHERE username = $1", [
+      candidate,
+    ]);
 
     if (result.rows.length === 0) return candidate;
-    
+
     candidate = `${base}${suffix}`;
     suffix++;
   }

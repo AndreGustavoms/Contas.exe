@@ -67,15 +67,15 @@ Visual real do cofre após a última limpeza visual do card:
 
 ## Stack
 
-| Camada | Tecnologia |
-| --- | --- |
-| Frontend | React 18, TypeScript, Vite 6, Tailwind CSS 3 |
-| UI | componentes próprios em `src/components/ui`, Lucide React |
-| Backend | Node.js HTTP nativo, sem framework |
-| Persistência | PostgreSQL por padrão, fallback legado em JSON |
-| Segurança | `crypto` nativo, `scrypt`, `AES-256-GCM`, TOTP |
-| Deploy | Docker multi-stage, Railway-ready |
-| Integrações | Google OAuth, GitHub OAuth, YouTube |
+| Camada       | Tecnologia                                                |
+| ------------ | --------------------------------------------------------- |
+| Frontend     | React 18, TypeScript, Vite 6, Tailwind CSS 3              |
+| UI           | componentes próprios em `src/components/ui`, Lucide React |
+| Backend      | Node.js HTTP nativo, sem framework                        |
+| Persistência | PostgreSQL por padrão, fallback legado em JSON            |
+| Segurança    | `crypto` nativo, `scrypt`, `AES-256-GCM`, TOTP            |
+| Deploy       | Docker multi-stage, Railway-ready                         |
+| Integrações  | Google OAuth, GitHub OAuth, YouTube                       |
 
 ## Arquitetura
 

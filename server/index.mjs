@@ -370,7 +370,8 @@ function clientIp(request) {
   // rightmost are added by infrastructure we trust). Taking the first/left entry
   // would let an attacker rotate XFF per request and bypass the limit.
   const trustedRaw = Number(process.env.CONTAS_FLOW_TRUSTED_PROXIES ?? 0);
-  const trusted = Number.isInteger(trustedRaw) && trustedRaw > 0 ? trustedRaw : 0;
+  const trusted =
+    Number.isInteger(trustedRaw) && trustedRaw > 0 ? trustedRaw : 0;
   if (trusted > 0) {
     const xff = request.headers["x-forwarded-for"];
     if (typeof xff === "string" && xff.length > 0) {
@@ -684,7 +685,7 @@ async function readVault(userId) {
   if (isConnected()) {
     const groupsRes = await query(
       "SELECT id, name FROM groups WHERE owner_id = $1 ORDER BY created_at",
-      [userId]
+      [userId],
     );
     const groups = [];
     for (const g of groupsRes.rows) {
@@ -694,7 +695,7 @@ async function readVault(userId) {
          status, two_factor AS "twoFactor", post_day AS "postDay", niche,
          updated_at AS "updatedAt"
          FROM accounts WHERE group_id = $1 ORDER BY created_at`,
-        [g.id]
+        [g.id],
       );
       const accounts = acctRes.rows.map((a) => ({
         id: a.id,
@@ -705,7 +706,9 @@ async function readVault(userId) {
         email: a.email || "",
         username: a.username || "",
         password: a.password_enc ? decryptField(a.password_enc) : "",
-        recoveryEmail: a.recovery_email_enc ? decryptField(a.recovery_email_enc) : "",
+        recoveryEmail: a.recovery_email_enc
+          ? decryptField(a.recovery_email_enc)
+          : "",
         phone: a.phone_enc ? decryptField(a.phone_enc) : "",
         notes: a.notes_enc ? decryptField(a.notes_enc) : "",
         status: a.status,
@@ -745,7 +748,7 @@ async function writeVault(userId, db) {
       await client.query("BEGIN");
       const existingRes = await client.query(
         "SELECT id FROM groups WHERE owner_id = $1",
-        [userId]
+        [userId],
       );
       const existingIds = new Set(existingRes.rows.map((r) => r.id));
       const newIds = new Set(db.groups.map((g) => g.id));
@@ -760,17 +763,19 @@ async function writeVault(userId, db) {
         await client.query(
           `INSERT INTO groups (id, name, owner_id) VALUES ($1, $2, $3)
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
-          [group.id, group.name, userId]
+          [group.id, group.name, userId],
         );
 
         const accountIds = group.accounts.map((a) => a.id);
         if (accountIds.length > 0) {
           await client.query(
             `DELETE FROM accounts WHERE group_id = $1 AND id != ALL($2::uuid[])`,
-            [group.id, accountIds]
+            [group.id, accountIds],
           );
         } else {
-          await client.query("DELETE FROM accounts WHERE group_id = $1", [group.id]);
+          await client.query("DELETE FROM accounts WHERE group_id = $1", [
+            group.id,
+          ]);
         }
 
         for (const acct of group.accounts) {
@@ -787,16 +792,24 @@ async function writeVault(userId, db) {
                status=EXCLUDED.status, two_factor=EXCLUDED.two_factor,
                post_day=EXCLUDED.post_day, niche=EXCLUDED.niche, updated_at=EXCLUDED.updated_at`,
             [
-              acct.id, group.id, acct.platform, acct.role, acct.owner,
-              acct.label || "", acct.email || "", acct.username || "",
+              acct.id,
+              group.id,
+              acct.platform,
+              acct.role,
+              acct.owner,
+              acct.label || "",
+              acct.email || "",
+              acct.username || "",
               acct.password ? encryptField(acct.password) : null,
               acct.recoveryEmail ? encryptField(acct.recoveryEmail) : null,
               acct.phone ? encryptField(acct.phone) : null,
               acct.notes ? encryptField(acct.notes) : null,
-              acct.status || "active", acct.twoFactor || false,
-              acct.postDay || "", acct.niche || "",
+              acct.status || "active",
+              acct.twoFactor || false,
+              acct.postDay || "",
+              acct.niche || "",
               acct.updatedAt || new Date().toISOString(),
-            ]
+            ],
           );
         }
       }
@@ -1335,7 +1348,12 @@ async function handleApi(request, response, url, user, session) {
         userAgent: request.headers["user-agent"],
       });
       setSessionCookie(request, response, token);
-      void notifyIfNewIp(storageDir, account, ip, request.headers["user-agent"]);
+      void notifyIfNewIp(
+        storageDir,
+        account,
+        ip,
+        request.headers["user-agent"],
+      );
       void logEvent(storageDir, {
         userId: account.id,
         username: account.username,
@@ -2501,7 +2519,9 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // DELETE /api/youtube/channels/<id> — desconecta o canal (esquece o token).
-  const channelMatch = url.pathname.match(/^\/api\/youtube\/channels\/([^/]+)$/);
+  const channelMatch = url.pathname.match(
+    /^\/api\/youtube\/channels\/([^/]+)$/,
+  );
   if (channelMatch && request.method === "DELETE") {
     const channelId = decodeURIComponent(channelMatch[1]);
     try {
@@ -2597,7 +2617,11 @@ async function handleApi(request, response, url, user, session) {
       // commentThreads.list devolve 403 quando os comentários estão desativados.
       const status = Number(error?.response?.status ?? error?.code);
       if (status === 403) {
-        sendJson(response, 200, { threads: [], nextPageToken: null, disabled: true });
+        sendJson(response, 200, {
+          threads: [],
+          nextPageToken: null,
+          disabled: true,
+        });
         return;
       }
       sendJson(response, 500, { error: "comments_failed" });
@@ -2629,7 +2653,10 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // POST /api/youtube/comments/reply — responde a um comentário.
-  if (url.pathname === "/api/youtube/comments/reply" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/comments/reply" &&
+    request.method === "POST"
+  ) {
     const body = await readBody(request).catch(() => null);
     const channelId = body?.channelId || "";
     const parentId = body?.parentId || "";
@@ -2653,7 +2680,10 @@ async function handleApi(request, response, url, user, session) {
 
   // POST /api/youtube/comments/moderate — modera um comentário.
   // body: { channelId, commentId, action: heldForReview|published|rejected|spam|delete }
-  if (url.pathname === "/api/youtube/comments/moderate" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/comments/moderate" &&
+    request.method === "POST"
+  ) {
     const body = await readBody(request).catch(() => null);
     const channelId = body?.channelId || "";
     const commentId = body?.commentId || "";
@@ -2699,11 +2729,18 @@ async function handleApi(request, response, url, user, session) {
   // returned `name` is then passed to POST /api/youtube/upload to publish.
   // Chunked upload: POST a single ≤5 MB piece. Body is raw binary; the upload
   // ID (hex UUID) and original filename come in as headers.
-  if (url.pathname === "/api/youtube/uploads/chunk" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/uploads/chunk" &&
+    request.method === "POST"
+  ) {
     const uploadId = asString(request.headers["x-upload-id"]).replace(/-/g, "");
     const offset = Number(asString(request.headers["x-chunk-offset"]));
 
-    if (!/^[a-f0-9]{32}$/.test(uploadId) || !Number.isInteger(offset) || offset < 0) {
+    if (
+      !/^[a-f0-9]{32}$/.test(uploadId) ||
+      !Number.isInteger(offset) ||
+      offset < 0
+    ) {
       await drainBody(request);
       sendJson(response, 400, { error: "invalid_chunk_request" });
       return;
@@ -2717,7 +2754,10 @@ async function handleApi(request, response, url, user, session) {
       // the socket on the unread bytes and the client sees a misleading status 0.
       await drainBody(request).catch(() => {});
       if (code === "file_too_large") {
-        sendJson(response, 413, { error: "file_too_large", limitBytes: MAX_STAGED_UPLOAD_BYTES });
+        sendJson(response, 413, {
+          error: "file_too_large",
+          limitBytes: MAX_STAGED_UPLOAD_BYTES,
+        });
       } else if (code === "upload_not_found" || code === "offset_gap") {
         sendJson(response, 409, { error: code });
       } else {
@@ -2743,7 +2783,10 @@ async function handleApi(request, response, url, user, session) {
   }
 
   // Finalizes a chunked upload: renames tmp → staged file, returns { name, size }.
-  if (url.pathname === "/api/youtube/uploads/finalize" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/uploads/finalize" &&
+    request.method === "POST"
+  ) {
     const body = await readBody(request);
     const uploadId = asString(body.uploadId).replace(/-/g, "");
     const originalName = asString(body.originalName);
@@ -2752,18 +2795,27 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
     try {
-      const result = await finalizeChunkedUpload(uploadId, originalName, user.id);
+      const result = await finalizeChunkedUpload(
+        uploadId,
+        originalName,
+        user.id,
+      );
       sendJson(response, 200, result);
     } catch (error) {
       const code = error instanceof Error ? error.message : "unknown";
-      sendJson(response, code === "upload_not_found" ? 404 : 500, { error: code });
+      sendJson(response, code === "upload_not_found" ? 404 : 500, {
+        error: code,
+      });
     }
     return;
   }
 
   // Initiates a YouTube resumable upload session. Returns { uploadUri } so the
   // browser can PUT the file directly to YouTube without routing through Railway.
-  if (url.pathname === "/api/youtube/resumable-init" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/resumable-init" &&
+    request.method === "POST"
+  ) {
     const body = await readBody(request);
     const channelId = asString(body.channelId).trim();
     const title = asString(body.title).trim();
@@ -2780,7 +2832,9 @@ async function handleApi(request, response, url, user, session) {
         tags: Array.isArray(body.tags) ? body.tags : [],
         publishAt: body.publishAt ?? null,
         privacyStatus: asString(body.privacyStatus) || "private",
-        fileSizeBytes: body.fileSizeBytes ? Number(body.fileSizeBytes) : undefined,
+        fileSizeBytes: body.fileSizeBytes
+          ? Number(body.fileSizeBytes)
+          : undefined,
         mimeType: asString(body.mimeType) || "video/*",
       });
       sendJson(response, 200, result);
@@ -2847,7 +2901,10 @@ async function handleApi(request, response, url, user, session) {
   // file NAME, which youtube.mjs resolves inside the uploads directory — never a
   // caller-supplied absolute path, so this can't be used to read arbitrary
   // Records a browser-direct upload in history (no file involved).
-  if (url.pathname === "/api/youtube/upload-record" && request.method === "POST") {
+  if (
+    url.pathname === "/api/youtube/upload-record" &&
+    request.method === "POST"
+  ) {
     const body = await readBody(request);
     try {
       await recordUpload({
@@ -3404,7 +3461,9 @@ await initDb();
 // then migrate any legacy groups.json into per-user vault files. On subsequent
 // boots the migration is a fast no-op (vault files already exist).
 const seededUsers = await ensureSeedAdmin(storageDir);
-const seedAdmin = seededUsers.find((item) => item.role === "admin" || item.role === "superadmin");
+const seedAdmin = seededUsers.find(
+  (item) => item.role === "admin" || item.role === "superadmin",
+);
 await migrateGroupsToVaults(seedAdmin?.id);
 
 // Make sure the YouTube uploads staging directory exists so the user has a

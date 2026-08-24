@@ -219,7 +219,10 @@ export function AnalyticsPanel() {
       )}
 
       {selected && (
-        <VideoAnalyticsModal video={selected} onClose={() => setSelected(null)} />
+        <VideoAnalyticsModal
+          video={selected}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );

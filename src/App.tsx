@@ -3,10 +3,14 @@ import { ThemeToggle } from "./components/theme-toggle";
 import { type AppTheme, isAppTheme, THEME_STORAGE_KEY } from "./theme";
 
 const AccountVault = lazy(() =>
-  import("./components/account-vault").then((m) => ({ default: m.AccountVault })),
+  import("./components/account-vault").then((m) => ({
+    default: m.AccountVault,
+  })),
 );
 const ForgotPassword = lazy(() =>
-  import("./components/forgot-password").then((m) => ({ default: m.ForgotPassword })),
+  import("./components/forgot-password").then((m) => ({
+    default: m.ForgotPassword,
+  })),
 );
 const LocalLogin = lazy(() =>
   import("./components/local-login").then((m) => ({ default: m.LocalLogin })),
@@ -15,7 +19,9 @@ const Register = lazy(() =>
   import("./components/register").then((m) => ({ default: m.Register })),
 );
 const ResetPassword = lazy(() =>
-  import("./components/reset-password").then((m) => ({ default: m.ResetPassword })),
+  import("./components/reset-password").then((m) => ({
+    default: m.ResetPassword,
+  })),
 );
 
 // The logged-in user, as reported by /api/auth. role drives admin-only UI.

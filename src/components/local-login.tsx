@@ -465,7 +465,6 @@ export function LocalLogin({
               </form>
             )}
           </div>
-
         </section>
       </div>
 
