@@ -5,6 +5,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 import {
   buildGoogleAuthUrl,
@@ -361,6 +362,25 @@ function redirect(response, location) {
 // Bloqueio progressivo de falhas de autenticação (ver rate-limit.mjs): chaves
 // por conta (5/10/15 falhas -> 15min/1h/24h) e por IP (limiares mais altos).
 
+function parseTrustedProxyHops() {
+  const raw = process.env.CONTAS_FLOW_TRUSTED_PROXIES?.trim() ?? "";
+  if (raw === "") return 0;
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(
+      "CONTAS_FLOW_TRUSTED_PROXIES invalida: use um numero inteiro de hops (0 ou maior).",
+    );
+  }
+  const hops = Number(raw);
+  if (!Number.isSafeInteger(hops) || hops > 20) {
+    throw new Error(
+      "CONTAS_FLOW_TRUSTED_PROXIES invalida: o numero de hops deve estar entre 0 e 20.",
+    );
+  }
+  return hops;
+}
+
+const trustedProxyHops = parseTrustedProxyHops();
+
 function clientIp(request) {
   // The rate limiter must key off an IP the client can't forge. The socket
   // address is always trustworthy. X-Forwarded-For is client-settable, so we only
@@ -369,9 +389,7 @@ function clientIp(request) {
   // real client IP is that many entries from the RIGHT (proxies append, so the
   // rightmost are added by infrastructure we trust). Taking the first/left entry
   // would let an attacker rotate XFF per request and bypass the limit.
-  const trustedRaw = Number(process.env.CONTAS_FLOW_TRUSTED_PROXIES ?? 0);
-  const trusted =
-    Number.isInteger(trustedRaw) && trustedRaw > 0 ? trustedRaw : 0;
+  const trusted = trustedProxyHops;
   if (trusted > 0) {
     const xff = request.headers["x-forwarded-for"];
     if (typeof xff === "string" && xff.length > 0) {
@@ -382,7 +400,7 @@ function clientIp(request) {
       // Pick the entry `trusted` hops from the right (the IP the outermost
       // trusted proxy observed). Clamp to the leftmost if XFF is shorter.
       const idx = Math.max(0, parts.length - trusted);
-      if (parts[idx]) return parts[idx];
+      if (parts[idx] && isIP(parts[idx])) return parts[idx];
     }
   }
   return request.socket?.remoteAddress ?? "unknown";
