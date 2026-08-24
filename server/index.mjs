@@ -3279,6 +3279,7 @@ async function handleApi(request, response, url, user, session) {
     /^\/api\/groups\/([^/]+)\/accounts\/([^/]+)\/secret$/,
   );
   if (secretMatch && request.method === "GET") {
+    if (!requireRecentReauth(session, response)) return;
     const entry = await resolveGroupEntry(secretMatch[1]);
     if (!entry) return;
     const { db, index } = entry;
@@ -3323,10 +3324,24 @@ async function handleApi(request, response, url, user, session) {
     if (request.method === "PUT") {
       const body = await readBody(request);
       const existing = group.accounts[accountIndex];
+      const incomingUsername = asString(body.username).trim();
+      const usernameChanged =
+        Object.hasOwn(body, "username") &&
+        incomingUsername !== asString(existing.username).trim();
+      const incomingPassword = asString(body.password);
+      const passwordChanged =
+        Object.hasOwn(body, "password") &&
+        incomingPassword !== "" &&
+        incomingPassword !== asString(existing.password);
+      if (
+        (usernameChanged || passwordChanged) &&
+        !requireRecentReauth(session, response)
+      ) {
+        return;
+      }
       // The listing sends the password masked (""), so an edit that didn't touch
       // it would otherwise wipe the stored password. Treat an empty incoming
       // password as "unchanged" and keep the existing one.
-      const incomingPassword = asString(body.password);
       const merged =
         incomingPassword === ""
           ? { ...body, password: existing.password }
