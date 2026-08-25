@@ -363,6 +363,7 @@ function ReauthGate({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder={t("admin.reauth.password")}
+        aria-label={t("admin.reauth.confirm_identity")}
         className="admin-input mb-3 w-full"
       />
       {error ? (
@@ -434,6 +435,7 @@ function ReauthOverlay({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder={t("admin.reauth.password")}
+          aria-label={t("admin.reauth.reconfirm_password")}
           className="admin-input mb-3 w-full"
         />
         {error ? (

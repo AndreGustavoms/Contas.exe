@@ -572,6 +572,9 @@
       "search_placeholder": "Search user, action, target...",
       "no_events": "No events.",
       "all_levels": "All levels",
+      "date_from": "From date",
+      "date_to": "To date",
+      "level_filter": "Filter by level",
       "logs_note": "in memory ? clears on each deploy",
       "no_logs": "No logs.",
       "subtitle": "Record of who did what."

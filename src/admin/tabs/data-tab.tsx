@@ -66,6 +66,7 @@ export function DataTab({ withReauth }: { withReauth: WithReauth }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("admin.data.search_placeholder")}
+          aria-label={t("admin.data.search_placeholder")}
           className="admin-input w-full sm:w-72"
         />
       </header>

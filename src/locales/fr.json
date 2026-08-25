@@ -570,6 +570,9 @@
       "search_placeholder": "Search user, action, target...",
       "no_events": "Aucun ?v?nement.",
       "all_levels": "All levels",
+      "date_from": "Date de début",
+      "date_to": "Date de fin",
+      "level_filter": "Filtrer par niveau",
       "logs_note": "in memory ? clears on each deploy",
       "no_logs": "Aucun log.",
       "subtitle": "Journal de qui a fait quoi."

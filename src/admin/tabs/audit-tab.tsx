@@ -101,6 +101,7 @@ function AuditPanel() {
         <input
           className="admin-input"
           placeholder={t("admin.audit.search_placeholder")}
+          aria-label={t("admin.audit.search_placeholder")}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -110,6 +111,7 @@ function AuditPanel() {
         <input
           type="date"
           className="admin-input"
+          aria-label={t("admin.audit.date_from")}
           value={from}
           onChange={(e) => {
             setFrom(e.target.value);
@@ -119,6 +121,7 @@ function AuditPanel() {
         <input
           type="date"
           className="admin-input"
+          aria-label={t("admin.audit.date_to")}
           value={to}
           onChange={(e) => {
             setTo(e.target.value);

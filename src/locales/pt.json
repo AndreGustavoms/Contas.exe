@@ -595,6 +595,9 @@
       "search_placeholder": "Buscar usuário, ação, alvo...",
       "no_events": "Nenhum evento.",
       "all_levels": "Todos os níveis",
+      "date_from": "Data inicial",
+      "date_to": "Data final",
+      "level_filter": "Filtrar por nível",
       "logs_note": "em memória · zera a cada deploy",
       "no_logs": "Sem logs.",
       "subtitle": "Registro de quem fez o quê."

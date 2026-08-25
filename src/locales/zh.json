@@ -537,6 +537,9 @@
       "search_placeholder": "Search user, action, target...",
       "no_events": "暂无事件。",
       "all_levels": "All levels",
+      "date_from": "起始日期",
+      "date_to": "结束日期",
+      "level_filter": "按级别筛选",
       "logs_note": "内存日志 · 每次部署后清空",
       "no_logs": "暂无日志。",
       "subtitle": "谁做了什么的记录。"

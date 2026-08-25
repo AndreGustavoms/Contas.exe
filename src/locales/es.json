@@ -570,6 +570,9 @@
       "search_placeholder": "Search user, action, target...",
       "no_events": "Ning?n evento.",
       "all_levels": "All levels",
+      "date_from": "Fecha inicial",
+      "date_to": "Fecha final",
+      "level_filter": "Filtrar por nivel",
       "logs_note": "in memory ? clears on each deploy",
       "no_logs": "Sin logs.",
       "subtitle": "Registro de quién hizo qué."

@@ -142,6 +142,7 @@ function ServerLogsPanel() {
         </h2>
         <select
           className="admin-input"
+          aria-label={t("admin.audit.level_filter")}
           value={level}
           onChange={(e) => setLevel(e.target.value)}
         >
