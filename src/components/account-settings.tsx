@@ -277,7 +277,7 @@ export function AccountSettings({
           />
         )}
         {tab === "segurança" && <SegurancaTab withReauth={withReauth} />}
-        {tab === "sessões" && <SessoesTab />}
+        {tab === "sessões" && <SessoesTab withReauth={withReauth} />}
         {tab === "conexões" && <ConexoesTab />}
         {tab === "preferências" && (
           <PreferenciasTab theme={theme} onThemeChange={onThemeChange} />
@@ -1258,7 +1258,11 @@ function SegurancaTab({
 
 // ─── Sessões ─────────────────────────────────────────────────────────────────
 
-function SessoesTab() {
+function SessoesTab({
+  withReauth,
+}: {
+  withReauth: AccountSettingsProps["withReauth"];
+}) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1289,12 +1293,14 @@ function SessoesTab() {
     setRevoking(sid);
     setError("");
     try {
-      await api(`/api/account/sessions/${encodeURIComponent(sid)}`, {
-        method: "DELETE",
-      });
+      await withReauth(() =>
+        api(`/api/account/sessions/${encodeURIComponent(sid)}`, {
+          method: "DELETE",
+        }),
+      );
       setSessions((s) => s.filter((x) => x.sessionId !== sid));
-    } catch {
-      setError(t("account.error_revoke_session"));
+    } catch (err) {
+      if (!isReauthCancelled(err)) setError(t("account.error_revoke_session"));
     } finally {
       setRevoking(null);
     }

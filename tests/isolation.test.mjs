@@ -406,10 +406,38 @@ describe("user isolation", () => {
     assert.equal(gustavoSessions.response.status, 200);
     const gustavoSessionId = gustavoSessions.data.sessions[0].sessionId;
 
+    // Revogar sessão específica exige reauth recente (mesma política das
+    // demais ações críticas), mesmo quando o alvo pertence a outro usuário.
+    const joaoRevokesWithoutReauth = await request(
+      `/api/account/sessions/${encodeURIComponent(gustavoSessionId)}`,
+      { cookie: joao.cookie, method: "DELETE" },
+    );
+    assert.equal(joaoRevokesWithoutReauth.response.status, 403);
+    assert.equal(joaoRevokesWithoutReauth.data.error, "reauth_required");
+
+    const joaoReauth = await request("/api/auth/reauth", {
+      cookie: joao.cookie,
+      method: "POST",
+      body: { password: joaoPassword },
+    });
+    assert.equal(joaoReauth.response.status, 200);
+
+    // Mesmo reautenticado, a sessão de outro usuário não é encontrada na
+    // lista própria de joao — 404, nunca revela a sessão alheia.
     const joaoRevokesGustavoSession = await request(
       `/api/account/sessions/${encodeURIComponent(gustavoSessionId)}`,
       { cookie: joao.cookie, method: "DELETE" },
     );
     assert.equal(joaoRevokesGustavoSession.response.status, 404);
+
+    // gustavo revogando a PRÓPRIA sessão sem reauth recente: também 403. Um
+    // segundo login (sessão nova, sem reauth ainda) tenta encerrar a primeira.
+    const gustavoSecondLogin = await login("gustavo", gustavoPassword);
+    const gustavoRevokesOwnWithoutReauth = await request(
+      `/api/account/sessions/${encodeURIComponent(gustavoSessionId)}`,
+      { cookie: gustavoSecondLogin.cookie, method: "DELETE" },
+    );
+    assert.equal(gustavoRevokesOwnWithoutReauth.response.status, 403);
+    assert.equal(gustavoRevokesOwnWithoutReauth.data.error, "reauth_required");
   });
 });

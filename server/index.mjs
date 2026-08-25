@@ -1958,6 +1958,7 @@ async function handleApi(request, response, url, user, session) {
     /^\/api\/account\/sessions\/([^/]+)$/,
   );
   if (ownSessionMatch && request.method === "DELETE") {
+    if (!requireRecentReauth(session, response)) return;
     const sid = decodeURIComponent(ownSessionMatch[1]);
     const userSessions = await listSessionsForUser(
       storageDir,
@@ -2337,6 +2338,7 @@ async function handleApi(request, response, url, user, session) {
       sendJson(response, 403, { error: "forbidden" });
       return;
     }
+    if (!requireRecentReauth(session, response)) return;
     const targetSid = decodeURIComponent(sessionMatch[1]);
     const revoked = await revokeSession(storageDir, targetSid);
     if (revoked) {
