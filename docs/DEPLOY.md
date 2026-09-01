@@ -13,28 +13,33 @@ Guia para subir o Contas*exe em produção no **Railway**, já no modelo de
 
 ## 1. Variables (Railway → Settings → Variables)
 
-| Variável                      | Valor                                          | Obrigatória?                                    |
-| ----------------------------- | ---------------------------------------------- | ----------------------------------------------- |
-| `APP_AUTH_USER`               | usuário do **admin inicial**                   | sim (no 1º deploy)                              |
-| `APP_AUTH_PASSWORD`           | senha forte do admin inicial                   | sim (no 1º deploy)                              |
-| `CONTAS_FLOW_ENC_KEY`         | chave de 32 bytes (64 hex) — ver passo 2       | **sim em prod**                                 |
-| `CONTAS_FLOW_STORAGE_DIR`     | `/data`                                        | sim (senão os dados somem)                      |
-| `CONTAS_FLOW_TRUSTED_PROXIES` | `1`                                            | **sim no Railway** (1 proxy na frente)          |
-| `CONTAS_FLOW_ALLOWED_ORIGIN`  | em branco                                      | não (só se a API for consumida de outra origem) |
-| `GOOGLE_AUTH_CLIENT_ID`       | Client ID OAuth do Google                      | se usar login Google                            |
-| `GOOGLE_AUTH_CLIENT_SECRET`   | Client Secret OAuth do Google                  | se usar login Google                            |
-| `GOOGLE_AUTH_REDIRECT_URI`    | `https://SEU-DOMINIO/api/auth/google/callback` | recomendado em prod                             |
-| `GOOGLE_AUTH_ALLOWED_DOMAIN`  | domínio permitido, ex. `vitissouls.com`        | opcional                                        |
-| `YOUTUBE_CLIENT_ID`           | Client ID OAuth do Google/YouTube              | se conectar YouTube                             |
-| `YOUTUBE_CLIENT_SECRET`       | Client Secret OAuth do Google/YouTube          | se conectar YouTube                             |
-| `YOUTUBE_REDIRECT_URI`        | `https://SEU-DOMINIO/api/youtube/callback`     | se conectar YouTube                             |
-| `YOUTUBE_UPLOAD_DIR`          | pasta de staging dos videos                    | opcional                                        |
+| Variável                       | Valor                                          | Obrigatória?                                    |
+| ------------------------------ | ---------------------------------------------- | ----------------------------------------------- |
+| `APP_AUTH_USER`                | usuário do **admin inicial**                   | sim (no 1º deploy)                              |
+| `APP_AUTH_PASSWORD`            | senha forte do admin inicial                   | sim (no 1º deploy)                              |
+| `DATABASE_URL`                 | URL do PostgreSQL compartilhado                | **sim em prod**                                 |
+| `CONTAS_FLOW_REQUIRE_DATABASE` | `true`                                         | **sim em prod**                                 |
+| `CONTAS_FLOW_ENC_KEY`          | chave de 32 bytes (64 hex) — ver passo 2       | **sim em prod**                                 |
+| `CONTAS_FLOW_STORAGE_DIR`      | `/data`                                        | sim para uploads/staging persistente            |
+| `CONTAS_FLOW_TRUSTED_PROXIES`  | `1`                                            | **sim no Railway** (1 proxy na frente)          |
+| `CONTAS_FLOW_ALLOWED_ORIGIN`   | em branco                                      | não (só se a API for consumida de outra origem) |
+| `GOOGLE_AUTH_CLIENT_ID`        | Client ID OAuth do Google                      | se usar login Google                            |
+| `GOOGLE_AUTH_CLIENT_SECRET`    | Client Secret OAuth do Google                  | se usar login Google                            |
+| `GOOGLE_AUTH_REDIRECT_URI`     | `https://SEU-DOMINIO/api/auth/google/callback` | recomendado em prod                             |
+| `GOOGLE_AUTH_ALLOWED_DOMAIN`   | domínio permitido, ex. `vitissouls.com`        | opcional                                        |
+| `YOUTUBE_CLIENT_ID`            | Client ID OAuth do Google/YouTube              | se conectar YouTube                             |
+| `YOUTUBE_CLIENT_SECRET`        | Client Secret OAuth do Google/YouTube          | se conectar YouTube                             |
+| `YOUTUBE_REDIRECT_URI`         | `https://SEU-DOMINIO/api/youtube/callback`     | se conectar YouTube                             |
+| `YOUTUBE_UPLOAD_DIR`           | pasta de staging dos videos                    | opcional                                        |
 
 **Notas importantes:**
 
-- `APP_AUTH_USER` / `APP_AUTH_PASSWORD` só semeiam o admin inicial quando
-  `users.json` ainda não existe. Depois disso, mudá-las **não afeta** usuários
-  já criados. Os colegas são criados **pela UI** (painel **Equipe**, só admin).
+- `APP_AUTH_USER` / `APP_AUTH_PASSWORD` só semeiam o admin inicial quando a
+  tabela `users` está vazia. Depois disso, mudá-las **não afeta** usuários já
+  criados. Os colegas são criados **pela UI** (painel **Equipe**, só admin).
+- `CONTAS_FLOW_REQUIRE_DATABASE=true` impede fallback silencioso para JSON. Não
+  remova essa proteção em produção: duas instâncias com volumes locais podem
+  aceitar escritas válidas e perder dados umas das outras.
 - **Não** setar `PORT` / `HOST`: o servidor vai para `0.0.0.0` sozinho quando o
   Railway injeta `PORT`. O cookie de sessão vira `Secure` automaticamente em
   produção.
@@ -74,11 +79,16 @@ Cole o valor em `CONTAS_FLOW_ENC_KEY` no Railway.
 
 ---
 
-## 3. Volume persistente
+## 3. PostgreSQL e volume persistente
+
+O PostgreSQL é a fonte de verdade de usuários, grupos, contas, sessões,
+auditoria, tokens de recuperação e estado do YouTube. Antes do primeiro deploy
+com dados legados, siga [PERSISTENCIA-POSTGRES.md](PERSISTENCIA-POSTGRES.md) e
+execute a migração com backup verificado.
 
 Railway → **Settings → Volumes → Mount path `/data`** (deve bater com
-`CONTAS_FLOW_STORAGE_DIR`). É onde vivem `users.json`, `groups.json` (cifrado),
-`sessions.json` e `audit.json`. Sem o volume, os dados somem a cada redeploy.
+`CONTAS_FLOW_STORAGE_DIR`). O volume é usado para staging de uploads e arquivos
+operacionais; os dados transacionais ficam no PostgreSQL.
 
 ---
 

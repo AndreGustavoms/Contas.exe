@@ -22,8 +22,10 @@ O projeto roda como um único serviço Node:
 - o mesmo servidor entrega o frontend buildado
 - o frontend usa fetch relativo, sem depender de uma URL separada de API
 
-Hoje a arquitetura prioriza **PostgreSQL como persistência principal**, com
-fallback legado para JSON em cenários locais ou migrações antigas.
+Hoje a arquitetura usa **PostgreSQL como persistência compartilhada padrão**.
+O fallback legado para JSON só é habilitado explicitamente em desenvolvimento
+local de uma única instância; produção falha fechado se o banco não estiver
+configurado ou ficar indisponível.
 
 ## Preview
 
@@ -67,15 +69,15 @@ Visual real do cofre após a última limpeza visual do card:
 
 ## Stack
 
-| Camada       | Tecnologia                                                |
-| ------------ | --------------------------------------------------------- |
-| Frontend     | React 18, TypeScript, Vite 6, Tailwind CSS 3              |
-| UI           | componentes próprios em `src/components/ui`, Lucide React |
-| Backend      | Node.js HTTP nativo, sem framework                        |
-| Persistência | PostgreSQL por padrão, fallback legado em JSON            |
-| Segurança    | `crypto` nativo, `scrypt`, `AES-256-GCM`, TOTP            |
-| Deploy       | Docker multi-stage, Railway-ready                         |
-| Integrações  | Google OAuth, GitHub OAuth, YouTube                       |
+| Camada       | Tecnologia                                                  |
+| ------------ | ----------------------------------------------------------- |
+| Frontend     | React 18, TypeScript, Vite 6, Tailwind CSS 3                |
+| UI           | componentes próprios em `src/components/ui`, Lucide React   |
+| Backend      | Node.js HTTP nativo, sem framework                          |
+| Persistência | PostgreSQL transacional e compartilhado; JSON legado opt-in |
+| Segurança    | `crypto` nativo, `scrypt`, `AES-256-GCM`, TOTP              |
+| Deploy       | Docker multi-stage, Railway-ready                           |
+| Integrações  | Google OAuth, GitHub OAuth, YouTube                         |
 
 ## Arquitetura
 
@@ -90,7 +92,7 @@ Node server
   -> domain modules
   -> integrations
   -> PostgreSQL
-      fallback: JSON storage legado
+      fallback explícito: JSON legado local
 ```
 
 Decisões centrais:
@@ -100,6 +102,9 @@ Decisões centrais:
 - Segredos protegidos na borda de I/O
 - Persistência tratada como parte da arquitetura, não detalhe
 - Documentação operacional junto do código
+
+Para o rollout e a migração sem perda de dados, veja
+[docs/PERSISTENCIA-POSTGRES.md](docs/PERSISTENCIA-POSTGRES.md).
 
 ## Estrutura do repositório
 

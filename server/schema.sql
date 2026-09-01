@@ -147,8 +147,15 @@ CREATE TABLE IF NOT EXISTS audit_events (
   username VARCHAR(64),
   action VARCHAR(64) NOT NULL,
   target VARCHAR(255),
-  ip_hash VARCHAR(64)
+  ip_hash VARCHAR(64),
+  migration_key VARCHAR(64)
 );
+
+-- Identifica eventos trazidos do mesmo arquivo JSON sem impor uma chave ao
+-- fluxo normal de auditoria (que continua aceitando eventos sem essa coluna).
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS migration_key VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_migration_key
+  ON audit_events(migration_key) WHERE migration_key IS NOT NULL;
 
 -- Indexes for filtering (admin panel queries)
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(ts DESC);
@@ -174,6 +181,19 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_reset_expires ON password_reset_tokens(expires_at);
+
+-- ==================== KNOWN LOGIN IPS ====================
+-- Known IPs used to send a first-login notification. Only a hash is stored;
+-- the current request IP is used for the notification itself.
+CREATE TABLE IF NOT EXISTS login_known_ips (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_hash VARCHAR(64) NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, ip_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_known_ips_recent
+  ON login_known_ips(user_id, last_seen_at DESC);
 
 -- ==================== YOUTUBE CHANNELS ====================
 -- Connected YouTube channels (OAuth tokens). Replaces storage/youtube.json.
@@ -220,7 +240,8 @@ CREATE TABLE IF NOT EXISTS youtube_uploads (
   publish_at TIMESTAMPTZ,
   duration_seconds INTEGER,
   thumbnail_url TEXT,
-  uploaded_at TIMESTAMPTZ DEFAULT NOW()
+  uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+  migration_key VARCHAR(64)
 );
 
 -- Add columns missing from earlier schema versions (idempotent)
@@ -231,6 +252,9 @@ ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
 -- Nome do canal no momento do upload: preserva de qual conta o vídeo saiu
 -- mesmo depois que o canal é desconectado.
 ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS channel_title TEXT;
+ALTER TABLE youtube_uploads ADD COLUMN IF NOT EXISTS migration_key VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_youtube_uploads_migration_key
+  ON youtube_uploads(migration_key) WHERE migration_key IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_owner ON youtube_uploads(owner_id);
 CREATE INDEX IF NOT EXISTS idx_youtube_uploads_channel ON youtube_uploads(channel_id);

@@ -1,7 +1,22 @@
 import { spawn } from "node:child_process";
 
+const apiEnv = { ...process.env, PORT: process.env.PORT ?? "8787" };
+const hasDatabaseConfiguration = [
+  "DATABASE_URL",
+  "DB_HOST",
+  "DB_PORT",
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_NAME",
+].some((key) => apiEnv[key]?.trim());
+if (!hasDatabaseConfiguration && !apiEnv.CONTAS_FLOW_ALLOW_JSON_FALLBACK) {
+  // npm run local é o modo legado de instância única; o servidor de produção
+  // continua exigindo PostgreSQL e nunca ativa esse fallback sozinho.
+  apiEnv.CONTAS_FLOW_ALLOW_JSON_FALLBACK = "true";
+}
+
 const api = spawn(process.execPath, ["server/index.mjs"], {
-  env: { ...process.env, PORT: process.env.PORT ?? "8787" },
+  env: apiEnv,
   stdio: "inherit",
 });
 

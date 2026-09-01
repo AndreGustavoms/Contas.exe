@@ -72,9 +72,11 @@ Principais módulos em `server/`:
 
 A persistência principal é PostgreSQL.
 
-O módulo [server/db.mjs](../server/db.mjs) tenta conectar no startup. Se
-`DATABASE_URL` não existir ou a conexão falhar, o servidor pode operar em modo
-legado com JSON para não quebrar ambientes antigos.
+O módulo [server/db.mjs](../server/db.mjs) conecta no startup. Em produção e
+quando `CONTAS_FLOW_REQUIRE_DATABASE=true`, a ausência ou falha do PostgreSQL
+encerra o boot para evitar que instâncias escrevam em armazenamentos locais
+divergentes. O JSON só pode ser usado com
+`CONTAS_FLOW_ALLOW_JSON_FALLBACK=true` fora de produção.
 
 ### Modo PostgreSQL
 
@@ -88,6 +90,7 @@ Entidades principais:
 - `sessions`
 - `audit_events`
 - `password_reset_tokens`
+- `login_known_ips`
 - `youtube_channels`
 - `youtube_uploads`
 
@@ -98,6 +101,7 @@ Características:
 - concorrência segura
 - sessões e auditoria persistentes
 - suporte melhor a multi-instância
+- mutações de grupos/contas em transações com lock da linha do grupo
 
 ### Modo legado JSON
 
@@ -115,7 +119,10 @@ Esse modo existe para:
 - desenvolvimento local sem banco, quando necessário
 - migração gradual para PostgreSQL
 
-Não deve ser o default para novos ambientes de produção.
+Não é compartilhado entre processos e não deve ser usado em produção ou com
+mais de uma instância. O comando
+`node server/migrate-json-to-pg.mjs` preserva os arquivos de origem e pode ser
+reexecutado com segurança.
 
 ## Modelo de acesso
 

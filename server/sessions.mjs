@@ -10,11 +10,11 @@
 //   - ABSOLUTE: SESSION_ABSOLUTE_MS since login (expiresAt). This ceiling never
 //     extends, so even daily use forces a fresh login after 3 days.
 //
-// Storage: storage/sessions.json (git-ignored via storage/*), same shape/idioms
-// as users.json. The user-identifying metadata (ipHash, userAgent, location and
-// the raw ip) is encrypted at rest with the same crypto.mjs used for the vault,
-// so a leaked file doesn't reveal who connected from where. The raw ip is only
-// ever surfaced in the admin panels (see publicSession's includeIp).
+// Storage: PostgreSQL in production and multi-instance deployments. The
+// explicit local fallback keeps storage/sessions.json (git-ignored via
+// storage/*), with the same encryption guarantees for identifying metadata.
+// The raw IP is only ever surfaced in the admin panels (see publicSession's
+// includeIp).
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";

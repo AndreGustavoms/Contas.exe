@@ -1,6 +1,6 @@
 // PostgreSQL-backed user store. Replaces the JSON-based users.mjs when
-// DATABASE_URL is configured. Falls back to the legacy JSON implementation
-// when PostgreSQL is unavailable (so existing deployments keep working).
+// PostgreSQL is connected. The caller enables the legacy JSON implementation
+// only for the explicit local single-instance fallback.
 
 import { randomUUID } from "node:crypto";
 import { scrypt, timingSafeEqual } from "node:crypto";
@@ -22,8 +22,8 @@ const SCRYPT_KEY_LEN = 64;
 
 // ==================== FALLBACK LOGIC ====================
 // Every function checks isConnected() and delegates to the legacy JSON
-// implementation when PostgreSQL is offline. This keeps the app working
-// during migration and on installations that haven't set DATABASE_URL yet.
+// implementation only when the process was explicitly started with the local
+// single-instance fallback. Production never reaches this branch.
 
 function useLegacy() {
   return !isConnected();

@@ -4,9 +4,9 @@
 // DATABASE_URL (standard on Railway/Heroku/etc.), or you can build it from
 // DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME for custom setups.
 //
-// Migration strategy: the server attempts to connect at startup; if DATABASE_URL
-// is unset or connection fails, it falls back to the legacy JSON storage (so
-// existing deployments don't break). New installs default to PostgreSQL.
+// Migration strategy: PostgreSQL is the shared store for production and
+// multi-instance deployments. The legacy JSON store is available only when a
+// local operator explicitly opts into it with CONTAS_FLOW_ALLOW_JSON_FALLBACK.
 
 import pg from "pg";
 import { readFile } from "node:fs/promises";
@@ -19,6 +19,36 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 let pool = null;
 let connected = false;
+
+const DATABASE_ENV_KEYS = [
+  "DATABASE_URL",
+  "DB_HOST",
+  "DB_PORT",
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_NAME",
+];
+
+function hasDatabaseConfiguration() {
+  return DATABASE_ENV_KEYS.some((key) => {
+    const value = process.env[key];
+    return typeof value === "string" && value.trim() !== "";
+  });
+}
+
+export function databaseRequired() {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.CONTAS_FLOW_REQUIRE_DATABASE === "true"
+  );
+}
+
+function jsonFallbackAllowed() {
+  return (
+    !databaseRequired() &&
+    process.env.CONTAS_FLOW_ALLOW_JSON_FALLBACK === "true"
+  );
+}
 
 // Connection string from DATABASE_URL (Railway/Heroku standard), or composed
 // from individual variables.
@@ -36,16 +66,18 @@ function getConnectionString() {
 
 // Initializes the pool and tests connectivity. Called once at startup.
 export async function initDb() {
-  const connectionString = getConnectionString();
-  if (
-    !connectionString ||
-    connectionString === "postgresql://:@localhost:5432/contas_flow"
-  ) {
-    console.log(
-      "PostgreSQL não configurado (DATABASE_URL ausente). Usando JSON storage.",
-    );
+  if (!hasDatabaseConfiguration()) {
+    const message =
+      "PostgreSQL não configurado. Defina DATABASE_URL para persistência " +
+      "compartilhada ou CONTAS_FLOW_ALLOW_JSON_FALLBACK=true apenas em uso local legado.";
+    if (!jsonFallbackAllowed()) {
+      throw new Error(message);
+    }
+    console.warn(`${message} Fallback JSON explícito habilitado.`);
     return false;
   }
+
+  const connectionString = getConnectionString();
 
   try {
     // SSL: Railway/Heroku use self-signed certs so rejectUnauthorized must be
@@ -90,9 +122,21 @@ export async function initDb() {
     return true;
   } catch (error) {
     console.error("❌ Falha ao conectar PostgreSQL:", error.message);
-    console.log("Fallback: usando JSON storage.");
+    if (pool) {
+      await pool.end().catch(() => undefined);
+    }
     pool = null;
     connected = false;
+    if (!jsonFallbackAllowed()) {
+      throw new Error(
+        "PostgreSQL obrigatório, mas a conexão falhou. O servidor foi " +
+          "mantido desligado para evitar split-brain em armazenamento local.",
+        { cause: error },
+      );
+    }
+    console.warn(
+      "Fallback JSON explícito habilitado após falha do PostgreSQL.",
+    );
     return false;
   }
 }

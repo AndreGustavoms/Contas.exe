@@ -1,4 +1,5 @@
-// Password-reset token store (storage/password-reset.json).
+// Password-reset token store: PostgreSQL in production/multi-instance mode;
+// storage/password-reset.json is retained only for the explicit local fallback.
 // Each token is stored as a scrypt hash so a DB leak doesn't hand out valid links.
 // Tokens expire after RESET_TTL_MS (15 min) and are single-use.
 
@@ -6,7 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "./users.mjs";
-import { isConnected, query } from "./db.mjs";
+import { getClient, isConnected, query } from "./db.mjs";
 
 function tokenHash(raw) {
   return createHash("sha256").update(raw).digest("hex");
@@ -42,14 +43,28 @@ export async function createResetToken(storageDir, userId) {
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
 
   if (isConnected()) {
-    await query("DELETE FROM password_reset_tokens WHERE user_id = $1", [
-      userId,
-    ]);
-    await query(
-      `INSERT INTO password_reset_tokens (token, user_id, expires_at)
-       VALUES ($1, $2, $3)`,
-      [tokenHash(raw), userId, expiresAt],
-    );
+    const client = await getClient();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `contas:reset-token:${userId}`,
+      ]);
+      await client.query(
+        "DELETE FROM password_reset_tokens WHERE user_id = $1",
+        [userId],
+      );
+      await client.query(
+        `INSERT INTO password_reset_tokens (token, user_id, expires_at)
+         VALUES ($1, $2, $3)`,
+        [tokenHash(raw), userId, expiresAt],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
     return raw;
   }
 

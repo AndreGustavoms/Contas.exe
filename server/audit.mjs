@@ -8,9 +8,9 @@
 // account secret. Only ids, a short non-sensitive target label, the action name,
 // and a hash of the IP. The raw IP is never stored.
 //
-// Storage: storage/audit.json (git-ignored via storage/*), same idioms as
-// sessions.mjs/users.mjs. Writes are serialized through an in-process promise
-// chain so concurrent requests can't lose an appended event.
+// Storage: PostgreSQL in production and multi-instance deployments. The
+// explicit local fallback uses storage/audit.json (git-ignored via storage/*)
+// and serializes writes through an in-process promise chain.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";

@@ -1,12 +1,15 @@
 // Detects first-time logins from a new IP and sends an e-mail alert.
-// Known IPs per user are stored in storage/login-ips/<userId>.json.
+// Known IPs per user are stored in PostgreSQL; JSON remains only for the
+// explicit single-instance local fallback.
 // Only fires when the user has an e-mail and RESEND_API_KEY is set (or in dev
 // mode, which logs to stdout). Silently no-ops on any I/O error so a storage
 // hiccup never blocks the login response.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { sendEmail } from "./email.mjs";
+import { getClient, isConnected } from "./db.mjs";
 
 const MAX_KNOWN_IPS = 20; // rotate oldest entries after this
 
@@ -44,6 +47,46 @@ function formatDate(date) {
   });
 }
 
+function hashIp(ip) {
+  return createHash("sha256").update(String(ip)).digest("hex");
+}
+
+async function rememberPostgresIp(userId, ip) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `contas:known-login-ip:${userId}`,
+    ]);
+    const ipHash = hashIp(ip);
+    const known = await client.query(
+      "SELECT 1 FROM login_known_ips WHERE user_id = $1 AND ip_hash = $2",
+      [userId, ipHash],
+    );
+    await client.query(
+      `INSERT INTO login_known_ips (user_id, ip_hash, last_seen_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id, ip_hash) DO UPDATE SET last_seen_at = NOW()`,
+      [userId, ipHash],
+    );
+    await client.query(
+      `DELETE FROM login_known_ips
+       WHERE user_id = $1 AND ip_hash NOT IN (
+         SELECT ip_hash FROM login_known_ips
+         WHERE user_id = $1 ORDER BY last_seen_at DESC LIMIT $2
+       )`,
+      [userId, MAX_KNOWN_IPS],
+    );
+    await client.query("COMMIT");
+    return known.rows.length === 0;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * Call after every successful login.
  * @param {string} storageDir
@@ -55,15 +98,20 @@ export async function notifyIfNewIp(storageDir, user, ip, userAgent) {
   if (!ip || !user?.email) return;
 
   try {
-    const known = await loadKnownIps(storageDir, user.id);
-    const isNew = !known.includes(ip);
+    let isNew;
+    if (isConnected()) {
+      isNew = await rememberPostgresIp(user.id, ip);
+    } else {
+      const known = await loadKnownIps(storageDir, user.id);
+      isNew = !known.includes(ip);
 
-    // Always record the IP (move to front / add).
-    const updated = [ip, ...known.filter((x) => x !== ip)].slice(
-      0,
-      MAX_KNOWN_IPS,
-    );
-    await saveKnownIps(storageDir, user.id, updated);
+      // Always record the IP (move to front / add).
+      const updated = [ip, ...known.filter((x) => x !== ip)].slice(
+        0,
+        MAX_KNOWN_IPS,
+      );
+      await saveKnownIps(storageDir, user.id, updated);
+    }
 
     if (!isNew) return; // familiar IP — no alert needed
 

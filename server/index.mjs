@@ -111,8 +111,8 @@ import {
 } from "./rate-limit.mjs";
 
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
-// In production set CONTAS_FLOW_STORAGE_DIR to a persistent volume (e.g. /data
-// on Railway) so groups.json survives restarts and deploys.
+// In production CONTAS_FLOW_STORAGE_DIR is used for transient upload staging;
+// groups/accounts/sessions are persisted in PostgreSQL shared by all instances.
 const storageDir =
   process.env.CONTAS_FLOW_STORAGE_DIR ?? join(rootDir, "storage");
 const dbFile = process.env.CONTAS_FLOW_DB ?? join(storageDir, "groups.json");
@@ -152,10 +152,9 @@ const DUMMY_HASH =
 // at startup; see ensureSeedAdmin).
 
 const SESSION_COOKIE = "contas_session";
-// Session state lives server-side in storage/sessions.json (see sessions.mjs):
-// it survives redeploys and, more importantly, is revocable. The cookie only
-// carries the opaque token. Two expirations are enforced there: 3h idle and a
-// 3-day absolute ceiling.
+// Session state lives server-side in PostgreSQL by default (see sessions.mjs),
+// so revocation is visible to every instance. The cookie only carries the opaque
+// token. Two expirations are enforced there: 3h idle and a 3-day absolute ceiling.
 
 function parseCookies(request) {
   const header = request.headers.cookie ?? "";
@@ -637,6 +636,8 @@ function normalizeDb(parsed) {
 // keyed by ownerId. Ownerless groups fall to adminId. Safe to call on every
 // startup — it's a no-op once any vault file exists.
 async function migrateGroupsToVaults(adminId) {
+  if (isConnected()) return;
+
   await ensureVaultsDir();
   let existingFiles;
   try {
@@ -699,6 +700,86 @@ function vaultPath(userId) {
   return join(vaultsDir, `${safe}.json`);
 }
 
+const ACCOUNT_SELECT_COLUMNS = `
+  a.id, a.platform, a.role, a.owner, a.label, a.email, a.username,
+  a.password_enc, a.recovery_email_enc, a.phone_enc, a.notes_enc,
+  a.status, a.two_factor AS "twoFactor", a.post_day AS "postDay", a.niche,
+  a.updated_at AS "updatedAt"`;
+
+function accountFromRow(row) {
+  return {
+    id: row.id,
+    platform: row.platform,
+    role: row.role,
+    owner: row.owner,
+    label: row.label || "",
+    email: row.email || "",
+    username: row.username || "",
+    password: row.password_enc ? decryptField(row.password_enc) : "",
+    recoveryEmail: row.recovery_email_enc
+      ? decryptField(row.recovery_email_enc)
+      : "",
+    phone: row.phone_enc ? decryptField(row.phone_enc) : "",
+    notes: row.notes_enc ? decryptField(row.notes_enc) : "",
+    status: row.status,
+    twoFactor: row.twoFactor,
+    postDay: row.postDay || "",
+    niche: row.niche || "",
+    updatedAt: row.updatedAt?.toISOString?.() ?? row.updatedAt,
+  };
+}
+
+function accountDbValues(groupId, account) {
+  return [
+    account.id,
+    groupId,
+    account.platform,
+    account.role,
+    account.owner,
+    account.label || "",
+    account.email || "",
+    account.username || "",
+    account.password ? encryptField(account.password) : null,
+    account.recoveryEmail ? encryptField(account.recoveryEmail) : null,
+    account.phone ? encryptField(account.phone) : null,
+    account.notes ? encryptField(account.notes) : null,
+    account.status || "active",
+    account.twoFactor || false,
+    account.postDay || "",
+    account.niche || "",
+    account.updatedAt || new Date().toISOString(),
+  ];
+}
+
+async function insertAccount(client, groupId, account) {
+  await client.query(
+    `INSERT INTO accounts (id, group_id, platform, role, owner, label, email, username,
+     password_enc, recovery_email_enc, phone_enc, notes_enc,
+     status, two_factor, post_day, niche, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+    accountDbValues(groupId, account),
+  );
+}
+
+async function upsertAccount(client, groupId, account) {
+  await client.query(
+    `INSERT INTO accounts (id, group_id, platform, role, owner, label, email, username,
+     password_enc, recovery_email_enc, phone_enc, notes_enc,
+     status, two_factor, post_day, niche, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     ON CONFLICT (id) DO UPDATE SET
+       platform = EXCLUDED.platform, role = EXCLUDED.role, owner = EXCLUDED.owner,
+       label = EXCLUDED.label, email = EXCLUDED.email, username = EXCLUDED.username,
+       password_enc = EXCLUDED.password_enc,
+       recovery_email_enc = EXCLUDED.recovery_email_enc,
+       phone_enc = EXCLUDED.phone_enc, notes_enc = EXCLUDED.notes_enc,
+       status = EXCLUDED.status, two_factor = EXCLUDED.two_factor,
+       post_day = EXCLUDED.post_day, niche = EXCLUDED.niche,
+       updated_at = EXCLUDED.updated_at`,
+    accountDbValues(groupId, account),
+  );
+}
+
 async function readVault(userId) {
   if (isConnected()) {
     const groupsRes = await query(
@@ -708,33 +789,11 @@ async function readVault(userId) {
     const groups = [];
     for (const g of groupsRes.rows) {
       const acctRes = await query(
-        `SELECT id, platform, role, owner, label, email, username,
-         password_enc, recovery_email_enc, phone_enc, notes_enc,
-         status, two_factor AS "twoFactor", post_day AS "postDay", niche,
-         updated_at AS "updatedAt"
-         FROM accounts WHERE group_id = $1 ORDER BY created_at`,
+        `SELECT ${ACCOUNT_SELECT_COLUMNS}
+         FROM accounts a WHERE a.group_id = $1 ORDER BY a.created_at`,
         [g.id],
       );
-      const accounts = acctRes.rows.map((a) => ({
-        id: a.id,
-        platform: a.platform,
-        role: a.role,
-        owner: a.owner,
-        label: a.label || "",
-        email: a.email || "",
-        username: a.username || "",
-        password: a.password_enc ? decryptField(a.password_enc) : "",
-        recoveryEmail: a.recovery_email_enc
-          ? decryptField(a.recovery_email_enc)
-          : "",
-        phone: a.phone_enc ? decryptField(a.phone_enc) : "",
-        notes: a.notes_enc ? decryptField(a.notes_enc) : "",
-        status: a.status,
-        twoFactor: a.twoFactor,
-        postDay: a.postDay || "",
-        niche: a.niche || "",
-        updatedAt: a.updatedAt,
-      }));
+      const accounts = acctRes.rows.map(accountFromRow);
       groups.push({ id: g.id, name: g.name, ownerId: userId, accounts });
     }
     return { groups };
@@ -797,38 +856,7 @@ async function writeVault(userId, db) {
         }
 
         for (const acct of group.accounts) {
-          await client.query(
-            `INSERT INTO accounts (id, group_id, platform, role, owner, label, email, username,
-             password_enc, recovery_email_enc, phone_enc, notes_enc,
-             status, two_factor, post_day, niche, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-             ON CONFLICT (id) DO UPDATE SET
-               platform=EXCLUDED.platform, role=EXCLUDED.role, owner=EXCLUDED.owner,
-               label=EXCLUDED.label, email=EXCLUDED.email, username=EXCLUDED.username,
-               password_enc=EXCLUDED.password_enc, recovery_email_enc=EXCLUDED.recovery_email_enc,
-               phone_enc=EXCLUDED.phone_enc, notes_enc=EXCLUDED.notes_enc,
-               status=EXCLUDED.status, two_factor=EXCLUDED.two_factor,
-               post_day=EXCLUDED.post_day, niche=EXCLUDED.niche, updated_at=EXCLUDED.updated_at`,
-            [
-              acct.id,
-              group.id,
-              acct.platform,
-              acct.role,
-              acct.owner,
-              acct.label || "",
-              acct.email || "",
-              acct.username || "",
-              acct.password ? encryptField(acct.password) : null,
-              acct.recoveryEmail ? encryptField(acct.recoveryEmail) : null,
-              acct.phone ? encryptField(acct.phone) : null,
-              acct.notes ? encryptField(acct.notes) : null,
-              acct.status || "active",
-              acct.twoFactor || false,
-              acct.postDay || "",
-              acct.niche || "",
-              acct.updatedAt || new Date().toISOString(),
-            ],
-          );
+          await upsertAccount(client, group.id, acct);
         }
       }
 
@@ -849,6 +877,241 @@ async function writeVault(userId, db) {
     `${JSON.stringify(encrypted, null, 2)}\n`,
     "utf8",
   );
+}
+
+async function ensureDefaultGroupPostgres(userId) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `contas:default-group:${userId}`,
+    ]);
+    const existing = await client.query(
+      'SELECT id, name, owner_id AS "ownerId" FROM groups WHERE owner_id = $1 ORDER BY created_at LIMIT 1',
+      [userId],
+    );
+    if (existing.rows.length > 0) {
+      await client.query("COMMIT");
+      return { ...existing.rows[0], count: 0 };
+    }
+
+    const created = await client.query(
+      `INSERT INTO groups (name, owner_id) VALUES ($1, $2)
+       RETURNING id, name, owner_id AS "ownerId"`,
+      [DEFAULT_GROUP_NAME, userId],
+    );
+    await client.query("COMMIT");
+    return { ...created.rows[0], count: 0 };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function createGroupPostgres(userId, group) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `INSERT INTO groups (id, name, owner_id) VALUES ($1, $2, $3)
+       RETURNING id, name, owner_id AS "ownerId"`,
+      [group.id, group.name, userId],
+    );
+    for (const account of group.accounts) {
+      await insertAccount(client, group.id, account);
+    }
+    await client.query("COMMIT");
+    return { ...result.rows[0], count: group.accounts.length };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateGroupPostgres(userId, groupId, name) {
+  const result = await query(
+    `UPDATE groups SET name = $1
+     WHERE id = $2 AND owner_id = $3
+     RETURNING id, name, owner_id AS "ownerId"`,
+    [name, groupId, userId],
+  );
+  if (result.rows.length === 0) return null;
+  const count = await query(
+    "SELECT COUNT(*)::int AS count FROM accounts WHERE group_id = $1",
+    [groupId],
+  );
+  return { ...result.rows[0], count: count.rows[0].count };
+}
+
+async function deleteGroupPostgres(userId, groupId) {
+  const result = await query(
+    "DELETE FROM groups WHERE id = $1 AND owner_id = $2 RETURNING id",
+    [groupId, userId],
+  );
+  return result.rows.length > 0;
+}
+
+async function createAccountPostgres(userId, groupId, account) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const group = await client.query(
+      "SELECT id FROM groups WHERE id = $1 AND owner_id = $2 FOR UPDATE",
+      [groupId, userId],
+    );
+    if (group.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    await insertAccount(client, groupId, account);
+    await client.query("COMMIT");
+    return account;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function importAccountsPostgres(userId, groupId, accounts) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const group = await client.query(
+      "SELECT id FROM groups WHERE id = $1 AND owner_id = $2 FOR UPDATE",
+      [groupId, userId],
+    );
+    if (group.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    await client.query("DELETE FROM accounts WHERE group_id = $1", [groupId]);
+    for (const account of accounts) {
+      await insertAccount(client, groupId, account);
+    }
+    await client.query("COMMIT");
+    return accounts;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateAccountPostgres(
+  userId,
+  groupId,
+  accountId,
+  body,
+  reauthValid,
+) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const group = await client.query(
+      "SELECT id FROM groups WHERE id = $1 AND owner_id = $2 FOR UPDATE",
+      [groupId, userId],
+    );
+    if (group.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return { account: null, reauthRequired: false };
+    }
+
+    const result = await client.query(
+      `SELECT ${ACCOUNT_SELECT_COLUMNS}
+       FROM accounts a WHERE a.id = $1 AND a.group_id = $2 FOR UPDATE`,
+      [accountId, groupId],
+    );
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return { account: null, reauthRequired: false };
+    }
+
+    const existing = accountFromRow(result.rows[0]);
+    const incomingUsername = asString(body.username).trim();
+    const usernameChanged =
+      Object.hasOwn(body, "username") &&
+      incomingUsername !== asString(existing.username).trim();
+    const incomingPassword = asString(body.password);
+    const passwordChanged =
+      Object.hasOwn(body, "password") &&
+      incomingPassword !== "" &&
+      incomingPassword !== asString(existing.password);
+    if ((usernameChanged || passwordChanged) && !reauthValid) {
+      await client.query("ROLLBACK");
+      return { account: null, reauthRequired: true };
+    }
+
+    const merged =
+      incomingPassword === "" ? { ...body, password: existing.password } : body;
+    const updated = normalizeRecord(merged, existing);
+    await client.query(
+      `UPDATE accounts SET
+         platform = $1, role = $2, owner = $3, label = $4, email = $5,
+         username = $6, password_enc = $7, recovery_email_enc = $8,
+         phone_enc = $9, notes_enc = $10, status = $11, two_factor = $12,
+         post_day = $13, niche = $14, updated_at = $15
+       WHERE id = $16 AND group_id = $17`,
+      [
+        updated.platform,
+        updated.role,
+        updated.owner,
+        updated.label,
+        updated.email,
+        updated.username,
+        updated.password ? encryptField(updated.password) : null,
+        updated.recoveryEmail ? encryptField(updated.recoveryEmail) : null,
+        updated.phone ? encryptField(updated.phone) : null,
+        updated.notes ? encryptField(updated.notes) : null,
+        updated.status,
+        updated.twoFactor,
+        updated.postDay,
+        updated.niche,
+        updated.updatedAt,
+        accountId,
+        groupId,
+      ],
+    );
+    await client.query("COMMIT");
+    return { account: updated, reauthRequired: false };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteAccountPostgres(userId, groupId, accountId) {
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const group = await client.query(
+      "SELECT id FROM groups WHERE id = $1 AND owner_id = $2 FOR UPDATE",
+      [groupId, userId],
+    );
+    if (group.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    const result = await client.query(
+      "DELETE FROM accounts WHERE id = $1 AND group_id = $2 RETURNING id",
+      [accountId, groupId],
+    );
+    await client.query("COMMIT");
+    return result.rows.length > 0;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Returns array of { userId, db } for every user that has a vault file.
@@ -3179,15 +3442,20 @@ async function handleApi(request, response, url, user, session) {
     const db = await readVault(user.id);
     // Primeiro acesso: cria grupo padrão automaticamente.
     if (db.groups.length === 0) {
-      const defaultGroup = normalizeGroup({
-        name: "Geral",
-        ownerId: user.id,
-        accounts: [],
-      });
-      db.groups.push(defaultGroup);
-      await writeVault(user.id, db);
+      if (isConnected()) {
+        await ensureDefaultGroupPostgres(user.id);
+      } else {
+        const defaultGroup = normalizeGroup({
+          name: "Geral",
+          ownerId: user.id,
+          accounts: [],
+        });
+        db.groups.push(defaultGroup);
+        await writeVault(user.id, db);
+      }
     }
-    sendJson(response, 200, { groups: db.groups.map(groupSummary) });
+    const currentDb = isConnected() ? await readVault(user.id) : db;
+    sendJson(response, 200, { groups: currentDb.groups.map(groupSummary) });
     return;
   }
 
@@ -3199,6 +3467,11 @@ async function handleApi(request, response, url, user, session) {
       ownerId: user.id,
       accounts: Array.isArray(body.accounts) ? body.accounts : [],
     });
+    if (isConnected()) {
+      const created = await createGroupPostgres(user.id, group);
+      sendJson(response, 201, created);
+      return;
+    }
     db.groups.push(group);
     await writeVault(user.id, db);
     sendJson(response, 201, groupSummary(group));
@@ -3218,6 +3491,19 @@ async function handleApi(request, response, url, user, session) {
         badRequest(response, "name_required");
         return;
       }
+      if (isConnected()) {
+        const updated = await updateGroupPostgres(
+          vaultUserId,
+          db.groups[index].id,
+          name,
+        );
+        if (!updated) {
+          notFound(response);
+          return;
+        }
+        sendJson(response, 200, updated);
+        return;
+      }
       db.groups[index] = { ...db.groups[index], name };
       await writeVault(vaultUserId, db);
       sendJson(response, 200, groupSummary(db.groups[index]));
@@ -3226,6 +3512,24 @@ async function handleApi(request, response, url, user, session) {
 
     if (request.method === "DELETE") {
       const deletedId = db.groups[index].id;
+      if (isConnected()) {
+        const deleted = await deleteGroupPostgres(vaultUserId, deletedId);
+        if (!deleted) {
+          notFound(response);
+          return;
+        }
+        void logEvent(storageDir, {
+          userId: user.id,
+          username: user.username,
+          action: "group_deleted",
+          target: `group:${deletedId}`,
+          ip: clientIp(request),
+        });
+        sendJson(response, 200, {
+          groups: (await readVault(user.id)).groups.map(groupSummary),
+        });
+        return;
+      }
       db.groups.splice(index, 1);
       await writeVault(vaultUserId, db);
       void logEvent(storageDir, {
@@ -3262,6 +3566,19 @@ async function handleApi(request, response, url, user, session) {
     if (request.method === "POST") {
       const body = await readBody(request);
       const account = normalizeRecord(body);
+      if (isConnected()) {
+        const created = await createAccountPostgres(
+          vaultUserId,
+          group.id,
+          account,
+        );
+        if (!created) {
+          notFound(response);
+          return;
+        }
+        sendJson(response, 201, maskAccount(created));
+        return;
+      }
       group.accounts.unshift(account);
       await writeVault(vaultUserId, db);
       sendJson(response, 201, maskAccount(account));
@@ -3287,6 +3604,20 @@ async function handleApi(request, response, url, user, session) {
     group.accounts = Array.isArray(imported)
       ? imported.map((record) => normalizeRecord(record))
       : [];
+
+    if (isConnected()) {
+      const saved = await importAccountsPostgres(
+        vaultUserId,
+        group.id,
+        group.accounts,
+      );
+      if (!saved) {
+        notFound(response);
+        return;
+      }
+      sendJson(response, 200, saved.map(maskAccount));
+      return;
+    }
 
     await writeVault(vaultUserId, db);
     sendJson(response, 200, group.accounts.map(maskAccount));
@@ -3343,6 +3674,25 @@ async function handleApi(request, response, url, user, session) {
 
     if (request.method === "PUT") {
       const body = await readBody(request);
+      if (isConnected()) {
+        const result = await updateAccountPostgres(
+          vaultUserId,
+          group.id,
+          accountId,
+          body,
+          hasRecentReauth(session),
+        );
+        if (result.reauthRequired) {
+          sendJson(response, 403, { error: "reauth_required" });
+          return;
+        }
+        if (!result.account) {
+          notFound(response);
+          return;
+        }
+        sendJson(response, 200, maskAccount(result.account));
+        return;
+      }
       const existing = group.accounts[accountIndex];
       const incomingUsername = asString(body.username).trim();
       const usernameChanged =
@@ -3376,6 +3726,19 @@ async function handleApi(request, response, url, user, session) {
     if (request.method === "DELETE") {
       // Excluir conta de rede social do cofre NÃO exige reauth (item do
       // gerenciador, não a conta do usuário). A confirmação no front já basta.
+      if (isConnected()) {
+        const deleted = await deleteAccountPostgres(
+          vaultUserId,
+          group.id,
+          accountId,
+        );
+        if (!deleted) {
+          notFound(response);
+          return;
+        }
+        sendJson(response, 200, { ok: true });
+        return;
+      }
       group.accounts.splice(accountIndex, 1);
       await writeVault(vaultUserId, db);
       sendJson(response, 200, { ok: true });
@@ -3488,8 +3851,8 @@ const server = createServer(async (request, response) => {
   }
 });
 
-// Startup: try to connect to PostgreSQL (DATABASE_URL). Falls back to JSON
-// storage automatically when the env var is absent or the connection fails.
+// Startup: connect to PostgreSQL (DATABASE_URL). JSON is available only when
+// the local-dev launcher or an operator explicitly enables the fallback.
 await initDb();
 
 // Startup: seed the bootstrap admin from APP_AUTH_* if the user store is empty,

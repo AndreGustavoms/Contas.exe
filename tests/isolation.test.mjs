@@ -91,13 +91,25 @@ async function makeAdmin(userId) {
 
 before(async () => {
   await mkdir(storageDir, { recursive: true });
+  const env = { ...process.env };
+  for (const key of [
+    "DATABASE_URL",
+    "DB_HOST",
+    "DB_PORT",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_NAME",
+  ]) {
+    delete env[key];
+  }
   server = spawn(process.execPath, ["server/index.mjs"], {
     cwd: process.cwd(),
     env: {
-      ...process.env,
+      ...env,
       PORT: String(port),
       HOST: "127.0.0.1",
       CONTAS_FLOW_STORAGE_DIR: storageDir,
+      CONTAS_FLOW_ALLOW_JSON_FALLBACK: "true",
       CONTAS_FLOW_COOKIE_SECURE: "0",
       CONTAS_FLOW_REGISTRATIONS_OPEN: "true",
       APP_AUTH_USER: "",
