@@ -14,8 +14,8 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
 import { isConnected, query } from "./db.mjs";
+import { hashIp } from "./ip-hash.mjs";
 
 // Cap so the file can't grow without bound; we keep the most recent events.
 const MAX_EVENTS = 5000;
@@ -52,13 +52,6 @@ async function writeEventsFile(storageDir, events) {
     `${JSON.stringify({ events }, null, 2)}\n`,
     "utf8",
   );
-}
-
-// SHA-256 of the client IP (never the raw IP), matching the sessions store.
-function hashIp(ip) {
-  return createHash("sha256")
-    .update(String(ip ?? "unknown"))
-    .digest("hex");
 }
 
 // Appends one event. `action` is a stable code (e.g. "secret_viewed"); `target`

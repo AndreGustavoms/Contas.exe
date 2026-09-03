@@ -99,3 +99,22 @@ O gate global de Prettier ainda reprova dois arquivos preexistentes e o
 PostgreSQL temporário não pôde ser iniciado porque o Docker Desktop está
 indisponível nesta máquina. A integração de duas instâncias permanece pendente
 de execução com PostgreSQL real.
+
+## Registro de execução — 03/09/2026
+
+Na revisão da implementação, foram corrigidos quatro caminhos que ainda
+podiam produzir estado inconsistente em ambientes concorrentes:
+
+- o boot agora só marca o PostgreSQL como conectado depois de aplicar todo o
+  schema; falha em qualquer statement encerra o boot em vez de liberar um
+  schema parcial;
+- o hash de IP foi centralizado e a migração passou a usar exatamente o mesmo
+  formato do login, evitando alertas falsos depois do cutover;
+- redefinição de senha por token agora troca a senha e consome o token em uma
+  transação com `FOR UPDATE`, impedindo reutilização simultânea;
+- consumo de código de recuperação do 2FA agora bloqueia a linha do usuário e
+  faz o check-and-remove dentro da mesma transação.
+
+A validação PostgreSQL de duas instâncias continua condicionada a
+`CONTAS_FLOW_TEST_DATABASE_URL`; Docker Desktop e um servidor PostgreSQL local
+não estão disponíveis nesta máquina.

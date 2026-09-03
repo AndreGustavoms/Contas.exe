@@ -6,10 +6,10 @@
 // hiccup never blocks the login response.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { sendEmail } from "./email.mjs";
 import { getClient, isConnected } from "./db.mjs";
+import { hashIp } from "./ip-hash.mjs";
 
 const MAX_KNOWN_IPS = 20; // rotate oldest entries after this
 
@@ -45,10 +45,6 @@ function formatDate(date) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function hashIp(ip) {
-  return createHash("sha256").update(String(ip)).digest("hex");
 }
 
 async function rememberPostgresIp(userId, ip) {

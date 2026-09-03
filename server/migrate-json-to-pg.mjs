@@ -17,6 +17,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { closeDb, getClient, initDb } from "./db.mjs";
 import { decryptField, encryptField } from "./crypto.mjs";
+import { hashIp } from "./ip-hash.mjs";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -224,7 +225,7 @@ async function migrateLoginIps(client) {
           `INSERT INTO login_known_ips (user_id, ip_hash, last_seen_at)
            VALUES ($1, $2, NOW())
            ON CONFLICT (user_id, ip_hash) DO NOTHING`,
-          [userId, sourceKey("login-ip", ip)],
+          [userId, hashIp(ip)],
         );
         imported += result.rowCount;
         await client.query("RELEASE SAVEPOINT sp_login_ip");

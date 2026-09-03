@@ -18,10 +18,11 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import geoip from "fast-geoip";
 import { decryptField, encryptField } from "./crypto.mjs";
 import { isConnected, query } from "./db.mjs";
+import { hashIp } from "./ip-hash.mjs";
 
 export const SESSION_IDLE_MS = 3 * 60 * 60 * 1000; // 3h sem uso = logout
 export const SESSION_ABSOLUTE_MS = 3 * 24 * 60 * 60 * 1000; // 3 dias = relogar
@@ -107,14 +108,6 @@ async function writeSessionsFile(storageDir, sessions) {
     `${JSON.stringify({ sessions: encrypted }, null, 2)}\n`,
     "utf8",
   );
-}
-
-// SHA-256 of the client IP. We never store the raw IP: it's only needed to tell
-// sessions apart in the admin panel, and a hash is enough for that.
-function hashIp(ip) {
-  return createHash("sha256")
-    .update(String(ip ?? "unknown"))
-    .digest("hex");
 }
 
 // Truncate the user-agent for display and to bound stored size.

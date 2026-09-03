@@ -80,10 +80,9 @@ import {
 import { sendEmail } from "./email.mjs";
 import { notifyIfNewIp } from "./login-notify.mjs";
 import {
-  consumeResetToken,
   createResetToken,
   pruneResetTokens,
-  validateResetToken,
+  resetPasswordWithToken,
 } from "./password-reset.mjs";
 import { decryptField, encryptField, encryptionEnabled } from "./crypto.mjs";
 import {
@@ -1926,7 +1925,7 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
 
-    const userId = await validateResetToken(storageDir, token);
+    const userId = await resetPasswordWithToken(storageDir, token, password);
     if (!userId) {
       // Token inválido conta como falha: limita adivinhação de tokens por força bruta.
       noteAuthFailure(limitKeys, { ip });
@@ -1934,8 +1933,6 @@ async function handleApi(request, response, url, user, session) {
       return;
     }
 
-    await setPassword(storageDir, userId, password);
-    await consumeResetToken(storageDir, token);
     // Revoke all active sessions so old sessions can't linger after a reset.
     await revokeAllForUser(storageDir, userId);
 

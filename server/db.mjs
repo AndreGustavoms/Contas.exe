@@ -104,24 +104,24 @@ export async function initDb() {
       connectionTimeoutMillis: 5000,
     });
 
-    // Test the connection
+    // Testa a conexao antes de aplicar o schema.
     const client = await pool.connect();
-    await client.query("SELECT NOW()");
-    client.release();
+    try {
+      await client.query("SELECT NOW()");
+    } finally {
+      client.release();
+    }
 
+    await applySchema();
     connected = true;
     console.log(
       "✅ PostgreSQL conectado:",
       connectionString.replace(/:[^:@]+@/, ":***@"),
     );
 
-    // Aplica o schema no boot. Tudo em schema.sql é idempotente (IF NOT EXISTS /
-    // ADD COLUMN IF NOT EXISTS / DROP+CREATE TRIGGER), então re-executar é seguro
-    // e mantém o banco de produção em dia com novas colunas sem migração manual.
-    await applySchema();
     return true;
   } catch (error) {
-    console.error("❌ Falha ao conectar PostgreSQL:", error.message);
+    console.error("❌ Falha ao inicializar PostgreSQL:", error.message);
     if (pool) {
       await pool.end().catch(() => undefined);
     }
@@ -217,27 +217,31 @@ function splitSqlStatements(sql) {
 }
 
 // Runs server/schema.sql against the connected database. Idempotent: safe to run
-// on every startup. Each statement runs on its OWN implicit transaction, so a
-// single failure (e.g. an index over a column an older deploy lacks) never blocks
-// the others — the critical ADD COLUMN / CREATE TABLE statements still apply.
-// Failures are logged, never thrown, so a schema hiccup can't block boot.
+// on every startup. Each statement runs on its OWN implicit transaction, so the
+// remaining independent statements can still be attempted after one failure.
+// Failures are collected and thrown at the end: an incomplete schema must never
+// release the application with a false "connected" state.
 async function applySchema() {
   let sql;
   try {
     sql = await readFile(join(here, "schema.sql"), "utf8");
   } catch (error) {
-    console.error("⚠️  Não foi possível ler schema.sql:", error.message);
-    return;
+    console.error("Falha ao ler schema.sql:", error.message);
+    throw new Error("Não foi possível carregar o schema do PostgreSQL.", {
+      cause: error,
+    });
   }
   const statements = splitSqlStatements(sql);
   let applied = 0;
   let failed = 0;
+  let firstFailure = null;
   for (const stmt of statements) {
     try {
       await pool.query(stmt);
       applied += 1;
     } catch (error) {
       failed += 1;
+      firstFailure ??= error;
       console.error(
         `⚠️  Statement do schema falhou (seguindo adiante): ${error.message} | ${stmt.slice(0, 80).replace(/\s+/g, " ")}…`,
       );
@@ -246,6 +250,12 @@ async function applySchema() {
   console.log(
     `✅ Schema aplicado: ${applied} statements OK${failed ? `, ${failed} com erro (ignorados)` : ""}.`,
   );
+  if (failed > 0) {
+    throw new Error(
+      `Schema do PostgreSQL incompleto: ${failed} statement(s) falharam.`,
+      { cause: firstFailure },
+    );
+  }
 }
 
 // Whether the PostgreSQL connection is live. Other modules check this to decide

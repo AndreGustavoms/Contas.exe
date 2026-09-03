@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { isConnected, query } from "./db.mjs";
+import { getClient, isConnected, query } from "./db.mjs";
 import { decryptField, encryptField } from "./crypto.mjs";
 import { generateSecret, generateRecoveryCodes, verifyTotp } from "./totp.mjs";
 
@@ -434,27 +434,45 @@ export async function consumeRecoveryCode(storageDir, userId, code) {
   if (useLegacy())
     return jsonUsers.consumeRecoveryCode(storageDir, userId, code);
 
-  const user = await findById(storageDir, userId);
-  if (!user?.twoFactor?.recoveryCodes) return false;
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT two_factor_enabled, recovery_codes
+       FROM users WHERE id = $1 FOR UPDATE`,
+      [userId],
+    );
+    const row = result.rows[0];
+    if (!row?.two_factor_enabled || !Array.isArray(row.recovery_codes)) {
+      await client.query("COMMIT");
+      return false;
+    }
 
-  // Recovery codes are stored as hashed (like passwords)
-  for (let i = 0; i < user.twoFactor.recoveryCodes.length; i++) {
-    const valid = await verifyPassword(code, user.twoFactor.recoveryCodes[i]);
-    if (valid) {
-      // Remove the used code
-      const updated = [...user.twoFactor.recoveryCodes];
+    // Os codigos ficam como hashes cifrados. O lock da linha torna o
+    // check-and-remove de uso unico entre todas as instancias.
+    const recoveryCodes = row.recovery_codes.map(decryptField);
+    for (let i = 0; i < recoveryCodes.length; i++) {
+      const valid = await verifyPassword(code, recoveryCodes[i]);
+      if (!valid) continue;
+
+      const updated = [...recoveryCodes];
       updated.splice(i, 1);
-
-      await query("UPDATE users SET recovery_codes = $1 WHERE id = $2", [
+      await client.query("UPDATE users SET recovery_codes = $1 WHERE id = $2", [
         updated.map(encryptField),
         userId,
       ]);
-
+      await client.query("COMMIT");
       return true;
     }
-  }
 
-  return false;
+    await client.query("COMMIT");
+    return false;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export function recoveryCodesRemaining(user) {

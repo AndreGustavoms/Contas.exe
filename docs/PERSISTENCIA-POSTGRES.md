@@ -17,6 +17,15 @@ usa advisory lock transacional.
 IPs conhecidos para alerta de novo login também ficam no PostgreSQL, como hash,
 com retenção dos 20 mais recentes e advisory lock por usuário.
 
+No boot, o schema idempotente é aplicado antes de o processo se declarar
+conectado. Se qualquer statement falhar, os demais ainda são tentados, mas o
+boot termina com erro e não libera uma aplicação com schema parcial. Uma nova
+tentativa reaplica somente o que ainda faltar.
+
+Tokens de redefinição de senha são validados, consumidos e aplicados na mesma
+transação. Códigos de recuperação do 2FA usam lock da linha do usuário para
+continuarem de uso único entre instâncias.
+
 ## Migração expand/migrate/contract
 
 1. Faça backup do volume JSON e valide que ele pode ser lido/restaurado. Não

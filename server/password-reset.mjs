@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "./users.mjs";
+import { createPasswordHash, setPassword } from "./users-pg.mjs";
 import { getClient, isConnected, query } from "./db.mjs";
 
 function tokenHash(raw) {
@@ -102,6 +103,67 @@ export async function validateResetToken(storageDir, raw) {
     if (match) return entry.userId;
   }
   return null;
+}
+
+// Valida, troca a senha e consome o token na mesma transacao. O SELECT FOR
+// UPDATE impede que duas instancias aceitem o mesmo link simultaneamente.
+// No fallback JSON o processo ja e explicitamente single-instance, entao
+// preservamos o fluxo legado existente.
+export async function resetPasswordWithToken(storageDir, raw, newPassword) {
+  if (!raw) return null;
+
+  if (isConnected()) {
+    const client = await getClient();
+    try {
+      await client.query("BEGIN");
+      const token = tokenHash(raw);
+      const result = await client.query(
+        `SELECT user_id FROM password_reset_tokens
+         WHERE token = $1 AND consumed_at IS NULL AND expires_at > NOW()
+         FOR UPDATE`,
+        [token],
+      );
+      if (result.rows.length === 0) {
+        await client.query("COMMIT");
+        return null;
+      }
+
+      const userId = result.rows[0].user_id;
+      const passwordHash = await createPasswordHash(newPassword);
+      const updatedUser = await client.query(
+        "UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id",
+        [passwordHash, userId],
+      );
+      if (updatedUser.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      const consumed = await client.query(
+        `UPDATE password_reset_tokens SET consumed_at = NOW()
+         WHERE token = $1 AND consumed_at IS NULL RETURNING token`,
+        [token],
+      );
+      if (consumed.rowCount !== 1) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      await client.query("COMMIT");
+      return userId;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  const userId = await validateResetToken(storageDir, raw);
+  if (!userId) return null;
+  await setPassword(storageDir, userId, newPassword);
+  await consumeResetToken(storageDir, raw);
+  return userId;
 }
 
 export async function consumeResetToken(storageDir, raw) {
